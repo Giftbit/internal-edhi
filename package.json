@@ -1,0 +1,50 @@
+{
+  "name": "internal-edhi",
+  "version": "1.0.0",
+  "description": "Edhi takes care of users.",
+  "scripts": {
+    "build": "webpack",
+    "clean": "rimraf ./dist",
+    "lint": "tslint --project tsconfig.json",
+    "test": "mocha --recursive --throw-deprecation --require ts-node/register \"src/**/*.test.ts\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Giftbit/sam-scaffold.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Giftbit/internal-edhi/issues"
+  },
+  "homepage": "https://github.com/Giftbit/internal-edhi#readme",
+  "private": true,
+  "dependencies": {
+    "@babel/core": "^7.3.4",
+    "@babel/preset-env": "^7.3.4",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "8.10.x",
+    "aws-sdk": "^2.416.0",
+    "babel-loader": "^8.0.5",
+    "cassava": "^2.5.0",
+    "chai": "^4.2.0",
+    "dynameh": "^3.0.0",
+    "file-loader": "^3.0.1",
+    "giftbit-cassava-routes": "git+ssh://git@github.com/Giftbit/giftbit-cassava-routes.git#semver:^10.1.1",
+    "giftbit-lambda-metricslib": "git+ssh://git@github.com/Giftbit/giftbit-lambda-metricslib.git#semver:^3.0.0",
+    "json-loader": "^0.5.7",
+    "loglevel": "^1.6.1",
+    "loglevel-plugin-prefix": "^0.8.4",
+    "mocha": "^6.0.2",
+    "rimraf": "^2.6.3",
+    "ts-loader": "^5.3.3",
+    "ts-node": "^8.0.2",
+    "tslint": "^5.13.1",
+    "typescript": "^3.3.3333",
+    "webpack": "^4.29.6",
+    "webpack-cli": "^3.2.3",
+    "zip-webpack-plugin": "^3.0.0"
+  }
+}
