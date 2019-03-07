@@ -2,6 +2,8 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as logPrefix from "loglevel-plugin-prefix";
 import log = require("loglevel");
+import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
+import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)
 // Otherwise all log calls are prefixed with the requestId from the first
@@ -31,6 +33,19 @@ router.route(new cassava.routes.LoggingRoute({
 router.route(new giftbitRoutes.MetricsRoute({
     logFunction: log.info
 }));
+
+installUnauthedRestRoutes(router);
+
+router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
+    authConfigPromise: giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<any>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_JWT"),
+    rolesConfigPromise: giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<any>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_ROLE_DEFINITIONS"),
+    sharedSecretProvider: new giftbitRoutes.jwtauth.sharedSecret.RestSharedSecretProvider(`https://${process.env["LIGHTRAIL_DOMAIN"]}/v1/storage/jwtSecret`, giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.AssumeScopeToken>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_ASSUME_STORAGE_SCOPE_TOKEN"),
+    ),
+    infoLogFunction: log.info,
+    errorLogFunction: log.error
+}));
+
+installAuthedRestRoutes(router);
 
 // Export the lambda handler with Sentry error logging supported.
 export const handler = giftbitRoutes.sentry.wrapLambdaHandler({

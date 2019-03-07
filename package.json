@@ -24,6 +24,7 @@
     "@babel/core": "^7.3.4",
     "@babel/preset-env": "^7.3.4",
     "@types/chai": "^4.1.7",
+    "@types/loglevel": "^1.5.4",
     "@types/mocha": "^5.2.6",
     "@types/node": "8.10.x",
     "aws-sdk": "^2.416.0",

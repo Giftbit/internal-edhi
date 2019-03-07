@@ -3,30 +3,55 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
 Description: Edhi takes care of users
+
+Parameters:
+  Capacity:
+    Type: String
+    Description: Level of production capacity to use (high or low)
+    AllowedPattern: (high|low)
+    Default: low
+
+Conditions:
+  UseProductionCapacity: !Equals [!Ref Capacity, high]
+
 Resources:
-  UserTable:
+  OrganizationTable:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
         - AttributeName: userId
           AttributeType: S
-        - AttributeName: teamMemberId
-          AttributeType: S
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
-        - AttributeName: key
-          KeyType: RANGE
       ProvisionedThroughput:
         ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
         WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
       Tags:
-        - Key: UserTable
-          Value: Table
+        - Key: ShortName
+          Value: OrganizationTable
         - Key: Service
           Value: Edhi
 
-  HelloWorldFunction:
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
+        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
+      Tags:
+        - Key: ShortName
+          Value: UserTable
+        - Key: Service
+          Value: Edhi
+
+  RestFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../dist/rest/rest.zip
@@ -34,4 +59,7 @@ Resources:
       Runtime: nodejs8.10
       MemorySize: 128
       Timeout: 30 # seconds, 300 max
-
+      Environment:
+        Variables:
+          ORGANIZATION_TABLE: !Ref OrganizationTable
+          USER_TABLE: !Ref UserTable
