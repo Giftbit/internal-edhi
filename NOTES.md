@@ -77,7 +77,12 @@ Figuring out the services password encoding
 password:
 $2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy
 
+configured algorithm:
 PBEWITHSHA256AND256BITAES-CBC-BC
+
+I'm not sure how this is assembled.  I'm going to try reading the source from http://svn.code.sf.net/p/jasypt/code/tags/jasypt/jasypt-1.9.2/ particularly org.jasypt.encryption.pbe.StandardPBEStringEncryptor .  I think the above is a weird base64 encoding and then the bytes are explained in http://www.jasypt.org/encrypting-passwords.html .
+
+Some related node code:
 
 var crypto = require('crypto');
 var hash = crypto.createHmac('sha256', 'blahBlahwno9L2utI6OfOxSEPiOkZopukCF8DINL');
@@ -86,5 +91,3 @@ hash.update('password');
 var iv = crypto.randomBytes(16);
 var cipher = crypto.createCipheriv('aes-256-cbc', 'blahBlahwno9L2utI6OfOxSEPiOkZopukCF8DINL', );
 cipher.update(hash.digest());
-
-sha256 hash ->  cipher
