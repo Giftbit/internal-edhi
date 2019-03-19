@@ -1,15 +1,17 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import * as uuid from "uuid/v4";
 import {User} from "../../../model/User";
 import {Organization} from "../../../model/Organization";
 import {buildTransactWriteItemsInput, dateCreatedNow, dynamodb, orgDynameh, userDynameh} from "../../../dynamodb";
 import log = require("loglevel");
+import {hashPassword} from "./passwordUtils";
 
 export function installRegistrationRest(router: cassava.Router): void {
 
     router.route("/v2/user/register")
         .method("POST")
-        .handler(evt => {
+        .handler(async evt => {
             evt.validateBody({
                 properties: {
                     username: {
@@ -22,8 +24,22 @@ export function installRegistrationRest(router: cassava.Router): void {
                 required: ["username", "password"],
                 additionalProperties: false
             });
-        });
 
+            await createUserAndOrganization({
+                username: evt.body.username,
+                plainTextPassword: evt.body.plainTextPassword,
+                userId: generateUserId()
+            });
+
+            return {
+                body: {},
+                statusCode: cassava.httpStatusCode.success.CREATED
+            };
+        });
+}
+
+function generateUserId(): string {
+    return "user-" + uuid().replace(/-/g, "");
 }
 
 async function getOrganization(userId: string): Promise<Organization> {
@@ -32,7 +48,7 @@ async function getOrganization(userId: string): Promise<Organization> {
     return orgDynameh.responseUnwrapper.unwrapGetOutput(getResp);
 }
 
-async function createAndSaveUser(options: {username: string, password: string, userId: string, teamMemberId: string}): Promise<void> {
+async function createUser(options: {username: string, plainTextPassword: string, userId: string, teamMemberId: string}): Promise<void> {
     const organization = await getOrganization(options.userId);
     if (!organization) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `User '${options.userId}' not found.`);
@@ -40,7 +56,7 @@ async function createAndSaveUser(options: {username: string, password: string, u
 
     const user: User = {
         username: options.username,
-        password: options.password,
+        password: await hashPassword(options.plainTextPassword),
         enabled: true,
         locked: true,
         organizations: {
@@ -73,7 +89,7 @@ async function createAndSaveUser(options: {username: string, password: string, u
     }
 }
 
-async function createAndSaveUserAndOrganization(options: {username: string, password: string, userId: string}): Promise<void> {
+async function createUserAndOrganization(options: {username: string, plainTextPassword: string, userId: string}): Promise<void> {
     const org: Organization = {
         userId: options.userId,
         dateCreated: dateCreatedNow()
@@ -89,7 +105,7 @@ async function createAndSaveUserAndOrganization(options: {username: string, pass
 
     const user: User = {
         username: options.username,
-        password: options.password,
+        password: await hashPassword(options.plainTextPassword),
         enabled: true,
         locked: true,
         organizations: {

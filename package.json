@@ -23,12 +23,15 @@
   "dependencies": {
     "@babel/core": "^7.3.4",
     "@babel/preset-env": "^7.3.4",
+    "@types/bcrypt": "^3.0.0",
     "@types/chai": "^4.1.7",
     "@types/loglevel": "^1.5.4",
     "@types/mocha": "^5.2.6",
     "@types/node": "8.10.x",
+    "@types/uuid": "^3.4.4",
     "aws-sdk": "^2.416.0",
     "babel-loader": "^8.0.5",
+    "bcrypt": "^3.0.5",
     "cassava": "^2.5.0",
     "chai": "^4.2.0",
     "dynameh": "^3.0.0",
@@ -44,6 +47,7 @@
     "ts-node": "^8.0.2",
     "tslint": "^5.13.1",
     "typescript": "^3.3.3333",
+    "uuid": "^3.3.2",
     "webpack": "^4.29.6",
     "webpack-cli": "^3.2.3",
     "zip-webpack-plugin": "^3.0.0"
