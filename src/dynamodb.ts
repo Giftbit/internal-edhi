@@ -5,8 +5,9 @@ import {Condition, UpdateExpressionAction} from "dynameh";
 
 export const dynamodb = new aws.DynamoDB({
     apiVersion: "2012-08-10",
-    credentials: process.env["AWS_REGION"] ? new aws.EnvironmentCredentials("AWS") : new aws.SharedIniFileCredentials({profile: "default"}),
-    region: process.env["AWS_REGION"] || "us-west-2"
+    credentials: new aws.EnvironmentCredentials("AWS"),
+    endpoint: process.env["TEST_ENV"] == "true" ? "http://localhost:8000" : undefined,
+    region: process.env["AWS_REGION"]
 });
 
 export function dateCreatedNow(): string {
@@ -22,6 +23,7 @@ function scopeDynameh(tableSchema: dynameh.TableSchema) {
             buildPutInput: (item: object) => dynameh.requestBuilder.buildPutInput(tableSchema, item),
             buildUpdateInputFromActions: (itemToUpdate: object, ...updateActions: UpdateExpressionAction[]) => dynameh.requestBuilder.buildUpdateInputFromActions(tableSchema, itemToUpdate, ...updateActions),
             buildDeleteInput: (itemToDelete: object) => dynameh.requestBuilder.buildDeleteInput(tableSchema, itemToDelete),
+            buildDeleteTableInput: () => dynameh.requestBuilder.buildDeleteTableInput(tableSchema),
             buildQueryInput: (partitionKeyValue: DynamoKey, sortKeyOp?: DynamoQueryConditionOperator, ...sortKeyValues: DynamoKey[]) => dynameh.requestBuilder.buildQueryInput(tableSchema, partitionKeyValue, sortKeyOp, ...sortKeyValues),
             buildScanInput: (...filters: Condition[]) => dynameh.requestBuilder.buildScanInput(tableSchema, ...filters),
             buildBatchPutInput: (items: object[]) => dynameh.requestBuilder.buildBatchPutInput(tableSchema, items),
@@ -72,7 +74,7 @@ const emailVerificationSchema: dynameh.TableSchema = {
 
 const userSchema: dynameh.TableSchema = {
     tableName: process.env["USER_TABLE"],
-    partitionKeyField: "username",
+    partitionKeyField: "email",
     partitionKeyType: "string"
     // TODO consider setting a versionKeyField
 };

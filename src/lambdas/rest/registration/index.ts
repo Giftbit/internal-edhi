@@ -27,7 +27,8 @@ export function installRegistrationRest(router: cassava.Router): void {
                         type: "string"
                     },
                     password: {
-                        type: "string"
+                        type: "string",
+                        minLength: 8
                     }
                 },
                 required: ["username", "password"],
@@ -36,7 +37,7 @@ export function installRegistrationRest(router: cassava.Router): void {
 
             await createUserAndOrganization({
                 username: evt.body.username,
-                plainTextPassword: evt.body.plainTextPassword,
+                plainTextPassword: evt.body.password,
                 userId: generateUserId()
             });
 
@@ -46,7 +47,7 @@ export function installRegistrationRest(router: cassava.Router): void {
             };
         });
 
-    router.route("v2/user/register/verifyEmail")
+    router.route("/v2/user/register/verifyEmail")
         .method("GET")
         .handler(async evt => {
             if (!evt.queryStringParameters.token) {

@@ -3,8 +3,8 @@ import log = require("loglevel");
 
 const ses = new aws.SES({
     apiVersion: "2010-12-01",
-    credentials: process.env["AWS_REGION"] ? new aws.EnvironmentCredentials("AWS") : new aws.SharedIniFileCredentials({profile: "default"}),
-    region: process.env["AWS_REGION"] || "us-west-2"
+    credentials: new aws.EnvironmentCredentials("AWS"),
+    region: process.env["AWS_REGION"]
 });
 
 const VALID_EMAIL_ADDRESS_REGEX = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
