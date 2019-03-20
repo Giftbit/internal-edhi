@@ -1,3 +1,5 @@
+import * as giftbitRoutes from "giftbit-cassava-routes";
+
 export interface User {
 
     email: string;
@@ -5,6 +7,7 @@ export interface User {
     emailVerified: boolean;
     frozen: boolean;
     twoFactorAuthenticationDevice?: string;
+    defaultLoginOrganizationId: string;
     organizations: {[userId: string]: UserOrganization};
     dateCreated: string;
 
@@ -38,7 +41,7 @@ export interface UserOrganization {
 
     userId: string;
     teamMemberId: string;
-    // TODO permissions / roles
+    jwtPayload: giftbitRoutes.jwtauth.JwtPayload;
     dateCreated: string;
 
 }

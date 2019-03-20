@@ -7,6 +7,7 @@
     "clean": "rimraf ./dist",
     "lint": "tslint --project tsconfig.json",
     "test": "npm run test:startdb; TEST_ENV=true AWS_REGION=us-west-2 AWS_ACCESS_KEY_ID=AKID AWS_SECRET_ACCESS_KEY=SECRET EMAIL_VERIFICATION_TABLE=EmailVerification LIGHTRAIL_DOMAIN=api.lightrail.local LIGHTRAIL_EMAIL_DOMAIN=lightrail.local LIGHTRAIL_WEBAPP_DOMAIN=lightrail.local ORGANIZATION_TABLE=Organization USER_TABLE=User mocha --recursive --throw-deprecation --require ts-node/register --require ./src/utils/testUtils/setLogLevelSilent.ts --exit \"src/**/*.test.ts\"; npm run test:stopdb",
+    "test:debug": "npm run test:startdb; TEST_ENV=true AWS_REGION=us-west-2 AWS_ACCESS_KEY_ID=AKID AWS_SECRET_ACCESS_KEY=SECRET EMAIL_VERIFICATION_TABLE=EmailVerification LIGHTRAIL_DOMAIN=api.lightrail.local LIGHTRAIL_EMAIL_DOMAIN=lightrail.local LIGHTRAIL_WEBAPP_DOMAIN=lightrail.local ORGANIZATION_TABLE=Organization USER_TABLE=User mocha --recursive --throw-deprecation --require ts-node/register --require ./src/utils/testUtils/setLogLevelDebug.ts --exit \"src/**/*.test.ts\"; npm run test:stopdb",
     "test:startdb": "docker start edhi-test || (docker run --name edhi-test -p 8000:8000 amazon/dynamodb-local)",
     "test:stopdb": "docker stop edhi-test"
   },

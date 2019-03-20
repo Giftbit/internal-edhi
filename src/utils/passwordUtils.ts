@@ -1,6 +1,6 @@
 import * as bcrypt from "bcrypt";
-import {UserPassword} from "../../../model/User";
-import {dateCreatedNow} from "../../../dynamodb";
+import {UserPassword} from "../model/User";
+import {dateCreatedNow} from "../dynamodb";
 
 export async function hashPassword(plainTextPassword: string): Promise<UserPassword> {
     if (typeof plainTextPassword !== "string") {

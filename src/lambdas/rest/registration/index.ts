@@ -11,19 +11,18 @@ import {
     orgDynameh,
     userDynameh
 } from "../../../dynamodb";
-import log = require("loglevel");
-import {hashPassword} from "./passwordUtils";
+import {hashPassword} from "../../../utils/passwordUtils";
 import {sendRegistrationEmail} from "./sendRegistrationEmail";
 import {EmailVerification} from "../../../model/EmailVerification";
+import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
-
     router.route("/v2/user/register")
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
                 properties: {
-                    username: {
+                    email: {
                         type: "string"
                     },
                     password: {
@@ -31,12 +30,12 @@ export function installRegistrationRest(router: cassava.Router): void {
                         minLength: 8
                     }
                 },
-                required: ["username", "password"],
+                required: ["email", "password"],
                 additionalProperties: false
             });
 
             await createUserAndOrganization({
-                username: evt.body.username,
+                email: evt.body.email,
                 plainTextPassword: evt.body.password,
                 userId: generateUserId()
             });
@@ -78,9 +77,9 @@ async function getOrganization(userId: string): Promise<Organization> {
 
 // TODO team member registration
 
-async function createUserAndOrganization(options: {username: string, plainTextPassword: string, userId: string}): Promise<void> {
+async function createUserAndOrganization(params: { email: string, plainTextPassword: string, userId: string }): Promise<void> {
     const org: Organization = {
-        userId: options.userId,
+        userId: params.userId,
         dateCreated: dateCreatedNow()
     };
     const putOrgReq = orgDynameh.requestBuilder.addCondition(
@@ -91,15 +90,34 @@ async function createUserAndOrganization(options: {username: string, plainTextPa
         }
     );
 
+    const badge = new giftbitRoutes.jwtauth.AuthorizationBadge();
+    badge.userId = params.userId;
+    badge.teamMemberId = params.userId;
+    badge.roles = [
+        "accountManager",
+        "contactManager",
+        "customerServiceRepresentative",
+        "customerServiceManager",
+        "pointOfSale",
+        "programManager",
+        "promoter",
+        "reporter",
+        "securityManager",
+        "teamAdmin",
+        "webPortal"
+    ];
+
     const user: User = {
-        email: options.username,
-        password: await hashPassword(options.plainTextPassword),
+        email: params.email,
+        password: await hashPassword(params.plainTextPassword),
         emailVerified: false,
         frozen: false,
+        defaultLoginOrganizationId: params.userId,
         organizations: {
-            [options.userId]: {
-                userId: options.userId,
-                teamMemberId: options.userId,
+            [params.userId]: {
+                userId: params.userId,
+                teamMemberId: params.userId,
+                jwtPayload: badge.getJwtPayload(),
                 dateCreated: dateCreatedNow()
             }
         },

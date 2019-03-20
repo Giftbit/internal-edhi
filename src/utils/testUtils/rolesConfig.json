@@ -1,0 +1,177 @@
+{
+  "roles": [
+    {
+      "name": "webPortal",
+      "description": "Basic access to the web portal.",
+      "scopes": [
+        "lightrailV1:portal",
+        "lightrailV1:token:list",
+        "lightrailV1:token:create",
+        "lightrailV1:team:show"
+      ]
+    },
+    {
+      "name": "pointOfSale",
+      "description": "Check balances and drawdown from with a point of sale or e-commerce integration",
+      "scopes": [
+        "lightrailV1:code:balance",
+        "lightrailV1:transaction:create:drawdown",
+        "lightrailV1:transaction:create:capture",
+        "lightrailV1:transaction:create:void",
+        "lightrailV2:contacts:read",
+        "lightrailV2:transactions:credit",
+        "lightrailV2:transactions:debit",
+        "lightrailV2:transactions:checkout",
+        "lightrailV2:values:read"
+      ]
+    },
+    {
+      "name": "teamAdmin",
+      "description": "Add, remove, modify team members",
+      "scopes": [
+        "lightrailV1:team"
+      ]
+    },
+    {
+      "name": "accountManager",
+      "description": "Setup payment. Modify account settings.",
+      "scopes": [
+        "lightrailV1:account",
+        "lightrailV1:payments",
+        "lightrailV1:sharedSecret",
+        "lightrailV1:stripeConnect",
+        "lightrailV1:token",
+        "lightrailV1:userImage:create",
+        "lightrailV2:currencies"
+      ]
+    },
+    {
+      "name": "programManager",
+      "description": "Create and manage programs",
+      "scopes": [
+        "lightrailV1:program",
+        "lightrailV1:programKey",
+        "lightrailV1:reactions",
+        "lightrailV2:currencies",
+        "lightrailV2:programs",
+        "lightrailV2:issuances"
+      ]
+    },
+    {
+      "name": "contactManager",
+      "description": "Updates contacts, inserts contacts attaches giftcards and contacts.",
+      "scopes": [
+        "lightrailV1:contact",
+        "lightrailV2:contacts"
+      ]
+    },
+    {
+      "name": "customerServiceRepresentative",
+      "description": "Can adjust balances on existing cards. Can add programs to existing cards.",
+      "scopes": [
+        "lightrailV1:valueStore",
+        "lightrailV1:transaction",
+        "lightrailV1:card:deliver",
+        "lightrailV2:programs:read",
+        "lightrailV2:programs:list",
+        "lightrailV2:transactions",
+        "lightrailV2:values",
+        "lightrailV2:issuances"
+      ]
+    },
+    {
+      "name": "customerServiceManager",
+      "description": "Can issue new cards. Can modify account balances.",
+      "scopes": [
+        "lightrailV1:card",
+        "lightrailV1:valueStore",
+        "lightrailV1:transaction",
+        "lightrailV2:programs:read",
+        "lightrailV2:programs:list",
+        "lightrailV2:transactions",
+        "lightrailV2:values"
+      ]
+    },
+    {
+      "name": "promoter",
+      "description": "Can perform bulk actions, adding promotions to existing cards.",
+      "scopes": [
+        "lightrailV1:valueStore"
+      ]
+    },
+    {
+      "name": "reporter",
+      "description": "Access to run all reports and access all stats.",
+      "scopes": [
+        "lightrailV1:reactions:read",
+        "lightrailV1:stats",
+        "lightrailV2:contacts:read",
+        "lightrailV2:contacts:list",
+        "lightrailV2:currencies:list",
+        "lightrailV2:transactions:read",
+        "lightrailV2:transactions:list",
+        "lightrailV2:values:read",
+        "lightrailV2:values:list",
+        "lightrailV2:programs:read",
+        "lightrailV2:programs:list",
+        "lightrailV2:issuances:read",
+        "lightrailV2:issuances:list"
+      ]
+    },
+    {
+      "name": "securityManager",
+      "description": "Cancel, Freeze, Activate, Unfreeze existing cards.",
+      "scopes": [
+        "lightrailV1:transaction:create:cancel",
+        "lightrailV1:transaction:create:freeze",
+        "lightrailV1:transaction:create:unfreeze",
+        "lightrailV1:transaction:create:activate",
+        "lightrailV2:values:read",
+        "lightrailV2:values:list",
+        "lightrailV2:values:update"
+      ]
+    },
+    {
+      "name": "programKeyIntegrator",
+      "description": "Integrators with the ability to create cards for a given program",
+      "scopes": [
+        "lightrailV1:transaction",
+        "lightrailV1:card:create",
+        "lightrailV1:card:list",
+        "lightrailV1:card:listCategories",
+        "lightrailV1:card:balance",
+        "lightrailV1:program:list",
+        "lightrailV1:program:show",
+        "lightrailV1:programKey:list",
+        "lightrailV1:programKey:show"
+      ]
+    },
+    {
+      "name": "shopper",
+      "description": "Shopper with a shared key provided by the merchant.",
+      "scopes": [
+        "lightrailV1:account:create:shopper",
+        "lightrailV1:badgeInfo",
+        "lightrailV1:card:details",
+        "lightrailV1:card:list",
+        "lightrailV1:card:listCategories",
+        "lightrailV1:code:redemption",
+        "lightrailV1:contact:show",
+        "lightrailV1:contact:list",
+        "lightrailV1:contact:create:shopper",
+        "lightrailV1:program:show",
+        "lightrailV1:purchaseGiftcard",
+        "lightrailV1:stripe:customer:show",
+        "lightrailV1:transaction:create:dryRun",
+        "lightrailV2:contacts:create:self",
+        "lightrailV2:contacts:read:self",
+        "lightrailV2:programs:read",
+        "lightrailV2:turnkey:deliver",
+        "lightrailV2:turnkey:purchase",
+        "lightrailV2:values:attach:self",
+        "lightrailV2:values:list:byCode",
+        "lightrailV2:values:list:self"
+      ]
+    }
+  ]
+}
