@@ -3,9 +3,18 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {User} from "../../../model/User";
 import {Organization} from "../../../model/Organization";
-import {buildTransactWriteItemsInput, dateCreatedNow, dynamodb, orgDynameh, userDynameh} from "../../../dynamodb";
+import {
+    buildTransactWriteItemsInput,
+    dateCreatedNow,
+    dynamodb,
+    emailVerificationDynameh,
+    orgDynameh,
+    userDynameh
+} from "../../../dynamodb";
 import log = require("loglevel");
 import {hashPassword} from "./passwordUtils";
+import {sendRegistrationEmail} from "./sendRegistrationEmail";
+import {EmailVerification} from "../../../model/EmailVerification";
 
 export function installRegistrationRest(router: cassava.Router): void {
 
@@ -36,6 +45,24 @@ export function installRegistrationRest(router: cassava.Router): void {
                 statusCode: cassava.httpStatusCode.success.CREATED
             };
         });
+
+    router.route("v2/user/register/verifyEmail")
+        .method("GET")
+        .handler(async evt => {
+            if (!evt.queryStringParameters.token) {
+                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
+            }
+
+            await verifyEmail(evt.queryStringParameters.token);
+
+            return {
+                body: null,
+                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                headers: {
+                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+                }
+            };
+        });
 }
 
 function generateUserId(): string {
@@ -48,53 +75,13 @@ async function getOrganization(userId: string): Promise<Organization> {
     return orgDynameh.responseUnwrapper.unwrapGetOutput(getResp);
 }
 
-async function createUser(options: {username: string, plainTextPassword: string, userId: string, teamMemberId: string}): Promise<void> {
-    const organization = await getOrganization(options.userId);
-    if (!organization) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `User '${options.userId}' not found.`);
-    }
-
-    const user: User = {
-        username: options.username,
-        password: await hashPassword(options.plainTextPassword),
-        enabled: true,
-        locked: true,
-        organizations: {
-            [options.userId]: {
-                userId: options.userId,
-                teamMemberId: options.teamMemberId,
-                dateCreated: dateCreatedNow()
-            }
-        },
-        dateCreated: new Date().toISOString()
-    };
-
-    const putReq = userDynameh.requestBuilder.addCondition(
-        userDynameh.requestBuilder.buildPutInput(user),
-        {
-            attribute: "username",
-            operator: "attribute_not_exists"
-        }
-    );
-
-    try {
-        await dynamodb.putItem(putReq).promise();
-    } catch (error) {
-        log.error("Error user and organization", error);
-        if (error.code === "ConditionalCheckFailedException") {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "User already exists.");
-        } else {
-            throw error;
-        }
-    }
-}
+// TODO team member registration
 
 async function createUserAndOrganization(options: {username: string, plainTextPassword: string, userId: string}): Promise<void> {
     const org: Organization = {
         userId: options.userId,
         dateCreated: dateCreatedNow()
     };
-
     const putOrgReq = orgDynameh.requestBuilder.addCondition(
         orgDynameh.requestBuilder.buildPutInput(org),
         {
@@ -104,10 +91,10 @@ async function createUserAndOrganization(options: {username: string, plainTextPa
     );
 
     const user: User = {
-        username: options.username,
+        email: options.username,
         password: await hashPassword(options.plainTextPassword),
-        enabled: true,
-        locked: true,
+        emailVerified: false,
+        frozen: false,
         organizations: {
             [options.userId]: {
                 userId: options.userId,
@@ -117,16 +104,24 @@ async function createUserAndOrganization(options: {username: string, plainTextPa
         },
         dateCreated: dateCreatedNow()
     };
-
     const putUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildPutInput(user),
         {
-            attribute: "username",
+            attribute: "email",
             operator: "attribute_not_exists"
         }
     );
 
-    const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq);
+    const emailValidationTimeoutDate = new Date();
+    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 7);
+    const emailValidation: EmailVerification = {
+        token: uuid().replace(/-/g, ""),
+        userEmail: user.email,
+        ttl: emailValidationTimeoutDate
+    };
+    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailValidation);
+
+    const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq, putEmailValidationReq);
 
     try {
         await dynamodb.transactWriteItems(writeReq).promise();
@@ -138,4 +133,34 @@ async function createUserAndOrganization(options: {username: string, plainTextPa
             throw error;
         }
     }
+
+    await sendRegistrationEmail(emailValidation);
+}
+
+async function verifyEmail(token: string): Promise<void> {
+    const emailVerificationGetReq = emailVerificationDynameh.requestBuilder.buildGetInput(token);
+    const emailVerificationResp = await dynamodb.getItem(emailVerificationGetReq).promise();
+    const emailVerification: EmailVerification = emailVerificationDynameh.responseUnwrapper.unwrapGetOutput(emailVerificationResp);
+    if (!emailVerification) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification timed out.");
+    }
+
+    const updateUserReq = userDynameh.requestBuilder.addCondition(
+        userDynameh.requestBuilder.buildUpdateInputFromActions(
+            {
+                email: emailVerification.userEmail
+            },
+            {
+                action: "put",
+                attribute: "emailVerified",
+                value: true
+            }
+        ),
+        {
+            attribute: "email",
+            operator: "attribute_exists"
+        }
+    );
+
+    await dynamodb.updateItem(updateUserReq);
 }

@@ -4,7 +4,7 @@ import {hashPassword, validatePassword} from "./passwordUtils";
 describe("passwordUtils", () => {
     it("validates an existing v1 password", async () => {
         const res = await validatePassword("password", {
-            algorithm: "BCRYPT_10",
+            algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
             dateCreated: "2019-03-19T23:43:25.886Z"
         });
@@ -13,7 +13,7 @@ describe("passwordUtils", () => {
 
     it("does not validate a wrong v1 password", async () => {
         const res = await validatePassword("pigglywiggly", {
-            algorithm: "BCRYPT_10",
+            algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
             dateCreated: "2019-03-19T23:43:25.886Z"
         });

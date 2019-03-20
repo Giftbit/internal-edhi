@@ -6,7 +6,7 @@ export async function hashPassword(plainTextPassword: string): Promise<UserPassw
     // Always use the preferred password hashing method.
     const hash = await bcrypt.hash(plainTextPassword, 10);
     return {
-        algorithm: "BCRYPT_10",
+        algorithm: "BCRYPT",
         hash,
         dateCreated: dateCreatedNow()
     };
@@ -14,7 +14,7 @@ export async function hashPassword(plainTextPassword: string): Promise<UserPassw
 
 export function validatePassword(plainTextPassword: string, userPassword: UserPassword): Promise<boolean> {
     switch (userPassword.algorithm) {
-        case "BCRYPT_10":
+        case "BCRYPT":
             return validateBcrypt10Password(plainTextPassword, userPassword);
     }
 }

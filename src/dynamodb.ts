@@ -63,6 +63,13 @@ export function buildTransactWriteItemsInput(...input: (aws.DynamoDB.PutItemInpu
     };
 }
 
+const emailVerificationSchema: dynameh.TableSchema = {
+    tableName: process.env["EMAIL_VERIFICATION_TABLE"],
+    partitionKeyField: "token",
+    partitionKeyType: "string",
+    ttlField: "ttl"
+};
+
 const userSchema: dynameh.TableSchema = {
     tableName: process.env["USER_TABLE"],
     partitionKeyField: "username",
@@ -77,5 +84,6 @@ const organizationSchema: dynameh.TableSchema = {
     // TODO consider setting a versionKeyField
 };
 
+export const emailVerificationDynameh = scopeDynameh(emailVerificationSchema);
 export const userDynameh = scopeDynameh(userSchema);
 export const orgDynameh = scopeDynameh(organizationSchema);

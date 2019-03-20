@@ -1,9 +1,9 @@
 export interface User {
 
-    username: string;
+    email: string;
     password?: UserPassword;
-    enabled: boolean;
-    locked: boolean;
+    emailVerified: boolean;
+    frozen: boolean;
     twoFactorAuthenticationDevice?: string;
     organizations: {[userId: string]: UserOrganization};
     dateCreated: string;
@@ -11,9 +11,10 @@ export interface User {
 }
 
 /**
- *
+ * If we migrate to another password hashing algorithm it should be given
+ * an identifier here.
  */
-export type UserPasswordAlgorithm = "BCRYPT_10";
+export type UserPasswordAlgorithm = "BCRYPT";
 
 export interface UserPassword {
     /**
@@ -21,7 +22,15 @@ export interface UserPassword {
      * and rotate out without forcing an immediate reset of all passwords.
      */
     algorithm: UserPasswordAlgorithm;
+
+    /**
+     * Encodes the salt as well as the hashed password.
+     */
     hash: string;
+
+    /**
+     * The date the password was set.
+     */
     dateCreated: string;
 }
 
@@ -29,6 +38,7 @@ export interface UserOrganization {
 
     userId: string;
     teamMemberId: string;
+    // TODO permissions / roles
     dateCreated: string;
 
 }
