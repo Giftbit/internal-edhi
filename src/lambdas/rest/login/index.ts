@@ -47,6 +47,38 @@ export function installLoginRest(router: cassava.Router): void {
                 cookies: await getUserBadgeCookies(userBadge)
             };
         });
+
+    router.route("/v2/user/logout")
+        .method("POST")
+        .handler(async () => {
+            return {
+                body: null,
+                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                headers: {
+                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+                },
+                cookies: {
+                    "gb_jwt_session": {
+                        value: "",
+                        options: {
+                            httpOnly: false,
+                            expires: new Date(0),   // Clears the cookie per RFC 6255.
+                            path: "/",
+                            secure: true,
+                        }
+                    },
+                    "gb_jwt_signature": {
+                        value: "",
+                        options: {
+                            httpOnly: true,
+                            expires: new Date(0),
+                            path: "/",
+                            secure: true,
+                        }
+                    }
+                }
+            };
+        });
 }
 
 async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<User> {
@@ -129,7 +161,7 @@ async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBad
             options: {
                 httpOnly: false,
                 path: "/",
-                secure: true,
+                secure: true
             }
         },
         "gb_jwt_signature": {
@@ -138,7 +170,7 @@ async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBad
                 httpOnly: true,
                 maxAge: 30 * 60,
                 path: "/",
-                secure: true,
+                secure: true
             }
         }
     };

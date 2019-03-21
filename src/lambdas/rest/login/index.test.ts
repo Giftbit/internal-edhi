@@ -161,4 +161,13 @@ describe("/v2/user/login", () => {
         chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
     });
+
+    it("can logout", async () => {
+        const resp = await router.testWebAppRequest("/v2/user/logout", "POST");
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND, resp.bodyRaw);
+        chai.assert.isString(resp.headers["Location"]);
+        chai.assert.isString(resp.headers["Set-Cookie"]);
+        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+    });
 });
