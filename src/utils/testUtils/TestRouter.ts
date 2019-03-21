@@ -6,6 +6,7 @@ export interface ParsedProxyResponse<T> {
     headers: {
         [key: string]: string;
     };
+    bodyRaw: string;
     body: T;
 }
 
@@ -19,6 +20,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
     }
@@ -34,6 +36,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
     }
@@ -50,6 +53,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
     }

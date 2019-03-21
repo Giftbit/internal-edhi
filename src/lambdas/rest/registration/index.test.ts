@@ -61,6 +61,7 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
+        chai.assert.isString(loginResp.headers["Location"]);
 
         const sessionCookie = /gb_jwt_session=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];
         const signatureCookie = /gb_jwt_signature=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];

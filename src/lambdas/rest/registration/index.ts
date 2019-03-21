@@ -133,13 +133,13 @@ async function createUserAndOrganization(params: { email: string, plainTextPassw
     );
 
     const emailValidationTimeoutDate = new Date();
-    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 7);
-    const emailValidation: EmailVerification = {
+    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 1);
+    const emailVerification: EmailVerification = {
         token: uuid().replace(/-/g, ""),
         userEmail: user.email,
         ttl: emailValidationTimeoutDate
     };
-    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailValidation);
+    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailVerification);
 
     const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq, putEmailValidationReq);
 
@@ -154,7 +154,20 @@ async function createUserAndOrganization(params: { email: string, plainTextPassw
         }
     }
 
-    await sendRegistrationEmail(emailValidation);
+    await sendRegistrationEmail(emailVerification);
+}
+
+export async function sendNewEmailVerification(user: User): Promise<void> {
+    const emailValidationTimeoutDate = new Date();
+    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 1);
+    const emailVerification: EmailVerification = {
+        token: uuid().replace(/-/g, ""),
+        userEmail: user.email,
+        ttl: emailValidationTimeoutDate
+    };
+    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailVerification);
+    await dynamodb.putItem(putEmailValidationReq).promise();
+    await sendRegistrationEmail(emailVerification);
 }
 
 async function verifyEmail(token: string): Promise<void> {
@@ -162,6 +175,7 @@ async function verifyEmail(token: string): Promise<void> {
     const emailVerificationResp = await dynamodb.getItem(emailVerificationGetReq).promise();
     const emailVerification: EmailVerification = emailVerificationDynameh.responseUnwrapper.unwrapGetOutput(emailVerificationResp);
     if (!emailVerification) {
+        log.warn("Could not find EmailVerification for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification timed out.");
     }
 
@@ -182,5 +196,6 @@ async function verifyEmail(token: string): Promise<void> {
         }
     );
 
-    await dynamodb.updateItem(updateUserReq);
+    await dynamodb.updateItem(updateUserReq).promise();
+    log.info("User", emailVerification.userEmail, "has verified their email address");
 }

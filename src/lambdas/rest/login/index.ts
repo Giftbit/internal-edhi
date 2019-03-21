@@ -4,10 +4,12 @@ import {User, UserOrganization} from "../../../model/User";
 import {dateCreatedNow, dynamodb, userDynameh} from "../../../dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
-import log = require("loglevel");
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
+import {sendNewEmailVerification} from "../registration";
+import log = require("loglevel");
 
 let authConfig: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>;
+
 export function initializeBadgeSigningSecrets(authConfigPromise: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>): void {
     authConfig = authConfigPromise;
 }
@@ -29,7 +31,11 @@ export function installLoginRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const user = await loginUser({email: evt.body.email, plaintextPassword: evt.body.password, sourceIp: evt.requestContext.identity.sourceIp});
+            const user = await loginUser({
+                email: evt.body.email,
+                plaintextPassword: evt.body.password,
+                sourceIp: evt.requestContext.identity.sourceIp
+            });
             const userBadge = getUserBadge(user, true);
 
             return {
@@ -43,7 +49,7 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: {email: string, plaintextPassword: string, sourceIp: string}): Promise<User> {
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<User> {
     const getUserReq = userDynameh.requestBuilder.buildGetInput(params.email);
     const getUserResp = await dynamodb.getItem(getUserReq).promise();
     const user: User = userDynameh.responseUnwrapper.unwrapGetOutput(getUserResp);
@@ -51,6 +57,11 @@ async function loginUser(params: {email: string, plaintextPassword: string, sour
     if (!user) {
         log.warn("Could not log in user", params.email, "user not found");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (!user.emailVerified) {
+        log.warn("Could not log in user", params.email, "email is not verified");
+        await sendNewEmailVerification(user);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
     if (user.frozen) {
         log.warn("Could not log in user", params.email, "user is frozen");
@@ -61,7 +72,6 @@ async function loginUser(params: {email: string, plaintextPassword: string, sour
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
     if (!await validatePassword(params.plaintextPassword, user.password)) {
-        // TODO add to failed password attempts
         log.warn("Could not log in user", params.email, "password did not validate");
         await addFailedLoginAttempt(user, params.sourceIp);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -102,7 +112,7 @@ function getUserBadge(user: User, shortLived: boolean): giftbitRoutes.jwtauth.Au
     return badge;
 }
 
-async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{[key: string]: RouterResponseCookie}> {
+async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ [key: string]: RouterResponseCookie }> {
     if (!authConfig) {
         throw new Error("authConfig is not initialized");
     }

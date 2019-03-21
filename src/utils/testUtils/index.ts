@@ -1,9 +1,9 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {dynamodb, emailVerificationDynameh, orgDynameh, userDynameh} from "../../dynamodb";
+import {User} from "../../model/User";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
-import {User} from "../../model/User";
 
 if (!process.env["TEST_ENV"]) {
     log.error("Env var TEST_ENV is undefined.  This is not a test environment!");
@@ -96,7 +96,7 @@ export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuth
 });
 
 export async function resetDb(): Promise<void> {
-    log.debug("deleting existing tables");
+    log.trace("deleting existing tables");
     try {
         await dynamodb.deleteTable(emailVerificationDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(orgDynameh.requestBuilder.buildDeleteTableInput()).promise();
@@ -107,12 +107,12 @@ export async function resetDb(): Promise<void> {
         }
     }
 
-    log.debug("creating tables");
+    log.trace("creating tables");
     await dynamodb.createTable(emailVerificationDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(orgDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput()).promise();
 
-    log.debug("adding default data");
+    log.trace("adding default data");
     await dynamodb.putItem(userDynameh.requestBuilder.buildPutInput(defaultTestUser.user)).promise();
 }
 
