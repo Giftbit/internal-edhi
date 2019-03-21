@@ -3,6 +3,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {dynamodb, emailVerificationDynameh, orgDynameh, userDynameh} from "../../dynamodb";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
+import {User} from "../../model/User";
 
 if (!process.env["TEST_ENV"]) {
     log.error("Env var TEST_ENV is undefined.  This is not a test environment!");
@@ -36,7 +37,50 @@ export const defaultTestUser = {
             "teamAdmin",
             "webPortal"
         ]
-    })
+    }),
+    password: "password",
+    user: {
+        email: "default-test-user@example.com",
+        password: {
+            algorithm: "BCRYPT",
+            hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
+            dateCreated: "2017-03-07T18:34:06.603Z"
+        },
+        emailVerified: true,
+        frozen: false,
+        defaultLoginOrganizationId: "default-test-user-TEST",
+        organizations: {
+            "default-test-user": {
+                userId: "default-test-user",
+                teamMemberId: "default-test-user",
+                jwtPayload: {
+                    "g": {
+                        "gui": "default-test-user-TEST",
+                        "gmi": "default-test-user-TEST",
+                        "tmi": "default-test-user-TEST"
+                    },
+                    "iat": "2017-03-07T18:34:06.603+0000",
+                    "jti": "badge-dd95b9b582e840ecba1cbf41365d57e1",
+                    "scopes": [],
+                    "roles": [
+                        "accountManager",
+                        "contactManager",
+                        "customerServiceManager",
+                        "customerServiceRepresentative",
+                        "pointOfSale",
+                        "programManager",
+                        "promoter",
+                        "reporter",
+                        "securityManager",
+                        "teamAdmin",
+                        "webPortal"
+                    ]
+                },
+                dateCreated: "2017-03-07T18:34:06.603Z"
+            }
+        },
+        dateCreated: "2017-03-07T18:34:06.603Z"
+    } as User
 };
 
 /**
@@ -67,6 +111,9 @@ export async function resetDb(): Promise<void> {
     await dynamodb.createTable(emailVerificationDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(orgDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput()).promise();
+
+    log.debug("adding default data");
+    await dynamodb.putItem(userDynameh.requestBuilder.buildPutInput(defaultTestUser.user)).promise();
 }
 
 export function generateId(length?: number): string {

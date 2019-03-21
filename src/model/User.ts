@@ -6,9 +6,11 @@ export interface User {
     password?: UserPassword;
     emailVerified: boolean;
     frozen: boolean;
+    lockedUntilDate?: string;
     twoFactorAuthenticationDevice?: string;
     defaultLoginOrganizationId: string;
     organizations: {[userId: string]: UserOrganization};
+    failedLoginAttempts?: Set<string>;
     dateCreated: string;
 
 }

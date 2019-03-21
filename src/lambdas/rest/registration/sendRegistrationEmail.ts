@@ -17,6 +17,6 @@ export async function sendRegistrationEmail(emailVerification: EmailVerification
     await sendEmail({
         toAddress: emailVerification.userEmail,
         subject: "Activate Your Lightrail Account",
-        body
+        htmlBody: body
     });
 }

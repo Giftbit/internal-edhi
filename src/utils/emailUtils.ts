@@ -16,20 +16,28 @@ export function isValidEmailAddress(email: string): boolean {
 export interface SendEmailParams {
     toAddress: string;
     subject: string;
-    body: string;
+    htmlBody?: string;
+    textBody?: string;
     replyToAddress?: string;
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<aws.SES.SendEmailResponse> {
+    if (!params.htmlBody && !params.textBody) {
+        throw new Error("At least one of htmlBody and textBody must be defined.");
+    }
+
     const eParams: aws.SES.Types.SendEmailRequest = {
         Destination: {
             ToAddresses: [params.toAddress]
         },
         Message: {
             Body: {
-                Html: {
-                    Data: params.body
-                }
+                Html: params.htmlBody && {
+                    Data: params.htmlBody
+                } || undefined,
+                Text: params.textBody && {
+                    Data: params.textBody
+                } || undefined
             },
             Subject: {
                 Data: params.subject

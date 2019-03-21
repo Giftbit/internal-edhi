@@ -23,14 +23,14 @@ describe("/v2/user/register", () => {
     });
 
     afterEach(() => {
-        sinon.restore();
+        sinonSandbox.restore();
     });
 
     it("can register a new user, send an email, verifyEmail, login", async () => {
         let verifyUrl: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                const verifyEmailMatcher = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(params.body);
+                const verifyEmailMatcher = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(params.htmlBody);
                 verifyUrl = verifyEmailMatcher[1];
                 return null;
             });
@@ -74,6 +74,14 @@ describe("/v2/user/register", () => {
             }
         }));
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK);
+    });
+
+    it("will not register an invalid email", async () => {
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: "notanemail",
+            password: generateId()
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
     it("will not register a user with a short password", async () => {

@@ -1,10 +1,11 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {User, UserOrganization} from "../../../model/User";
-import {dynamodb, userDynameh} from "../../../dynamodb";
+import {dateCreatedNow, dynamodb, userDynameh} from "../../../dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import log = require("loglevel");
+import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
 
 let authConfig: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>;
 export function initializeBadgeSigningSecrets(authConfigPromise: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>): void {
@@ -28,7 +29,7 @@ export function installLoginRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const user = await loginUser(evt.body);
+            const user = await loginUser({email: evt.body.email, plaintextPassword: evt.body.password, sourceIp: evt.requestContext.identity.sourceIp});
             const userBadge = getUserBadge(user, true);
 
             return {
@@ -42,19 +43,32 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: {email: string, password: string}): Promise<User> {
+async function loginUser(params: {email: string, plaintextPassword: string, sourceIp: string}): Promise<User> {
     const getUserReq = userDynameh.requestBuilder.buildGetInput(params.email);
     const getUserResp = await dynamodb.getItem(getUserReq).promise();
     const user: User = userDynameh.responseUnwrapper.unwrapGetOutput(getUserResp);
 
     if (!user) {
+        log.warn("Could not log in user", params.email, "user not found");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!await validatePassword(params.password, user.password)) {
+    if (user.frozen) {
+        log.warn("Could not log in user", params.email, "user is frozen");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (user.lockedUntilDate && user.lockedUntilDate >= dateCreatedNow()) {
+        log.warn("Could not log in user", params.email, "user is locked until", user.lockedUntilDate);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (!await validatePassword(params.plaintextPassword, user.password)) {
         // TODO add to failed password attempts
+        log.warn("Could not log in user", params.email, "password did not validate");
+        await addFailedLoginAttempt(user, params.sourceIp);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
+    log.info("Logged in user", params.email);
+    await clearFailedLoginAttempts(user);
     return user;
 }
 

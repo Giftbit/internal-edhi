@@ -23,7 +23,8 @@ export function installRegistrationRest(router: cassava.Router): void {
             evt.validateBody({
                 properties: {
                     email: {
-                        type: "string"
+                        type: "string",
+                        format: "email"
                     },
                     password: {
                         type: "string",
