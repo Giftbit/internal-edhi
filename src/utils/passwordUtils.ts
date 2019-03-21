@@ -2,16 +2,16 @@ import * as bcrypt from "bcrypt";
 import {UserPassword} from "../model/User";
 import {dateCreatedNow} from "../dynamodb";
 
-export async function hashPassword(plainTextPassword: string): Promise<UserPassword> {
-    if (typeof plainTextPassword !== "string") {
+export async function hashPassword(plaintextPassword: string): Promise<UserPassword> {
+    if (typeof plaintextPassword !== "string") {
         throw new Error("password must be a string");
     }
-    if (plainTextPassword.length < 8) {
+    if (plaintextPassword.length < 8) {
         throw new Error("password must be at least 8 chatacters");
     }
 
     // Always use the preferred password hashing method.
-    const hash = await bcrypt.hash(plainTextPassword, 10);
+    const hash = await bcrypt.hash(plaintextPassword, 10);
     return {
         algorithm: "BCRYPT",
         hash,
@@ -19,13 +19,13 @@ export async function hashPassword(plainTextPassword: string): Promise<UserPassw
     };
 }
 
-export function validatePassword(plainTextPassword: string, userPassword: UserPassword): Promise<boolean> {
+export function validatePassword(plaintextPassword: string, userPassword: UserPassword): Promise<boolean> {
     switch (userPassword.algorithm) {
         case "BCRYPT":
-            return validateBcrypt10Password(plainTextPassword, userPassword);
+            return validateBcrypt10Password(plaintextPassword, userPassword);
     }
 }
 
-async function validateBcrypt10Password(plainTextPassword: string, userPassword: UserPassword): Promise<boolean> {
-    return await bcrypt.compare(plainTextPassword, userPassword.hash);
+async function validateBcrypt10Password(plaintextPassword: string, userPassword: UserPassword): Promise<boolean> {
+    return await bcrypt.compare(plaintextPassword, userPassword.hash);
 }

@@ -1,7 +1,7 @@
 import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
-import {DynamoKey, DynamoKeyPair, DynamoQueryConditionOperator} from "dynameh/dist/validation";
 import {Condition, UpdateExpressionAction} from "dynameh";
+import {DynamoKey, DynamoKeyPair, DynamoQueryConditionOperator} from "dynameh/dist/validation";
 
 export const dynamodb = new aws.DynamoDB({
     apiVersion: "2012-08-10",
@@ -57,7 +57,7 @@ export function buildTransactWriteItemsInput(...input: (aws.DynamoDB.PutItemInpu
             }
             if ((i as aws.DynamoDB.UpdateItemInput).UpdateExpression) {
                 return {
-                    Update: i as (aws.DynamoDB.UpdateItemInput & {UpdateExpression: string})
+                    Update: i as (aws.DynamoDB.UpdateItemInput & { UpdateExpression: string })
                 }
             }
             throw new Error("Invalid input to buildTransactWriteItemsInput.  Each item must be a PutItemInput, DeleteItemInput or UpdateItemInput (with UpdateExpression set).");
@@ -65,8 +65,14 @@ export function buildTransactWriteItemsInput(...input: (aws.DynamoDB.PutItemInpu
     };
 }
 
-const emailVerificationSchema: dynameh.TableSchema = {
-    tableName: process.env["EMAIL_VERIFICATION_TABLE"],
+const organizationSchema: dynameh.TableSchema = {
+    tableName: process.env["ORGANIZATION_TABLE"],
+    partitionKeyField: "userId",
+    partitionKeyType: "string"
+};
+
+const tokenActionSchema: dynameh.TableSchema = {
+    tableName: process.env["TOKEN_ACTION_TABLE"],
     partitionKeyField: "token",
     partitionKeyType: "string",
     ttlField: "ttl"
@@ -76,16 +82,8 @@ const userSchema: dynameh.TableSchema = {
     tableName: process.env["USER_TABLE"],
     partitionKeyField: "email",
     partitionKeyType: "string"
-    // TODO consider setting a versionKeyField
 };
 
-const organizationSchema: dynameh.TableSchema = {
-    tableName: process.env["ORGANIZATION_TABLE"],
-    partitionKeyField: "userId",
-    partitionKeyType: "string"
-    // TODO consider setting a versionKeyField
-};
-
-export const emailVerificationDynameh = scopeDynameh(emailVerificationSchema);
-export const userDynameh = scopeDynameh(userSchema);
 export const orgDynameh = scopeDynameh(organizationSchema);
+export const tokenActionDynameh = scopeDynameh(tokenActionSchema);
+export const userDynameh = scopeDynameh(userSchema);

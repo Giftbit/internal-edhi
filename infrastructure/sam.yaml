@@ -27,7 +27,25 @@ Conditions:
   UseProductionCapacity: !Equals [!Ref Capacity, high]
 
 Resources:
-  EmailVerificationTable:
+  OrganizationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
+        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
+      Tags:
+        - Key: ShortName
+          Value: OrganizationTable
+        - Key: Service
+          Value: Edhi
+
+  TokenActionTable:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
@@ -44,25 +62,7 @@ Resources:
         Enabled: true
       Tags:
         - Key: ShortName
-          Value: EmailVerificationTable
-        - Key: Service
-          Value: Edhi
-
-  OrganizationTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
-        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
-      Tags:
-        - Key: ShortName
-          Value: OrganizationTable
+          Value: TokenActionTable
         - Key: Service
           Value: Edhi
 
@@ -94,9 +94,9 @@ Resources:
       Timeout: 30 # seconds, 300 max
       Environment:
         Variables:
-          EMAIL_VERIFICATION_TABLE: !Ref EmailVerificationTable
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
           ORGANIZATION_TABLE: !Ref OrganizationTable
+          TOKEN_ACTION_TABLE: !Ref TokenActionTable
           USER_TABLE: !Ref UserTable

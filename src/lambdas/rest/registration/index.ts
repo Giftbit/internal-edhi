@@ -7,13 +7,13 @@ import {
     buildTransactWriteItemsInput,
     dateCreatedNow,
     dynamodb,
-    emailVerificationDynameh,
     orgDynameh,
+    tokenActionDynameh,
     userDynameh
 } from "../../../dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
-import {sendRegistrationEmail} from "./sendRegistrationEmail";
-import {EmailVerification} from "../../../model/EmailVerification";
+import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
+import {TokenAction} from "../../../model/TokenAction";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -37,7 +37,7 @@ export function installRegistrationRest(router: cassava.Router): void {
 
             await createUserAndOrganization({
                 email: evt.body.email,
-                plainTextPassword: evt.body.password,
+                plaintextPassword: evt.body.password,
                 userId: generateUserId()
             });
 
@@ -78,7 +78,7 @@ async function getOrganization(userId: string): Promise<Organization> {
 
 // TODO team member registration
 
-async function createUserAndOrganization(params: { email: string, plainTextPassword: string, userId: string }): Promise<void> {
+async function createUserAndOrganization(params: { email: string, plaintextPassword: string, userId: string }): Promise<void> {
     const org: Organization = {
         userId: params.userId,
         dateCreated: dateCreatedNow()
@@ -110,7 +110,7 @@ async function createUserAndOrganization(params: { email: string, plainTextPassw
 
     const user: User = {
         email: params.email,
-        password: await hashPassword(params.plainTextPassword),
+        password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
         defaultLoginOrganizationId: params.userId,
@@ -132,16 +132,7 @@ async function createUserAndOrganization(params: { email: string, plainTextPassw
         }
     );
 
-    const emailValidationTimeoutDate = new Date();
-    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 1);
-    const emailVerification: EmailVerification = {
-        token: uuid().replace(/-/g, ""),
-        userEmail: user.email,
-        ttl: emailValidationTimeoutDate
-    };
-    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailVerification);
-
-    const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq, putEmailValidationReq);
+    const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq);
 
     try {
         await dynamodb.transactWriteItems(writeReq).promise();
@@ -154,35 +145,22 @@ async function createUserAndOrganization(params: { email: string, plainTextPassw
         }
     }
 
-    await sendRegistrationEmail(emailVerification);
-}
-
-export async function sendNewEmailVerification(user: User): Promise<void> {
-    const emailValidationTimeoutDate = new Date();
-    emailValidationTimeoutDate.setDate(emailValidationTimeoutDate.getDate() + 1);
-    const emailVerification: EmailVerification = {
-        token: uuid().replace(/-/g, ""),
-        userEmail: user.email,
-        ttl: emailValidationTimeoutDate
-    };
-    const putEmailValidationReq = emailVerificationDynameh.requestBuilder.buildPutInput(emailVerification);
-    await dynamodb.putItem(putEmailValidationReq).promise();
-    await sendRegistrationEmail(emailVerification);
+    await sendEmailAddressVerificationEmail(user);
 }
 
 async function verifyEmail(token: string): Promise<void> {
-    const emailVerificationGetReq = emailVerificationDynameh.requestBuilder.buildGetInput(token);
-    const emailVerificationResp = await dynamodb.getItem(emailVerificationGetReq).promise();
-    const emailVerification: EmailVerification = emailVerificationDynameh.responseUnwrapper.unwrapGetOutput(emailVerificationResp);
-    if (!emailVerification) {
-        log.warn("Could not find EmailVerification for token", token);
+    const tokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(token);
+    const tokenActionResp = await dynamodb.getItem(tokenActionReq).promise();
+    const tokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(tokenActionResp);
+    if (!tokenAction || tokenAction.action !== "emailVerification") {
+        log.warn("Could not find emailVerification TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification timed out.");
     }
 
     const updateUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildUpdateInputFromActions(
             {
-                email: emailVerification.userEmail
+                email: tokenAction.userEmail
             },
             {
                 action: "put",
@@ -197,5 +175,5 @@ async function verifyEmail(token: string): Promise<void> {
     );
 
     await dynamodb.updateItem(updateUserReq).promise();
-    log.info("User", emailVerification.userEmail, "has verified their email address");
+    log.info("User", tokenAction.userEmail, "has verified their email address");
 }

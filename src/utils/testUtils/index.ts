@@ -1,6 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, emailVerificationDynameh, orgDynameh, userDynameh} from "../../dynamodb";
+import {dynamodb, orgDynameh, tokenActionDynameh, userDynameh} from "../../dynamodb";
 import {User} from "../../model/User";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
@@ -98,7 +98,7 @@ export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuth
 export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
-        await dynamodb.deleteTable(emailVerificationDynameh.requestBuilder.buildDeleteTableInput()).promise();
+        await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(orgDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(userDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {
@@ -108,7 +108,7 @@ export async function resetDb(): Promise<void> {
     }
 
     log.trace("creating tables");
-    await dynamodb.createTable(emailVerificationDynameh.requestBuilder.buildCreateTableInput()).promise();
+    await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(orgDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput()).promise();
 

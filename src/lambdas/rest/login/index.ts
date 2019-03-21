@@ -5,7 +5,7 @@ import {dateCreatedNow, dynamodb, userDynameh} from "../../../dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
-import {sendNewEmailVerification} from "../registration";
+import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
 import log = require("loglevel");
 
 let authConfig: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>;
@@ -49,7 +49,6 @@ export function installLoginRest(router: cassava.Router): void {
         });
 
     router.route("/v2/user/logout")
-        .method("POST")
         .handler(async () => {
             return {
                 body: null,
@@ -92,7 +91,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     }
     if (!user.emailVerified) {
         log.warn("Could not log in user", params.email, "email is not verified");
-        await sendNewEmailVerification(user);
+        await sendEmailAddressVerificationEmail(user);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
     if (user.frozen) {
