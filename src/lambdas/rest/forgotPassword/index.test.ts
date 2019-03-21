@@ -57,19 +57,19 @@ describe("/v2/user/forgotPassword", () => {
         const token = /\?token=(.*)/.exec(resetPasswordUrl)[1];
 
         // Can't reset to a short password.
-        const badResetResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/reset`, "POST", {
+        const badCompleteResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
             token,
             password: "1234"
         });
-        chai.assert.equal(badResetResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
-        
+        chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+
         const password = generateId();
-        const resetResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/reset`, "POST", {
+        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
             token,
             password
         });
-        chai.assert.equal(resetResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(resetResp.headers["Location"]);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isString(completeResp.headers["Location"]);
 
         // Old password doesn't work.
         const badLoginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {

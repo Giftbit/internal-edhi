@@ -30,7 +30,7 @@ export function installForgotPasswordRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/user/forgotPassword/reset")
+    router.route("/v2/user/forgotPassword/complete")
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
@@ -47,7 +47,7 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await forgotPasswordReset({
+            await completeForgotPassword({
                 token: evt.body.token,
                 plaintextPassword: evt.body.password
             });
@@ -62,7 +62,7 @@ export function installForgotPasswordRest(router: cassava.Router): void {
         });
 }
 
-async function forgotPasswordReset(params: { token: string, plaintextPassword: string }): Promise<void> {
+async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
     const tokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(params.token);
     const tokenActionResp = await dynamodb.getItem(tokenActionReq).promise();
     const tokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(tokenActionResp);
@@ -72,7 +72,6 @@ async function forgotPasswordReset(params: { token: string, plaintextPassword: s
     }
 
     const userPassword: UserPassword = await hashPassword(params.plaintextPassword);
-
     const updateUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildUpdateInputFromActions(
             {
@@ -90,5 +89,5 @@ async function forgotPasswordReset(params: { token: string, plaintextPassword: s
         }
     );
     await dynamodb.updateItem(updateUserReq).promise();
-    log.info("User", tokenAction.userEmail, "has reset their password");
+    log.info("User", tokenAction.userEmail, "has changed their password through forgotPassword");
 }
