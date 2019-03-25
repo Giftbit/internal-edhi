@@ -4,10 +4,10 @@ import * as sinon from "sinon";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
-import {initializeBadgeSigningSecrets} from "./index";
 import * as emailUtils from "../../../utils/emailUtils";
 import {dynamodb, userDynameh} from "../../../dynamodb";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
+import {initializeBadgeSigningSecrets} from "../../../utils/userUtils";
 
 describe("/v2/user/login", () => {
 

@@ -6,8 +6,8 @@ import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
-import {initializeBadgeSigningSecrets} from "../login";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
+import {initializeBadgeSigningSecrets} from "../../../utils/userUtils";
 
 describe("/v2/user/register", () => {
 
