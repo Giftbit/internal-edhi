@@ -2,15 +2,7 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {User} from "../../../model/User";
-import {Organization} from "../../../model/Organization";
-import {
-    buildTransactWriteItemsInput,
-    dateCreatedNow,
-    dynamodb,
-    orgDynameh,
-    tokenActionDynameh,
-    userDynameh
-} from "../../../dynamodb";
+import {dateCreatedNow, dynamodb, tokenActionDynameh, userDynameh} from "../../../dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {TokenAction} from "../../../model/TokenAction";
@@ -35,7 +27,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await createUserAndOrganization({
+            await createUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 userId: generateUserId()
@@ -70,27 +62,9 @@ function generateUserId(): string {
     return "user-" + uuid().replace(/-/g, "");
 }
 
-async function getOrganization(userId: string): Promise<Organization> {
-    const getReq = orgDynameh.requestBuilder.buildGetInput(userId);
-    const getResp = await dynamodb.getItem(getReq).promise();
-    return orgDynameh.responseUnwrapper.unwrapGetOutput(getResp);
-}
-
 // TODO team member registration
 
-async function createUserAndOrganization(params: { email: string, plaintextPassword: string, userId: string }): Promise<void> {
-    const org: Organization = {
-        userId: params.userId,
-        dateCreated: dateCreatedNow()
-    };
-    const putOrgReq = orgDynameh.requestBuilder.addCondition(
-        orgDynameh.requestBuilder.buildPutInput(org),
-        {
-            attribute: "userId",
-            operator: "attribute_not_exists"
-        }
-    );
-
+async function createUser(params: { email: string, plaintextPassword: string, userId: string }): Promise<void> {
     const badge = new giftbitRoutes.jwtauth.AuthorizationBadge();
     badge.userId = params.userId;
     badge.teamMemberId = params.userId;
@@ -109,11 +83,11 @@ async function createUserAndOrganization(params: { email: string, plaintextPassw
     ];
 
     const user: User = {
+        userId: params.userId,
         email: params.email,
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
-        defaultLoginOrganizationId: params.userId,
         organizations: {
             [params.userId]: {
                 userId: params.userId,
@@ -132,10 +106,8 @@ async function createUserAndOrganization(params: { email: string, plaintextPassw
         }
     );
 
-    const writeReq = buildTransactWriteItemsInput(putOrgReq, putUserReq);
-
     try {
-        await dynamodb.transactWriteItems(writeReq).promise();
+        await dynamodb.putItem(putUserReq).promise();
     } catch (error) {
         log.error("Error creating user and organization", error);
         if (error.code === "ConditionalCheckFailedException") {

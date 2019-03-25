@@ -2,14 +2,15 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 
 export interface User {
 
+    userId: string;
     email: string;
     password?: UserPassword;
     emailVerified: boolean;
     frozen: boolean;
     lockedUntilDate?: string;
     twoFactorAuthenticationDevice?: string;
-    defaultLoginOrganizationId: string;
-    organizations: {[userId: string]: UserOrganization};
+    defaultLoginUserId?: string;
+    organizations: { [userId: string]: UserOrganization };
     failedLoginAttempts?: Set<string>;
     dateCreated: string;
 

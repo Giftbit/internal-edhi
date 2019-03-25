@@ -5,8 +5,8 @@
 
 import * as sinon from "sinon";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import log = require("loglevel");
 import * as logPrefix from "loglevel-plugin-prefix";
+import log = require("loglevel");
 
 const colors = {
     "TRACE": "\u001b[0;32m",    // green

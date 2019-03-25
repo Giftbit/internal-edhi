@@ -27,24 +27,6 @@ Conditions:
   UseProductionCapacity: !Equals [!Ref Capacity, high]
 
 Resources:
-  OrganizationTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
-        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
-      Tags:
-        - Key: ShortName
-          Value: OrganizationTable
-        - Key: Service
-          Value: Edhi
-
   TokenActionTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -70,11 +52,23 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
-        - AttributeName: username
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: userId
           AttributeType: S
       KeySchema:
-        - AttributeName: username
+        - AttributeName: email
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ByUserId
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: !If [UseProductionCapacity, 20, 4]
+            WriteCapacityUnits: !If [UseProductionCapacity, 8, 4]
       ProvisionedThroughput:
         ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
         WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
@@ -97,6 +91,5 @@ Resources:
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
-          ORGANIZATION_TABLE: !Ref OrganizationTable
           TOKEN_ACTION_TABLE: !Ref TokenActionTable
           USER_TABLE: !Ref UserTable

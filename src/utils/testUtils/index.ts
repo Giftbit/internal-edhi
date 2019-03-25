@@ -1,6 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, orgDynameh, tokenActionDynameh, userDynameh} from "../../dynamodb";
+import {dynamodb, tokenActionDynameh, userByUserIdSchema, userDynameh} from "../../dynamodb";
 import {User} from "../../model/User";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
@@ -11,8 +11,8 @@ if (!process.env["TEST_ENV"]) {
 }
 
 export const defaultTestUser = {
-    userId: "default-test-user-TEST",
-    teamMemberId: "default-test-user-TEST",
+    userId: "default-test-user",
+    teamMemberId: "default-test-user",
     jwt: "eyJ2ZXIiOjIsInZhdiI6MSwiYWxnIjoiSFMyNTYiLCJ0eXAiOiJKV1QifQ.eyJnIjp7Imd1aSI6ImRlZmF1bHQtdGVzdC11c2VyLVRFU1QiLCJnbWkiOiJkZWZhdWx0LXRlc3QtdXNlci1URVNUIiwidG1pIjoiZGVmYXVsdC10ZXN0LXVzZXItVEVTVCJ9LCJpYXQiOiIyMDE3LTAzLTA3VDE4OjM0OjA2LjYwMyswMDAwIiwianRpIjoiYmFkZ2UtZGQ5NWI5YjU4MmU4NDBlY2JhMWNiZjQxMzY1ZDU3ZTEiLCJzY29wZXMiOltdLCJyb2xlcyI6WyJhY2NvdW50TWFuYWdlciIsImNvbnRhY3RNYW5hZ2VyIiwiY3VzdG9tZXJTZXJ2aWNlTWFuYWdlciIsImN1c3RvbWVyU2VydmljZVJlcHJlc2VudGF0aXZlIiwicG9pbnRPZlNhbGUiLCJwcm9ncmFtTWFuYWdlciIsInByb21vdGVyIiwicmVwb3J0ZXIiLCJzZWN1cml0eU1hbmFnZXIiLCJ0ZWFtQWRtaW4iLCJ3ZWJQb3J0YWwiXX0.Pz9XaaNX3HenvSUb6MENm_KEBheztiscGr2h2TJfhIc",
     cookie: "gb_jwt_session=eyJ2ZXIiOjIsInZhdiI6MSwiYWxnIjoiSFMyNTYiLCJ0eXAiOiJKV1QifQ.eyJnIjp7Imd1aSI6ImRlZmF1bHQtdGVzdC11c2VyLVRFU1QiLCJnbWkiOiJkZWZhdWx0LXRlc3QtdXNlci1URVNUIiwidG1pIjoiZGVmYXVsdC10ZXN0LXVzZXItVEVTVCJ9LCJpYXQiOiIyMDE3LTAzLTA3VDE4OjM0OjA2LjYwMyswMDAwIiwianRpIjoiYmFkZ2UtZGQ5NWI5YjU4MmU4NDBlY2JhMWNiZjQxMzY1ZDU3ZTEiLCJzY29wZXMiOltdLCJyb2xlcyI6WyJhY2NvdW50TWFuYWdlciIsImNvbnRhY3RNYW5hZ2VyIiwiY3VzdG9tZXJTZXJ2aWNlTWFuYWdlciIsImN1c3RvbWVyU2VydmljZVJlcHJlc2VudGF0aXZlIiwicG9pbnRPZlNhbGUiLCJwcm9ncmFtTWFuYWdlciIsInByb21vdGVyIiwicmVwb3J0ZXIiLCJzZWN1cml0eU1hbmFnZXIiLCJ0ZWFtQWRtaW4iLCJ3ZWJQb3J0YWwiXX0; gb_jwt_signature=Pz9XaaNX3HenvSUb6MENm_KEBheztiscGr2h2TJfhIc",
     auth: new giftbitRoutes.jwtauth.AuthorizationBadge({
@@ -40,6 +40,7 @@ export const defaultTestUser = {
     }),
     password: "password",
     user: {
+        userId: "default-test-user",
         email: "default-test-user@example.com",
         password: {
             algorithm: "BCRYPT",
@@ -48,7 +49,6 @@ export const defaultTestUser = {
         },
         emailVerified: true,
         frozen: false,
-        defaultLoginOrganizationId: "default-test-user-TEST",
         organizations: {
             "default-test-user": {
                 userId: "default-test-user",
@@ -99,7 +99,6 @@ export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
         await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
-        await dynamodb.deleteTable(orgDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(userDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {
         if (err.code !== "ResourceNotFoundException") {
@@ -109,8 +108,7 @@ export async function resetDb(): Promise<void> {
 
     log.trace("creating tables");
     await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
-    await dynamodb.createTable(orgDynameh.requestBuilder.buildCreateTableInput()).promise();
-    await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput()).promise();
+    await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput([userByUserIdSchema])).promise();
 
     log.trace("adding default data");
     await dynamodb.putItem(userDynameh.requestBuilder.buildPutInput(defaultTestUser.user)).promise();

@@ -50,6 +50,6 @@ describe("/v2/user/changePassword", () => {
             oldPassword: generateId(),
             newPassword: generateId()
         });
-        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
     });
 });

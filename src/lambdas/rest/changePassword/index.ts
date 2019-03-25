@@ -1,8 +1,9 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {dynamodb, userDynameh} from "../../../dynamodb";
-import {User, UserPassword} from "../../../model/User";
+import {UserPassword} from "../../../model/User";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
+import {getPartialUserByUserId, getUserByEmail} from "../login";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -40,12 +41,27 @@ export function installChangePasswordRest(router: cassava.Router): void {
 }
 
 async function changePassword(params: { auth: giftbitRoutes.jwtauth.AuthorizationBadge, oldPlaintextPassword: string, newPlaintextPassword: string }): Promise<void> {
-    const user: User = null;
-    // TODO howa do I get the user from auth?
+    let userId = params.auth.teamMemberId;
+    if (userId.endsWith("-TEST")) {
+        userId = /(.*)-TEST/.exec(userId)[1];
+    }
+    const partialUser = await getPartialUserByUserId(params.auth.teamMemberId);
+    if (!partialUser) {
+        log.warn("Could not change password for teamMemberId", params.auth.teamMemberId, "could not find user with that userId");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+
+    // `password` is not on the projection of User by userId.  We only need it to change password and this is a rare operation
+    // so it makes more sense to do a second lookup than add it to the projection.
+    const user = await getUserByEmail(partialUser.email);
+    if (!user) {
+        log.warn("Could not change password for teamMemberId", params.auth.teamMemberId, "could not find user with email", partialUser.email);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
 
     if (!await validatePassword(params.oldPlaintextPassword, user.password)) {
         log.warn("Could change user password for", user.email, "old password did not validate");
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Old password does not match.");
     }
 
     const userPassword: UserPassword = await hashPassword(params.newPlaintextPassword);

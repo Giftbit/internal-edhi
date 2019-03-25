@@ -1,7 +1,7 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {User, UserOrganization} from "../../../model/User";
-import {dateCreatedNow, dynamodb, userDynameh} from "../../../dynamodb";
+import {dateCreatedNow, dynamodb, userbyUserIdDynameh, userDynameh} from "../../../dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
@@ -81,9 +81,7 @@ export function installLoginRest(router: cassava.Router): void {
 }
 
 async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<User> {
-    const getUserReq = userDynameh.requestBuilder.buildGetInput(params.email);
-    const getUserResp = await dynamodb.getItem(getUserReq).promise();
-    const user: User = userDynameh.responseUnwrapper.unwrapGetOutput(getUserResp);
+    const user = await getUserByEmail(params.email);
 
     if (!user) {
         log.warn("Could not log in user", params.email, "user not found");
@@ -113,24 +111,53 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     return user;
 }
 
+export async function getUserByEmail(email: string): Promise<User> {
+    log.debug("getUserByEmail", email);
+    const getUserReq = userDynameh.requestBuilder.buildGetInput(email);
+    const getUserResp = await dynamodb.getItem(getUserReq).promise();
+    return userDynameh.responseUnwrapper.unwrapGetOutput(getUserResp);
+}
+
+/**
+ * Get a projection of the User by userId.  This projection is controlled by
+ * the GlobalSecondaryIndex Projection.  More attributes can be added to the
+ * projection but this adds cost and should be done sparingly.
+ */
+export async function getPartialUserByUserId(userId: string): Promise<{ userId: string, email: string }> {
+    if (userId.endsWith("-TEST")) {
+        userId = /(.*)-TEST/.exec(userId)[1];
+    }
+
+    const queryUserReq = userbyUserIdDynameh.requestBuilder.buildQueryInput(userId);
+    const queryUserResp = await dynamodb.query(queryUserReq).promise();
+    const users = await userbyUserIdDynameh.responseUnwrapper.unwrapQueryOutput(queryUserResp);
+    return users[0];
+}
+
 function getUserOrganization(user: User, organizationId?: string): UserOrganization {
     if (!organizationId) {
-        organizationId = user.defaultLoginOrganizationId;
+        organizationId = user.defaultLoginUserId;
+    }
+    if (!organizationId) {
+        organizationId = Object.keys(user.organizations)[0];
+    }
+    if (!organizationId) {
+        log.error("Cannot get an organization for user", user.email, "organizations is empty");
+        return null;
     }
     if (organizationId.endsWith("-TEST")) {
-        organizationId = organizationId.substring(0, organizationId.length - "_TEST".length);
+        organizationId = /(.*)-TEST/.exec(organizationId)[1];
     }
-    if (user.organizations[organizationId]) {
-        return user.organizations[organizationId];
+    if (!user.organizations[organizationId]) {
+        organizationId = Object.keys(user.organizations)[0];
+    }
+    if (!user.organizations[organizationId]) {
+        log.error("Cannot get an organization for user", user.email, "organizations is empty");
+        return null;
+
     }
 
-    const organizationIds = Object.keys(user.organizations);
-    if (organizationIds.length > 0) {
-        return user.organizations[organizationIds[0]];
-    }
-
-    log.error("Cannot get an organization for user", user.email, "organizations is empty");
-    return null;
+    return user.organizations[organizationId];
 }
 
 function getUserBadge(user: User, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
