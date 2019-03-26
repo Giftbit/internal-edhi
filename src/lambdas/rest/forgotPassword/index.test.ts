@@ -92,5 +92,12 @@ describe("/v2/user/forgotPassword", () => {
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+
+        // Can't use the same email to reset the password again
+        const completeRepeatResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+            token,
+            password
+        });
+        chai.assert.equal(completeRepeatResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
     });
 });

@@ -88,6 +88,10 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
             operator: "attribute_exists"
         }
     );
-    await dynamodb.updateItem(updateUserReq).promise();
+    const deleteTokenActionReq = tokenActionDynameh.requestBuilder.buildDeleteInput(tokenAction);
+
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, deleteTokenActionReq);
+    await dynamodb.transactWriteItems(writeReq).promise();
+
     log.info("User", tokenAction.userEmail, "has changed their password through forgotPassword");
 }
