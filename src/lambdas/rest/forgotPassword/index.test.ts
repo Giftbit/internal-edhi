@@ -41,11 +41,10 @@ describe("/v2/user/forgotPassword", () => {
     });
 
     it("can reset the password (using the webapp)", async () => {
-        let resetPasswordUrl: string;
+        let resetPasswordEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                const resetPasswordMatcher = /(https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*)/.exec(params.htmlBody);
-                resetPasswordUrl = resetPasswordMatcher[1];
+                resetPasswordEmail = params.htmlBody;
                 return null;
             });
 
@@ -53,6 +52,11 @@ describe("/v2/user/forgotPassword", () => {
             email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isString(resetPasswordEmail, "Got email.");
+        chai.assert.notMatch(resetPasswordEmail, /{{.*}}/, "No unreplaced tokens.");
+
+        const resetPasswordMatcher = /(https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*)/.exec(resetPasswordEmail);
+        const resetPasswordUrl = resetPasswordMatcher[1];
         chai.assert.isString(resetPasswordUrl, "Found reset password url in email body.");
         const token = /\?token=(.*)/.exec(resetPasswordUrl)[1];
 

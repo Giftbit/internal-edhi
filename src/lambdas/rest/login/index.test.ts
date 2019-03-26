@@ -69,7 +69,7 @@ describe("/v2/user/login", () => {
         let lockedEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                lockedEmail = params.textBody;
+                lockedEmail = params.htmlBody;
                 return null;
             });
 
@@ -83,6 +83,7 @@ describe("/v2/user/login", () => {
                 chai.assert.isUndefined(lockedEmail, `Did not get locked email on attempt ${i}`);
             } else {
                 chai.assert.isString(lockedEmail, "Got locked account warning email after the last attempt.");
+                chai.assert.notMatch(lockedEmail, /{{.*}}/, "No unreplaced tokens.");
             }
         }
 
