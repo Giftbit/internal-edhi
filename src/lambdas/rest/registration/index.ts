@@ -2,10 +2,11 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {User} from "../../../model/User";
-import {dateCreatedNow, dynamodb, tokenActionDynameh, userDynameh} from "../../../dynamodb";
+import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {TokenAction} from "../../../model/TokenAction";
+import {TeamMember} from "../../../model/TeamMember";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -29,8 +30,7 @@ export function installRegistrationRest(router: cassava.Router): void {
 
             await createUser({
                 email: evt.body.email,
-                plaintextPassword: evt.body.password,
-                userId: generateUserId()
+                plaintextPassword: evt.body.password
             });
 
             return {
@@ -64,39 +64,21 @@ function generateUserId(): string {
 
 // TODO team member registration
 
-async function createUser(params: { email: string, plaintextPassword: string, userId: string }): Promise<void> {
-    const badge = new giftbitRoutes.jwtauth.AuthorizationBadge();
-    badge.userId = params.userId;
-    badge.teamMemberId = params.userId;
-    badge.roles = [
-        "accountManager",
-        "contactManager",
-        "customerServiceRepresentative",
-        "customerServiceManager",
-        "pointOfSale",
-        "programManager",
-        "promoter",
-        "reporter",
-        "securityManager",
-        "teamAdmin",
-        "webPortal"
-    ];
+async function createUser(params: { email: string, plaintextPassword: string }): Promise<void> {
+    // Previously the first user in a team had the same userId as the team.
+    // We no longer do that but you should be aware that is possible.
+    const userId = generateUserId();
+    const teamMemberId = generateUserId();
+    const dateCreated = dateCreatedNow();
 
     const user: User = {
-        userId: params.userId,
         email: params.email,
+        userId,
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
-        organizations: {
-            [params.userId]: {
-                userId: params.userId,
-                teamMemberId: params.userId,
-                jwtPayload: badge.getJwtPayload(),
-                dateCreated: dateCreatedNow()
-            }
-        },
-        dateCreated: dateCreatedNow()
+        defaultLoginUserId: userId,
+        dateCreated
     };
     const putUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildPutInput(user),
@@ -106,12 +88,39 @@ async function createUser(params: { email: string, plaintextPassword: string, us
         }
     );
 
+    const teamMember: TeamMember = {
+        userId,
+        teamMemberId,
+        roles: [
+            "accountManager",
+            "contactManager",
+            "customerServiceRepresentative",
+            "customerServiceManager",
+            "pointOfSale",
+            "programManager",
+            "promoter",
+            "reporter",
+            "securityManager",
+            "teamAdmin",
+            "webPortal"
+        ],
+        dateCreated
+    };
+    const putTeamMemberReq = teamMemberDynameh.requestBuilder.addCondition(
+        teamMemberDynameh.requestBuilder.buildPutInput(teamMember),
+        {
+            attribute: "userId",
+            operator: "attribute_not_exists"
+        }
+    );
+
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putTeamMemberReq);
     try {
-        await dynamodb.putItem(putUserReq).promise();
+        await dynamodb.transactWriteItems(writeReq).promise();
     } catch (error) {
-        log.error("Error creating user and organization", error);
+        log.error("Error creating user and team", error);
         if (error.code === "ConditionalCheckFailedException") {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Organization or user already exists.");
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "User already exists.");
         } else {
             throw error;
         }

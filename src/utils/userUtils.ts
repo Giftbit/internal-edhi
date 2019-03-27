@@ -1,8 +1,15 @@
-import {User, UserOrganization} from "../model/User";
-import {dynamodb, userbyUserIdDynameh, userDynameh} from "../dynamodb";
+import {User} from "../model/User";
+import {
+    dynamodb,
+    teamMemberByTeamMemberIdDynameh,
+    teamMemberDynameh,
+    userByUserIdDynameh,
+    userDynameh
+} from "../dynamodb";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import * as cassava from "cassava";
+import {TeamMember} from "../model/TeamMember";
 import log = require("loglevel");
 
 let authConfig: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>;
@@ -21,78 +28,111 @@ export async function getUserByEmail(email: string): Promise<User> {
 export async function getUserByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<User> {
     auth.requireIds("teamMemberId");
 
-    let userId = auth.teamMemberId;
-    if (userId.endsWith("-TEST")) {
-        userId = /(.*)-TEST/.exec(userId)[1];
-    }
-
-    // We get a partial user because we're not projecting all the keys.  If this is an operation
-    // we're going to do a lot then maybe we should.
-    const partialUser = await getPartialUserByUserId(userId);
-    if (!partialUser) {
-        log.warn("Could not find user with userId", userId);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
-    }
-
-    const user = await getUserByEmail(partialUser.email);
+    const userId = stripTestMode(auth.teamMemberId);
+    const user = await getUserById(userId);
     if (!user) {
-        log.error("Could not find user with email", partialUser.email, "despite finding the secondary index entry for it", partialUser);
+        log.error("Could not find user with userId", userId, "despite having a valid JWT");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
     }
 
     return user;
 }
 
-/**
- * Get a projection of the User by userId.  This projection is controlled by
- * the GlobalSecondaryIndex Projection.  More attributes can be added to the
- * projection but this adds cost and should be done sparingly.
- */
-export async function getPartialUserByUserId(userId: string): Promise<{ userId: string, email: string }> {
-    if (userId.endsWith("-TEST")) {
-        userId = /(.*)-TEST/.exec(userId)[1];
-    }
-
-    const queryUserReq = userbyUserIdDynameh.requestBuilder.buildQueryInput(userId);
+export async function getUserById(userId: string): Promise<User> {
+    const queryUserReq = userByUserIdDynameh.requestBuilder.buildQueryInput(stripTestMode(userId));
     const queryUserResp = await dynamodb.query(queryUserReq).promise();
-    const users = await userbyUserIdDynameh.responseUnwrapper.unwrapQueryOutput(queryUserResp);
+    const users = await userByUserIdDynameh.responseUnwrapper.unwrapQueryOutput(queryUserResp);
     return users[0];
 }
 
-function getUserOrganization(user: User, organizationId?: string): UserOrganization {
-    if (!organizationId) {
-        organizationId = user.defaultLoginUserId;
-    }
-    if (!organizationId) {
-        organizationId = Object.keys(user.organizations)[0];
-    }
-    if (!organizationId) {
-        log.error("Cannot get an organization for user", user.email, "organizations is empty");
-        return null;
-    }
-    if (organizationId.endsWith("-TEST")) {
-        organizationId = /(.*)-TEST/.exec(organizationId)[1];
-    }
-    if (!user.organizations[organizationId]) {
-        organizationId = Object.keys(user.organizations)[0];
-    }
-    if (!user.organizations[organizationId]) {
-        log.error("Cannot get an organization for user", user.email, "organizations is empty");
-        return null;
-
-    }
-
-    return user.organizations[organizationId];
+export async function getTeamMember(userId: string, teamMemberId: string): Promise<TeamMember> {
+    const req = teamMemberDynameh.requestBuilder.buildGetInput(stripTestMode(userId), stripTestMode(teamMemberId));
+    const resp = await dynamodb.getItem(req).promise();
+    return teamMemberDynameh.responseUnwrapper.unwrapGetOutput(resp);
 }
 
-export function getUserBadge(user: User, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
-    const userOrg = getUserOrganization(user);
-    const badge = new giftbitRoutes.jwtauth.AuthorizationBadge(userOrg.jwtPayload);
-    badge.issuer = "EDHI";
-    badge.audience = shortLived ? "WEBAPP" : "API";
-    badge.expirationTime = shortLived ? new Date(Date.now() + 180 * 60000) : null;
-    badge.issuedAtTime = new Date();
-    return badge;
+/**
+ * Get all users on the given team.
+ */
+export async function getTeamUsers(userId: string): Promise<TeamMember[]> {
+    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripTestMode(userId));
+    let resp = await dynamodb.query(req).promise();
+    const teamUsers: TeamMember[] = teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+
+    // TODO this should be a utility in dynameh
+    while (resp.LastEvaluatedKey) {
+        req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        resp = await dynamodb.query(req).promise();
+        teamUsers.push(...teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp));
+    }
+
+    return teamUsers;
+}
+
+/**
+ * Get all teams for the given user.
+ */
+export async function getUserTeams(teamMemberId: string): Promise<TeamMember[]> {
+    const req = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(stripTestMode(teamMemberId));
+    let resp = await dynamodb.query(req).promise();
+    const teamUsers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+
+    // TODO this should be a utility in dynameh
+    while (resp.LastEvaluatedKey) {
+        req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        resp = await dynamodb.query(req).promise();
+        teamUsers.push(...teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(resp));
+    }
+
+    return teamUsers;
+}
+
+/**
+ * Get the team member the given user should login as.
+ */
+export async function getUserLoginTeamMember(user: User): Promise<TeamMember> {
+    if (user.defaultLoginUserId) {
+        const teamMember = getTeamMember(user.defaultLoginUserId, user.userId);
+        if (teamMember) {
+            return teamMember;
+        }
+    }
+
+    // Get any random TeamMember to log in as.
+    const queryReq = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(user.userId);
+    queryReq.Limit = 1;
+    const queryResp = await dynamodb.query(queryReq).promise();
+    const teamMembers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(queryResp);
+    if (teamMembers && teamMembers.length) {
+        return teamMembers[0];
+    }
+
+    return null;
+}
+
+export function getUserBadge(user: User, teamMember: TeamMember | null, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    if (!teamMember) {
+        // This is an orphaned user with no team.  All they can do is create
+        // a new team.
+        const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+        auth.teamMemberId = user.userId;
+        auth.roles = [];
+        auth.issuer = "EDHI";
+        auth.audience = "WEBAPP";
+        auth.expirationTime = new Date(Date.now() + 180 * 60000);
+        auth.issuedAtTime = new Date();
+        return auth;
+    }
+
+    const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+    auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
+    auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");
+    auth.roles = teamMember.roles;
+    auth.issuer = "EDHI";
+    auth.audience = shortLived ? "WEBAPP" : "API";
+    auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60000) : null;
+    auth.issuedAtTime = new Date();
+    return auth;
 }
 
 export async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ [key: string]: RouterResponseCookie }> {
@@ -125,4 +165,11 @@ export async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.Authoriza
             }
         }
     };
+}
+
+function stripTestMode(userId: string): string {
+    if (userId.endsWith("-TEST")) {
+        userId = userId.substring(0, userId.length - 5);
+    }
+    return userId;
 }

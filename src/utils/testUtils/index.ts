@@ -1,7 +1,15 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, tokenActionDynameh, userByUserIdSchema, userDynameh} from "../../dynamodb";
+import {
+    dynamodb,
+    teamMemberByTeamMemberIdSchema,
+    teamMemberDynameh,
+    tokenActionDynameh,
+    userByUserIdSchema,
+    userDynameh
+} from "../../dynamodb";
 import {User} from "../../model/User";
+import {TeamMember} from "../../model/TeamMember";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -10,16 +18,14 @@ if (!process.env["TEST_ENV"]) {
     throw new Error("Env var TEST_ENV is undefined.  This is not a test environment!");
 }
 
-export const defaultTestUser = {
-    userId: "default-test-user",
-    teamMemberId: "default-test-user",
-    jwt: "eyJ2ZXIiOjIsInZhdiI6MSwiYWxnIjoiSFMyNTYiLCJ0eXAiOiJKV1QifQ.eyJnIjp7Imd1aSI6ImRlZmF1bHQtdGVzdC11c2VyLVRFU1QiLCJnbWkiOiJkZWZhdWx0LXRlc3QtdXNlci1URVNUIiwidG1pIjoiZGVmYXVsdC10ZXN0LXVzZXItVEVTVCJ9LCJpYXQiOiIyMDE3LTAzLTA3VDE4OjM0OjA2LjYwMyswMDAwIiwianRpIjoiYmFkZ2UtZGQ5NWI5YjU4MmU4NDBlY2JhMWNiZjQxMzY1ZDU3ZTEiLCJzY29wZXMiOltdLCJyb2xlcyI6WyJhY2NvdW50TWFuYWdlciIsImNvbnRhY3RNYW5hZ2VyIiwiY3VzdG9tZXJTZXJ2aWNlTWFuYWdlciIsImN1c3RvbWVyU2VydmljZVJlcHJlc2VudGF0aXZlIiwicG9pbnRPZlNhbGUiLCJwcm9ncmFtTWFuYWdlciIsInByb21vdGVyIiwicmVwb3J0ZXIiLCJzZWN1cml0eU1hbmFnZXIiLCJ0ZWFtQWRtaW4iLCJ3ZWJQb3J0YWwiXX0.Pz9XaaNX3HenvSUb6MENm_KEBheztiscGr2h2TJfhIc",
-    cookie: "gb_jwt_session=eyJ2ZXIiOjIsInZhdiI6MSwiYWxnIjoiSFMyNTYiLCJ0eXAiOiJKV1QifQ.eyJnIjp7Imd1aSI6ImRlZmF1bHQtdGVzdC11c2VyLVRFU1QiLCJnbWkiOiJkZWZhdWx0LXRlc3QtdXNlci1URVNUIiwidG1pIjoiZGVmYXVsdC10ZXN0LXVzZXItVEVTVCJ9LCJpYXQiOiIyMDE3LTAzLTA3VDE4OjM0OjA2LjYwMyswMDAwIiwianRpIjoiYmFkZ2UtZGQ5NWI5YjU4MmU4NDBlY2JhMWNiZjQxMzY1ZDU3ZTEiLCJzY29wZXMiOltdLCJyb2xlcyI6WyJhY2NvdW50TWFuYWdlciIsImNvbnRhY3RNYW5hZ2VyIiwiY3VzdG9tZXJTZXJ2aWNlTWFuYWdlciIsImN1c3RvbWVyU2VydmljZVJlcHJlc2VudGF0aXZlIiwicG9pbnRPZlNhbGUiLCJwcm9ncmFtTWFuYWdlciIsInByb21vdGVyIiwicmVwb3J0ZXIiLCJzZWN1cml0eU1hbmFnZXIiLCJ0ZWFtQWRtaW4iLCJ3ZWJQb3J0YWwiXX0; gb_jwt_signature=Pz9XaaNX3HenvSUb6MENm_KEBheztiscGr2h2TJfhIc",
-    auth: new giftbitRoutes.jwtauth.AuthorizationBadge({
+export namespace defaultTestUser {
+    export const userId = "user-defaulttestuser";
+    export const teamMemberId = "user-defaulttestteammember";
+    export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
-            "gui": "default-test-user-TEST",
-            "gmi": "default-test-user-TEST",
-            "tmi": "default-test-user-TEST",
+            "gui": userId + "TEST",
+            "gmi": userId + "TEST",
+            "tmi": userId + "TEST",
         },
         "iat": "2017-03-07T18:34:06.603+0000",
         "jti": "badge-dd95b9b582e840ecba1cbf41365d57e1",
@@ -37,10 +43,12 @@ export const defaultTestUser = {
             "teamAdmin",
             "webPortal"
         ]
-    }),
-    password: "password",
-    user: {
-        userId: "default-test-user",
+    });
+    export const jwt = auth.sign("secret");
+    export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.])/.exec(jwt)[1]}`;
+    export const password = "password";
+    export const user: User = {
+        userId: userId,
         email: "default-test-user@example.com",
         password: {
             algorithm: "BCRYPT",
@@ -49,39 +57,16 @@ export const defaultTestUser = {
         },
         emailVerified: true,
         frozen: false,
-        organizations: {
-            "default-test-user": {
-                userId: "default-test-user",
-                teamMemberId: "default-test-user",
-                jwtPayload: {
-                    "g": {
-                        "gui": "default-test-user-TEST",
-                        "gmi": "default-test-user-TEST",
-                        "tmi": "default-test-user-TEST"
-                    },
-                    "iat": "2017-03-07T18:34:06.603+0000",
-                    "jti": "badge-dd95b9b582e840ecba1cbf41365d57e1",
-                    "scopes": [],
-                    "roles": [
-                        "accountManager",
-                        "contactManager",
-                        "customerServiceManager",
-                        "customerServiceRepresentative",
-                        "pointOfSale",
-                        "programManager",
-                        "promoter",
-                        "reporter",
-                        "securityManager",
-                        "teamAdmin",
-                        "webPortal"
-                    ]
-                },
-                dateCreated: "2017-03-07T18:34:06.603Z"
-            }
-        },
+        defaultLoginUserId: userId + "-TEST",
         dateCreated: "2017-03-07T18:34:06.603Z"
-    } as User
-};
+    };
+    export const teamMember: TeamMember = {
+        userId: userId,
+        teamMemberId: teamMemberId,
+        roles: auth.roles,
+        dateCreated: "2017-03-07T18:34:06.603Z"
+    };
+}
 
 /**
  * A Cassava Route that enables authorization with the above JWTs.
@@ -107,11 +92,13 @@ export async function resetDb(): Promise<void> {
     }
 
     log.trace("creating tables");
+    await dynamodb.createTable(teamMemberDynameh.requestBuilder.buildCreateTableInput([teamMemberByTeamMemberIdSchema])).promise();
     await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
     await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput([userByUserIdSchema])).promise();
 
     log.trace("adding default data");
     await dynamodb.putItem(userDynameh.requestBuilder.buildPutInput(defaultTestUser.user)).promise();
+    await dynamodb.putItem(teamMemberDynameh.requestBuilder.buildPutInput(defaultTestUser.teamMember)).promise();
 }
 
 export function generateId(length?: number): string {

@@ -27,6 +27,40 @@ Conditions:
   UseProductionCapacity: !Equals [!Ref Capacity, high]
 
 Resources:
+  TeamMemberTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: teamMemberId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: teamMemberId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: ByTeamMemberId
+          KeySchema:
+            - AttributeName: teamMemberId
+              KeyType: HASH
+            - AttributeName: userId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: !If [UseProductionCapacity, 70, 4]
+            WriteCapacityUnits: !If [UseProductionCapacity, 35, 4]
+      ProvisionedThroughput:
+        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
+        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
+      Tags:
+        - Key: ShortName
+          Value: TeamMemberTable
+        - Key: Service
+          Value: Edhi
+
   TokenActionTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -91,5 +125,6 @@ Resources:
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
+          TEAM_MEMBER_TABLE: !Ref TeamMemberTable
           TOKEN_ACTION_TABLE: !Ref TokenActionTable
           USER_TABLE: !Ref UserTable
