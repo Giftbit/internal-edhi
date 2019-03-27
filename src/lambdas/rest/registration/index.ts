@@ -28,7 +28,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await createUser({
+            await createUserAndAccount({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password
             });
@@ -64,7 +64,7 @@ function generateUserId(): string {
 
 // TODO team member registration
 
-async function createUser(params: { email: string, plaintextPassword: string }): Promise<void> {
+async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
     const userId = generateUserId();

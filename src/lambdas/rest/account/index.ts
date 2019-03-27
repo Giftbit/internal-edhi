@@ -4,8 +4,8 @@ import {getUserBadge, getUserBadgeCookies, getUserByAuth} from "../../../utils/u
 import {User} from "../../../model/User";
 import {TeamMember} from "../../../model/TeamMember";
 
-export function installTeamRest(router: cassava.Router): void {
-    router.route("/v2/team/switch")
+export function installAccountRest(router: cassava.Router): void {
+    router.route("/v2/account/switch")
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
@@ -26,7 +26,7 @@ export function installTeamRest(router: cassava.Router): void {
             });
 
             const user = await getUserByAuth(auth);
-            const teamMember = await switchTeam(user, evt.body.mode, evt.body.userId);
+            const teamMember = await switchAccount(user, evt.body.mode, evt.body.userId);
             const userBadge = getUserBadge(user, teamMember, true, true);
 
             return {
@@ -39,56 +39,56 @@ export function installTeamRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/team/users")
+    router.route("/v2/account/users")
         .method("GET")
         .handler(async evt => {
             // TODO list team members
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/users/{id}")
+    router.route("/v2/account/users/{id}")
         .method("GET")
         .handler(async evt => {
             // TODO read team member
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/users/{id}")
+    router.route("/v2/account/users/{id}")
         .method("PATCH")
         .handler(async evt => {
             // TODO update team member
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/users/{id}")
+    router.route("/v2/account/users/{id}")
         .method("DELETE")
         .handler(async evt => {
             // TODO delete team member
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/invites")
+    router.route("/v2/account/invites")
         .method("POST")
         .handler(async evt => {
             // TODO create invite
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/invites")
+    router.route("/v2/account/invites")
         .method("GET")
         .handler(async evt => {
             // TODO list invites
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/invites/{id}")
+    router.route("/v2/account/invites/{id}")
         .method("GET")
         .handler(async evt => {
             // TODO read invite
             throw new Error("Not implemented");
         });
 
-    router.route("/v2/team/invites/{id}")
+    router.route("/v2/account/invites/{id}")
         .method("DELETE")
         .handler(async evt => {
             // TODO delete invite
@@ -96,7 +96,7 @@ export function installTeamRest(router: cassava.Router): void {
         });
 }
 
-async function switchTeam(user: User, mode?: "live" | "test", userId?: string): Promise<TeamMember> {
+async function switchAccount(user: User, mode?: "live" | "test", accountUserId?: string): Promise<TeamMember> {
     return null;
     // TODO determine correct organization userId, maybe save change, pass user back
 }

@@ -45,8 +45,8 @@ export async function getUserById(userId: string): Promise<User> {
     return users[0];
 }
 
-export async function getTeamMember(userId: string, teamMemberId: string): Promise<TeamMember> {
-    const req = teamMemberDynameh.requestBuilder.buildGetInput(stripTestMode(userId), stripTestMode(teamMemberId));
+export async function getTeamMember(accountUserId: string, teamMemberId: string): Promise<TeamMember> {
+    const req = teamMemberDynameh.requestBuilder.buildGetInput(stripTestMode(accountUserId), stripTestMode(teamMemberId));
     const resp = await dynamodb.getItem(req).promise();
     return teamMemberDynameh.responseUnwrapper.unwrapGetOutput(resp);
 }
@@ -54,8 +54,8 @@ export async function getTeamMember(userId: string, teamMemberId: string): Promi
 /**
  * Get all users on the given team.
  */
-export async function getTeamUsers(userId: string): Promise<TeamMember[]> {
-    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripTestMode(userId));
+export async function getAccountTeamMembers(accountUserId: string): Promise<TeamMember[]> {
+    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripTestMode(accountUserId));
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp);
 
@@ -72,7 +72,7 @@ export async function getTeamUsers(userId: string): Promise<TeamMember[]> {
 /**
  * Get all teams for the given user.
  */
-export async function getUserTeams(teamMemberId: string): Promise<TeamMember[]> {
+export async function getUserTeamMemberships(teamMemberId: string): Promise<TeamMember[]> {
     const req = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(stripTestMode(teamMemberId));
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(resp);
@@ -90,7 +90,7 @@ export async function getUserTeams(teamMemberId: string): Promise<TeamMember[]> 
 /**
  * Get the team member the given user should login as.
  */
-export async function getUserLoginTeamMember(user: User): Promise<TeamMember> {
+export async function getUserLoginTeamMembership(user: User): Promise<TeamMember> {
     if (user.defaultLoginUserId) {
         const teamMember = getTeamMember(user.defaultLoginUserId, user.userId);
         if (teamMember) {

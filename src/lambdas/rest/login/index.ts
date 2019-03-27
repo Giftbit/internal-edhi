@@ -5,7 +5,7 @@ import {dateCreatedNow} from "../../../dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
-import {getUserBadge, getUserBadgeCookies, getUserByEmail, getUserLoginTeamMember} from "../../../utils/userUtils";
+import {getUserBadge, getUserBadgeCookies, getUserByEmail, getUserLoginTeamMembership} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installLoginRest(router: cassava.Router): void {
@@ -30,7 +30,7 @@ export function installLoginRest(router: cassava.Router): void {
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp
             });
-            const teamMember = await getUserLoginTeamMember(user);
+            const teamMember = await getUserLoginTeamMembership(user);
             const liveMode = user.defaultLoginUserId.endsWith("-TEST");
             const userBadge = getUserBadge(user, teamMember, liveMode, true);
 
