@@ -75,7 +75,7 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
     const updateUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildUpdateInputFromActions(
             {
-                email: tokenAction.userEmail
+                email: tokenAction.email
             },
             {
                 action: "put",
@@ -93,5 +93,5 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
     const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, deleteTokenActionReq);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    log.info("User", tokenAction.userEmail, "has changed their password through forgotPassword");
+    log.info("User", tokenAction.email, "has changed their password through forgotPassword");
 }

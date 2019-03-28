@@ -1,8 +1,19 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {getUserBadge, getUserBadgeCookies, getUserByAuth} from "../../../utils/userUtils";
+import {
+    generateUserId,
+    getTeamMember,
+    getUserBadge,
+    getUserBadgeCookies,
+    getUserByAuth,
+    getUserByEmail
+} from "../../../utils/userUtils";
 import {User} from "../../../model/User";
 import {TeamMember} from "../../../model/TeamMember";
+import {Invitation} from "./Invitation";
+import * as aws from "aws-sdk";
+import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../dynamodb";
+import {TokenAction} from "../../../model/TokenAction";
 
 export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/switch")
@@ -70,8 +81,29 @@ export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/invites")
         .method("POST")
         .handler(async evt => {
-            // TODO create invite
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("userId");
+
+            evt.validateBody({
+                properties: {
+                    email: {
+                        type: "string",
+                        format: "email"
+                    },
+                    access: {
+                        type: "string",
+                        enum: ["owner", "full", "limited"]
+                    }
+                },
+                required: ["email", "access"],
+                additionalProperties: false
+            });
+
+            await inviteUser({accountUserId: auth.userId, email: evt.body.email, access: evt.body.access});
+            return {
+                body: {},
+                statusCode: cassava.httpStatusCode.success.CREATED
+            };
         });
 
     router.route("/v2/account/invites")
@@ -99,4 +131,71 @@ export function installAccountRest(router: cassava.Router): void {
 async function switchAccount(user: User, mode?: "live" | "test", accountUserId?: string): Promise<TeamMember> {
     return null;
     // TODO determine correct organization userId, maybe save change, pass user back
+}
+
+export async function inviteUser(params: { accountUserId: string, email: string, access: "owner" | "full" | "limited" }): Promise<Invitation> {
+    const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
+    const dateCreated = dateCreatedNow();
+
+    let user = await getUserByEmail(params.email);
+    if (!user) {
+        const userId = generateUserId();
+        user = {
+            email: params.email,
+            userId,
+            emailVerified: false,
+            frozen: false,
+            defaultLoginUserId: userId,
+            dateCreated
+        };
+        updates.push(userDynameh.requestBuilder.buildConditionalPutInput(
+            user,
+            {
+                attribute: "email",
+                operator: "attribute_not_exists"
+            }
+        ));
+    }
+
+    let teamMember = await getTeamMember(params.accountUserId, user.userId);
+    if (teamMember) {
+        if (teamMember.invitation) {
+            // TODO update and resend invitation
+        } else {
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
+        }
+    } else {
+        const tokenAction = TokenAction.generate("acceptTeamInvite", 5, {
+            email: params.email,
+            userId: params.accountUserId,
+            teamMemberId: user.userId
+        });
+        updates.push(tokenActionDynameh.requestBuilder.buildPutInput(tokenAction));
+
+        const dateExpires = new Date();
+        dateExpires.setDate(dateExpires.getDate() + 5);
+        teamMember = {
+            userId: params.accountUserId,
+            teamMemberId: user.userId,
+            invitation: {
+                email: params.email,
+                dateCreated,
+                dateExpires: dateExpires.toISOString()
+            },
+            roles: [],  // TODO base on access
+            dateCreated
+        };
+        updates.push(teamMemberDynameh.requestBuilder.buildPutInput(teamMember));
+    }
+
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    await dynamodb.transactWriteItems(writeReq).promise();
+
+    return {
+        userId: teamMember.userId,
+        teamMemberId: teamMember.teamMemberId,
+        email: teamMember.invitation.email,
+        dateCreated: teamMember.invitation.dateCreated,
+        dateExpires: teamMember.invitation.dateExpires
+    };
 }

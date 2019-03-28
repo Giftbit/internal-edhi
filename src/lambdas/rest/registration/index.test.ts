@@ -77,7 +77,7 @@ describe("/v2/user/register", () => {
                 "X-Requested-With": "XMLHttpRequest"
             }
         }));
-        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
     });
 
     it("will not register an invalid email", async () => {

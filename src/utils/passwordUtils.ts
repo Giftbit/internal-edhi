@@ -20,6 +20,10 @@ export async function hashPassword(plaintextPassword: string): Promise<UserPassw
 }
 
 export function validatePassword(plaintextPassword: string, userPassword: UserPassword): Promise<boolean> {
+    if (!userPassword) {
+        return Promise.resolve(false);
+    }
+
     switch (userPassword.algorithm) {
         case "BCRYPT":
             return validateBcrypt10Password(plaintextPassword, userPassword);

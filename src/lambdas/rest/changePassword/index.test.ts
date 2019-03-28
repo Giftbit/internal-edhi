@@ -25,7 +25,7 @@ describe("/v2/user/changePassword", () => {
             oldPassword: testUtils.defaultTestUser.password,
             newPassword
         });
-        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, changePasswordResp.bodyRaw);
 
         // Cannot log in with the old password.
         const oldPasswordLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {

@@ -1,12 +1,13 @@
+import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import * as uuid from "uuid/v4";
 import {User} from "../../../model/User";
 import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {TokenAction} from "../../../model/TokenAction";
 import {TeamMember} from "../../../model/TeamMember";
+import {generateUserId, getTeamMember, getUserById} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -56,10 +57,24 @@ export function installRegistrationRest(router: cassava.Router): void {
                 }
             };
         });
-}
 
-function generateUserId(): string {
-    return "user-" + uuid().replace(/-/g, "");
+    router.route("/v2/user/register/acceptInvite")
+        .method("GET")
+        .handler(async evt => {
+            if (!evt.queryStringParameters.token) {
+                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
+            }
+
+            const location = await acceptInvite(evt.queryStringParameters.token);
+
+            return {
+                body: null,
+                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                headers: {
+                    Location: location
+                }
+            };
+        });
 }
 
 // TODO team member registration
@@ -73,15 +88,15 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     const user: User = {
         email: params.email,
-        userId,
+        userId: teamMemberId,
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
         defaultLoginUserId: userId,
         dateCreated
     };
-    const putUserReq = userDynameh.requestBuilder.addCondition(
-        userDynameh.requestBuilder.buildPutInput(user),
+    const putUserReq = userDynameh.requestBuilder.buildConditionalPutInput(
+        user,
         {
             attribute: "email",
             operator: "attribute_not_exists"
@@ -106,8 +121,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         ],
         dateCreated
     };
-    const putTeamMemberReq = teamMemberDynameh.requestBuilder.addCondition(
-        teamMemberDynameh.requestBuilder.buildPutInput(teamMember),
+    const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildConditionalPutInput(
+        teamMember,
         {
             attribute: "userId",
             operator: "attribute_not_exists"
@@ -135,13 +150,13 @@ async function verifyEmail(token: string): Promise<void> {
     const tokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(tokenActionResp);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification timed out.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
     const updateUserReq = userDynameh.requestBuilder.addCondition(
         userDynameh.requestBuilder.buildUpdateInputFromActions(
             {
-                email: tokenAction.userEmail
+                email: tokenAction.email
             },
             {
                 action: "put",
@@ -156,5 +171,81 @@ async function verifyEmail(token: string): Promise<void> {
     );
 
     await dynamodb.updateItem(updateUserReq).promise();
-    log.info("User", tokenAction.userEmail, "has verified their email address");
+    log.info("User", tokenAction.email, "has verified their email address");
+}
+
+async function acceptInvite(token: string): Promise<string> {
+    const acceptInviteTokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(token);
+    const acceptInviteTokenActionResp = await dynamodb.getItem(acceptInviteTokenActionReq).promise();
+    const acceptInviteTokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(acceptInviteTokenActionResp);
+    if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
+        log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
+    }
+
+    const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [
+        tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
+    ];
+
+    const user = await getUserById(acceptInviteTokenAction.teamMemberId);
+    if (!user) {
+        throw new Error(`Cannot accept team invite: can't find User with id ${acceptInviteTokenAction.teamMemberId}`);
+    }
+    if (!user.emailVerified) {
+        // Accepting the invite verifies the email address.
+        updates.push(userDynameh.requestBuilder.addCondition(
+            userDynameh.requestBuilder.buildUpdateInputFromActions(
+                {
+                    email: acceptInviteTokenAction.email
+                },
+                {
+                    action: "put",
+                    attribute: "emailVerified",
+                    value: true
+                }
+            ),
+            {
+                attribute: "email",
+                operator: "attribute_exists"
+            }
+        ));
+    }
+
+    const teamMember = await getTeamMember(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+    if (!teamMember) {
+        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
+    }
+    if (teamMember.invitation) {
+        updates.push(teamMemberDynameh.requestBuilder.addCondition(
+            teamMemberDynameh.requestBuilder.buildUpdateInputFromActions(
+                {
+                    userId: acceptInviteTokenAction.userId,
+                    teamMemberId: acceptInviteTokenAction.teamMemberId
+                },
+                {
+                    action: "remove",
+                    attribute: "invitation"
+                }
+            ),
+            {
+                attribute: "userId",
+                operator: "attribute_exists"
+            }
+        ));
+    }
+
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    await dynamodb.transactWriteItems(writeReq).promise();
+    log.info("User", acceptInviteTokenAction.email, "has accepted a team invite");
+
+    if (!user.password) {
+        log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
+        const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
+        const setPasswordTokenActionReq = tokenActionDynameh.requestBuilder.buildPutInput(acceptInviteTokenAction);
+        await dynamodb.putItem(setPasswordTokenActionReq).promise();
+        return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+    }
+
+    return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`;
 }

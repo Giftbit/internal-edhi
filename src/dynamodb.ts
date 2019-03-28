@@ -51,7 +51,7 @@ export const userByUserIdSchema: dynameh.TableSchema = {
     indexName: "ByUserId",
     indexProperties: {
         type: "GLOBAL",
-        projectionType: "KEYS_ONLY"
+        projectionType: "ALL"
     },
     partitionKeyField: "userId",
     partitionKeyType: "string"

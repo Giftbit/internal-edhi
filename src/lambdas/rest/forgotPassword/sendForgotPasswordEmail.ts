@@ -1,4 +1,3 @@
-import * as uuid from "uuid/v4";
 import {dynamodb, tokenActionDynameh} from "../../../dynamodb";
 import {TokenAction} from "../../../model/TokenAction";
 import {sendEmail} from "../../../utils/emailUtils";
@@ -12,14 +11,7 @@ export async function sendForgotPasswordEmail(email: string): Promise<void> {
         return;
     }
 
-    const timeoutDate = new Date();
-    timeoutDate.setDate(timeoutDate.getDate() + 1);
-    const tokenAction: TokenAction = {
-        token: uuid().replace(/-/g, ""),
-        action: "resetPassword",
-        userEmail: user.email,
-        ttl: timeoutDate
-    };
+    const tokenAction = TokenAction.generate("resetPassword", 1, {email: user.email});
     const tokenActionReq = tokenActionDynameh.requestBuilder.buildPutInput(tokenAction);
     await dynamodb.putItem(tokenActionReq).promise();
 

@@ -1,3 +1,4 @@
+import * as uuid from "uuid/v4";
 import {User} from "../model/User";
 import {
     dynamodb,
@@ -16,6 +17,10 @@ let authConfig: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>;
 
 export function initializeBadgeSigningSecrets(authConfigPromise: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>): void {
     authConfig = authConfigPromise;
+}
+
+export function generateUserId(): string {
+    return "user-" + uuid().replace(/-/g, "");
 }
 
 export async function getUserByEmail(email: string): Promise<User> {

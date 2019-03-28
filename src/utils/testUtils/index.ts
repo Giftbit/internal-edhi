@@ -19,13 +19,12 @@ if (!process.env["TEST_ENV"]) {
 }
 
 export namespace defaultTestUser {
-    export const userId = "user-defaulttestuser";
-    export const teamMemberId = "user-defaulttestteammember";
+    export const userId = "user-testaccount";
+    export const teamMemberId = "user-testuser";
     export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
-            "gui": userId + "TEST",
-            "gmi": userId + "TEST",
-            "tmi": userId + "TEST",
+            "gui": userId + "-TEST",
+            "tmi": teamMemberId + "-TEST",
         },
         "iat": "2017-03-07T18:34:06.603+0000",
         "jti": "badge-dd95b9b582e840ecba1cbf41365d57e1",
@@ -45,10 +44,10 @@ export namespace defaultTestUser {
         ]
     });
     export const jwt = auth.sign("secret");
-    export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.])/.exec(jwt)[1]}`;
+    export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
     export const password = "password";
     export const user: User = {
-        userId: userId,
+        userId: teamMemberId,
         email: "default-test-user@example.com",
         password: {
             algorithm: "BCRYPT",
@@ -83,6 +82,7 @@ export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuth
 export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
+        await dynamodb.deleteTable(teamMemberDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(userDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {

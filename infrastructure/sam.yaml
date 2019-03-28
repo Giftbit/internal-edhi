@@ -99,7 +99,7 @@ Resources:
             - AttributeName: userId
               KeyType: HASH
           Projection:
-            ProjectionType: KEYS_ONLY
+            ProjectionType: ALL
           ProvisionedThroughput:
             ReadCapacityUnits: !If [UseProductionCapacity, 20, 4]
             WriteCapacityUnits: !If [UseProductionCapacity, 8, 4]
