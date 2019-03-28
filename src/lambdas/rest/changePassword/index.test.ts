@@ -1,10 +1,10 @@
 import * as chai from "chai";
+import * as cassava from "cassava";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import * as cassava from "cassava";
 import {initializeBadgeSigningSecrets} from "../../../utils/userUtils";
 
 describe("/v2/user/changePassword", () => {

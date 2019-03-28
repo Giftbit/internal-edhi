@@ -77,8 +77,6 @@ export function installRegistrationRest(router: cassava.Router): void {
         });
 }
 
-// TODO team member registration
-
 async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
@@ -242,7 +240,7 @@ async function acceptInvite(token: string): Promise<string> {
     if (!user.password) {
         log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
-        const setPasswordTokenActionReq = tokenActionDynameh.requestBuilder.buildPutInput(acceptInviteTokenAction);
+        const setPasswordTokenActionReq = tokenActionDynameh.requestBuilder.buildPutInput(setPasswordTokenAction);
         await dynamodb.putItem(setPasswordTokenActionReq).promise();
         return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
     }

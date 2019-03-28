@@ -6,14 +6,16 @@ import {
     getUserBadge,
     getUserBadgeCookies,
     getUserByAuth,
-    getUserByEmail
+    getUserByEmail,
+    stripUserIdTestMode
 } from "../../../utils/userUtils";
 import {User} from "../../../model/User";
 import {TeamMember} from "../../../model/TeamMember";
 import {Invitation} from "./Invitation";
 import * as aws from "aws-sdk";
-import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../dynamodb";
-import {TokenAction} from "../../../model/TokenAction";
+import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../dynamodb";
+import {sendTeamInvitation} from "./sendTeamInvitationEmail";
+import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/switch")
@@ -99,7 +101,11 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await inviteUser({accountUserId: auth.userId, email: evt.body.email, access: evt.body.access});
+            await inviteUser({
+                accountUserId: stripUserIdTestMode(auth.userId),
+                email: evt.body.email,
+                access: evt.body.access
+            });
             return {
                 body: {},
                 statusCode: cassava.httpStatusCode.success.CREATED
@@ -134,18 +140,22 @@ async function switchAccount(user: User, mode?: "live" | "test", accountUserId?:
 }
 
 export async function inviteUser(params: { accountUserId: string, email: string, access: "owner" | "full" | "limited" }): Promise<Invitation> {
+    log.info("Inviting user", params.email, "to organization", params.accountUserId);
+
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
     let user = await getUserByEmail(params.email);
-    if (!user) {
+    if (user) {
+        log.info("Found existing User", user.userId);
+    } else {
         const userId = generateUserId();
         user = {
             email: params.email,
             userId,
             emailVerified: false,
             frozen: false,
-            defaultLoginUserId: userId,
+            defaultLoginUserId: params.accountUserId,
             dateCreated
         };
         updates.push(userDynameh.requestBuilder.buildConditionalPutInput(
@@ -155,23 +165,18 @@ export async function inviteUser(params: { accountUserId: string, email: string,
                 operator: "attribute_not_exists"
             }
         ));
+        log.info("Creating new User", user.userId);
     }
 
     let teamMember = await getTeamMember(params.accountUserId, user.userId);
     if (teamMember) {
+        log.info("Found existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
             // TODO update and resend invitation
         } else {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
         }
     } else {
-        const tokenAction = TokenAction.generate("acceptTeamInvite", 5, {
-            email: params.email,
-            userId: params.accountUserId,
-            teamMemberId: user.userId
-        });
-        updates.push(tokenActionDynameh.requestBuilder.buildPutInput(tokenAction));
-
         const dateExpires = new Date();
         dateExpires.setDate(dateExpires.getDate() + 5);
         teamMember = {
@@ -185,11 +190,22 @@ export async function inviteUser(params: { accountUserId: string, email: string,
             roles: [],  // TODO base on access
             dateCreated
         };
-        updates.push(teamMemberDynameh.requestBuilder.buildPutInput(teamMember));
+        updates.push(teamMemberDynameh.requestBuilder.buildConditionalPutInput(
+            teamMember,
+            {
+                attribute: "userId",
+                operator: "attribute_not_exists"
+            }
+        ));
+        log.info("Creating new TeamMember", teamMember.userId, teamMember.teamMemberId);
     }
 
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
-    await dynamodb.transactWriteItems(writeReq).promise();
+    await dynamodb.putItem(updates[0] as any).promise();
+    await dynamodb.putItem(updates[1] as any).promise();
+    // const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    // await dynamodb.transactWriteItems(writeReq).promise();
+
+    await sendTeamInvitation({email: params.email, userId: params.accountUserId, teamMemberId: user.userId});
 
     return {
         userId: teamMember.userId,

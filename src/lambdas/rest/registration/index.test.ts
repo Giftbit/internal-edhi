@@ -63,20 +63,12 @@ describe("/v2/user/register", () => {
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.isString(loginResp.headers["Location"]);
+        chai.assert.isString(loginResp.headers["Set-Cookie"]);
+        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
+        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
-        const sessionCookie = /gb_jwt_session=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];
-        const signatureCookie = /gb_jwt_signature=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];
-        chai.assert.isString(sessionCookie, "Got session cookie from " + loginResp.headers["Set-Cookie"]);
-        chai.assert.isString(signatureCookie, "Got signature cookie from " + loginResp.headers["Set-Cookie"]);
-
-        const pingResp = await cassava.testing.testRouter(router, cassava.testing.createTestProxyEvent("/v2/user/ping", "GET", {
-            headers: {
-                Cookie: `gb_jwt_session=${sessionCookie}; gb_jwt_signature=${signatureCookie}`,
-                "X-Requested-With": "XMLHttpRequest"
-            }
-        }));
+        const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
     });
 

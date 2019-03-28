@@ -33,7 +33,7 @@ export async function getUserByEmail(email: string): Promise<User> {
 export async function getUserByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<User> {
     auth.requireIds("teamMemberId");
 
-    const userId = stripTestMode(auth.teamMemberId);
+    const userId = stripUserIdTestMode(auth.teamMemberId);
     const user = await getUserById(userId);
     if (!user) {
         log.error("Could not find user with userId", userId, "despite having a valid JWT");
@@ -44,14 +44,14 @@ export async function getUserByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBad
 }
 
 export async function getUserById(userId: string): Promise<User> {
-    const queryUserReq = userByUserIdDynameh.requestBuilder.buildQueryInput(stripTestMode(userId));
+    const queryUserReq = userByUserIdDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(userId));
     const queryUserResp = await dynamodb.query(queryUserReq).promise();
     const users = await userByUserIdDynameh.responseUnwrapper.unwrapQueryOutput(queryUserResp);
     return users[0];
 }
 
 export async function getTeamMember(accountUserId: string, teamMemberId: string): Promise<TeamMember> {
-    const req = teamMemberDynameh.requestBuilder.buildGetInput(stripTestMode(accountUserId), stripTestMode(teamMemberId));
+    const req = teamMemberDynameh.requestBuilder.buildGetInput(stripUserIdTestMode(accountUserId), stripUserIdTestMode(teamMemberId));
     const resp = await dynamodb.getItem(req).promise();
     return teamMemberDynameh.responseUnwrapper.unwrapGetOutput(resp);
 }
@@ -60,7 +60,7 @@ export async function getTeamMember(accountUserId: string, teamMemberId: string)
  * Get all users on the given team.
  */
 export async function getAccountTeamMembers(accountUserId: string): Promise<TeamMember[]> {
-    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripTestMode(accountUserId));
+    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(accountUserId));
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp);
 
@@ -78,7 +78,7 @@ export async function getAccountTeamMembers(accountUserId: string): Promise<Team
  * Get all teams for the given user.
  */
 export async function getUserTeamMemberships(teamMemberId: string): Promise<TeamMember[]> {
-    const req = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(stripTestMode(teamMemberId));
+    const req = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(teamMemberId));
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(resp);
 
@@ -97,7 +97,7 @@ export async function getUserTeamMemberships(teamMemberId: string): Promise<Team
  */
 export async function getUserLoginTeamMembership(user: User): Promise<TeamMember> {
     if (user.defaultLoginUserId) {
-        const teamMember = getTeamMember(user.defaultLoginUserId, user.userId);
+        const teamMember = await getTeamMember(user.defaultLoginUserId, user.userId);
         if (teamMember) {
             return teamMember;
         }
@@ -172,7 +172,7 @@ export async function getUserBadgeCookies(badge: giftbitRoutes.jwtauth.Authoriza
     };
 }
 
-function stripTestMode(userId: string): string {
+export function stripUserIdTestMode(userId: string): string {
     if (userId.endsWith("-TEST")) {
         userId = userId.substring(0, userId.length - 5);
     }
