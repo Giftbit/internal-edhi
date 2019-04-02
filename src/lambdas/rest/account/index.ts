@@ -1,8 +1,10 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import {GiftbitRestError} from "giftbit-cassava-routes";
 import {
     generateUserId,
+    getAccountInvitedTeamMembers,
     getTeamMember,
     getUserBadge,
     getUserBadgeCookies,
@@ -12,7 +14,7 @@ import {
 } from "../../../utils/userUtils";
 import {User} from "../../../model/User";
 import {TeamMember} from "../../../model/TeamMember";
-import {Invite} from "./Invite";
+import {Invitation} from "./Invitation";
 import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import log = require("loglevel");
@@ -84,7 +86,6 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireIds("userId");
 
             evt.validateBody({
                 properties: {
@@ -101,9 +102,9 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await inviteUser(auth, evt.body.email, evt.body.access);
+            const invitation = await inviteUser(auth, evt.body.email, evt.body.access);
             return {
-                body: {},
+                body: invitation,
                 statusCode: cassava.httpStatusCode.success.CREATED
             };
         });
@@ -111,22 +112,34 @@ export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/invites")
         .method("GET")
         .handler(async evt => {
-            // TODO list invites
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            const invites = await listInvites(auth);
+            return {
+                body: invites
+            }
         });
 
     router.route("/v2/account/invites/{id}")
         .method("GET")
         .handler(async evt => {
-            // TODO read invite
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            const invite = await getInvite(auth, evt.pathParameters.id);
+            if (!invite) {
+                throw new GiftbitRestError(404);
+            }
+            return {
+                body: invite
+            };
         });
 
     router.route("/v2/account/invites/{id}")
         .method("DELETE")
         .handler(async evt => {
-            // TODO delete invite
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            await cancelInvite(auth, evt.pathParameters.id);
+            return {
+                body: {}
+            };
         });
 }
 
@@ -135,7 +148,7 @@ async function switchAccount(user: User, mode?: "live" | "test", accountUserId?:
     // TODO determine correct organization userId, maybe save change, pass user back
 }
 
-export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invite> {
+export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUserId = stripUserIdTestMode(auth.userId);
     log.info("Inviting user", email, "to organization", accountUserId);
@@ -193,7 +206,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             operator: "attribute_not_exists"
         });
         updates.push(putTeamMemberReq);
-        log.info("Creating new TeamMember", teamMember.userId, teamMember.teamMemberId);
+        log.info("Invited new TeamMember", teamMember.userId, teamMember.teamMemberId);
     }
 
     const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
@@ -201,15 +214,44 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
     await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: user.userId});
 
-    return {
-        userId: teamMember.userId,
-        teamMemberId: teamMember.teamMemberId,
-        email: teamMember.invitation.email,
-        dateCreated: teamMember.invitation.dateCreated,
-        dateExpires: teamMember.invitation.dateExpires
-    };
+    return Invitation.fromTeamMember(teamMember);
 }
 
-export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invite> {
-    return null;
+export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
+    auth.requireIds("userId");
+    const teamMembers = await getAccountInvitedTeamMembers(auth.userId);
+    return teamMembers.map(Invitation.fromTeamMember);
+}
+
+export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<Invitation> {
+    auth.requireIds("userId");
+    const teamMember = await getTeamMember(auth.userId, teamMemberId);
+    if (!teamMember) {
+        return null;
+    }
+    return Invitation.fromTeamMember(teamMember);
+}
+
+export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
+    auth.requireIds("userId");
+    log.info("Cancel invitation", auth.userId, teamMemberId);
+
+    const req = teamMemberDynameh.requestBuilder.buildDeleteInput({
+        userId: stripUserIdTestMode(auth.userId),
+        teamMemberId: stripUserIdTestMode(teamMemberId)
+    });
+    teamMemberDynameh.requestBuilder.addCondition(req, {
+        attribute: "invitation",
+        operator: "attribute_exists"
+    });
+
+    try {
+        await dynamodb.deleteItem(req).promise();
+    } catch (error) {
+        if (error.code === "ConditionalCheckFailedException") {
+            log.info("The invitation cannot be deleted because it was already accepted");
+            throw new GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
+        }
+        throw error;
+    }
 }

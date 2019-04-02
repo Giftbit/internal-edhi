@@ -75,6 +75,28 @@ export async function getAccountTeamMembers(accountUserId: string): Promise<Team
 }
 
 /**
+ * Get invited users on the given team.
+ */
+export async function getAccountInvitedTeamMembers(accountUserId: string): Promise<TeamMember[]> {
+    const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(accountUserId));
+    teamMemberDynameh.requestBuilder.addFilter(req, {
+        attribute: "invitation",
+        operator: "attribute_exists"
+    });
+    let resp = await dynamodb.query(req).promise();
+    const teamUsers: TeamMember[] = teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+
+    // TODO this should be a utility in dynameh
+    while (resp.LastEvaluatedKey) {
+        req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        resp = await dynamodb.query(req).promise();
+        teamUsers.push(...teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp));
+    }
+
+    return teamUsers;
+}
+
+/**
  * Get all teams for the given user.
  */
 export async function getUserTeamMemberships(teamMemberId: string): Promise<TeamMember[]> {

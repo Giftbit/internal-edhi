@@ -143,7 +143,7 @@ async function verifyEmail(token: string): Promise<void> {
     const tokenAction = await getTokenAction(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification expired.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
     const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
@@ -168,7 +168,7 @@ async function acceptInvite(token: string): Promise<string> {
     const acceptInviteTokenAction = await getTokenAction(token);
     if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
         log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [
@@ -201,7 +201,7 @@ async function acceptInvite(token: string): Promise<string> {
     const teamMember = await getTeamMember(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
     if (!teamMember) {
         log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {
         const updateTeamMemberReq = teamMemberDynameh.requestBuilder.buildUpdateInputFromActions(

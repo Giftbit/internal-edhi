@@ -90,6 +90,6 @@ describe("/v2/user/register", () => {
 
     it("will not verifyEmail with a bad token", async () => {
         const resp = await router.testUnauthedRequest<any>("/v2/user/register/verifyEmail?token=asdfasdfasdf", "GET");
-        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
     });
 });
