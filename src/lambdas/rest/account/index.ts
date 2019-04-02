@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {
@@ -11,8 +12,7 @@ import {
 } from "../../../utils/userUtils";
 import {User} from "../../../model/User";
 import {TeamMember} from "../../../model/TeamMember";
-import {Invitation} from "./Invitation";
-import * as aws from "aws-sdk";
+import {Invite} from "./Invite";
 import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import log = require("loglevel");
@@ -101,11 +101,7 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await inviteUser({
-                accountUserId: stripUserIdTestMode(auth.userId),
-                email: evt.body.email,
-                access: evt.body.access
-            });
+            await inviteUser(auth, evt.body.email, evt.body.access);
             return {
                 body: {},
                 statusCode: cassava.httpStatusCode.success.CREATED
@@ -139,73 +135,71 @@ async function switchAccount(user: User, mode?: "live" | "test", accountUserId?:
     // TODO determine correct organization userId, maybe save change, pass user back
 }
 
-export async function inviteUser(params: { accountUserId: string, email: string, access: "owner" | "full" | "limited" }): Promise<Invitation> {
-    log.info("Inviting user", params.email, "to organization", params.accountUserId);
+export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invite> {
+    auth.requireIds("userId");
+    const accountUserId = stripUserIdTestMode(auth.userId);
+    log.info("Inviting user", email, "to organization", accountUserId);
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
-    let user = await getUserByEmail(params.email);
+    let user = await getUserByEmail(email);
     if (user) {
         log.info("Found existing User", user.userId);
     } else {
         const userId = generateUserId();
         user = {
-            email: params.email,
+            email: email,
             userId,
             emailVerified: false,
             frozen: false,
-            defaultLoginUserId: params.accountUserId,
+            defaultLoginUserId: accountUserId,
             dateCreated
         };
-        updates.push(userDynameh.requestBuilder.buildConditionalPutInput(
-            user,
-            {
-                attribute: "email",
-                operator: "attribute_not_exists"
-            }
-        ));
+        const putUserReq = userDynameh.requestBuilder.buildPutInput(user);
+        userDynameh.requestBuilder.addCondition(putUserReq, {
+            attribute: "email",
+            operator: "attribute_not_exists"
+        });
+        updates.push(putUserReq);
         log.info("Creating new User", user.userId);
     }
 
-    let teamMember = await getTeamMember(params.accountUserId, user.userId);
+    let teamMember = await getTeamMember(accountUserId, user.userId);
     if (teamMember) {
         log.info("Found existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
             // TODO update and resend invitation
         } else {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${email} has already accepted an invitation.`);
         }
     } else {
         const dateExpires = new Date();
         dateExpires.setDate(dateExpires.getDate() + 5);
         teamMember = {
-            userId: params.accountUserId,
+            userId: accountUserId,
             teamMemberId: user.userId,
             invitation: {
-                email: params.email,
+                email: email,
                 dateCreated,
                 dateExpires: dateExpires.toISOString()
             },
             roles: [],  // TODO base on access
             dateCreated
         };
-        updates.push(teamMemberDynameh.requestBuilder.buildConditionalPutInput(
-            teamMember,
-            {
-                attribute: "userId",
-                operator: "attribute_not_exists"
-            }
-        ));
+        const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildPutInput(teamMember);
+        teamMemberDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+            attribute: "userId",
+            operator: "attribute_not_exists"
+        });
+        updates.push(putTeamMemberReq);
         log.info("Creating new TeamMember", teamMember.userId, teamMember.teamMemberId);
     }
 
-    await dynamodb.putItem(updates[0] as any).promise();
-    await dynamodb.putItem(updates[1] as any).promise();
-    // const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
-    // await dynamodb.transactWriteItems(writeReq).promise();
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    await dynamodb.transactWriteItems(writeReq).promise();
 
-    await sendTeamInvitation({email: params.email, userId: params.accountUserId, teamMemberId: user.userId});
+    await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: user.userId});
 
     return {
         userId: teamMember.userId,
@@ -214,4 +208,8 @@ export async function inviteUser(params: { accountUserId: string, email: string,
         dateCreated: teamMember.invitation.dateCreated,
         dateExpires: teamMember.invitation.dateExpires
     };
+}
+
+export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invite> {
+    return null;
 }

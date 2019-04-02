@@ -72,25 +72,23 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
     }
 
     const userPassword: UserPassword = await hashPassword(params.plaintextPassword);
-    const updateUserReq = userDynameh.requestBuilder.addCondition(
-        userDynameh.requestBuilder.buildUpdateInputFromActions(
-            {
-                email: tokenAction.email
-            },
-            {
-                action: "put",
-                attribute: "password",
-                value: userPassword
-            }
-        ),
+    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
         {
-            attribute: "email",
-            operator: "attribute_exists"
+            email: tokenAction.email
+        },
+        {
+            action: "put",
+            attribute: "password",
+            value: userPassword
         }
     );
+    userDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "email",
+        operator: "attribute_exists"
+    });
     const deleteTokenActionReq = tokenActionDynameh.requestBuilder.buildDeleteInput(tokenAction);
 
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, deleteTokenActionReq);
+    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, deleteTokenActionReq);  // TODO should be batch
     await dynamodb.transactWriteItems(writeReq).promise();
 
     log.info("User", tokenAction.email, "has changed their password through forgotPassword");

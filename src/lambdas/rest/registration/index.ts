@@ -93,13 +93,11 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         defaultLoginUserId: userId,
         dateCreated
     };
-    const putUserReq = userDynameh.requestBuilder.buildConditionalPutInput(
-        user,
-        {
-            attribute: "email",
-            operator: "attribute_not_exists"
-        }
-    );
+    const putUserReq = userDynameh.requestBuilder.buildPutInput(user);
+    userDynameh.requestBuilder.addCondition(putUserReq, {
+        attribute: "email",
+        operator: "attribute_not_exists"
+    });
 
     const teamMember: TeamMember = {
         userId,
@@ -119,13 +117,11 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         ],
         dateCreated
     };
-    const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildConditionalPutInput(
-        teamMember,
-        {
-            attribute: "userId",
-            operator: "attribute_not_exists"
-        }
-    );
+    const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildPutInput(teamMember);
+    teamMemberDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+        attribute: "userId",
+        operator: "attribute_not_exists"
+    });
 
     const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putTeamMemberReq);
     try {
@@ -151,22 +147,19 @@ async function verifyEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
-    const updateUserReq = userDynameh.requestBuilder.addCondition(
-        userDynameh.requestBuilder.buildUpdateInputFromActions(
-            {
-                email: tokenAction.email
-            },
-            {
-                action: "put",
-                attribute: "emailVerified",
-                value: true
-            }
-        ),
+    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
         {
-            attribute: "email",
-            operator: "attribute_exists"
-        }
-    );
+            email: tokenAction.email
+        },
+        {
+            action: "put",
+            attribute: "emailVerified",
+            value: true
+        });
+    userDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "email",
+        operator: "attribute_exists"
+    });
 
     await dynamodb.updateItem(updateUserReq).promise();
     log.info("User", tokenAction.email, "has verified their email address");
@@ -191,22 +184,21 @@ async function acceptInvite(token: string): Promise<string> {
     }
     if (!user.emailVerified) {
         // Accepting the invite verifies the email address.
-        updates.push(userDynameh.requestBuilder.addCondition(
-            userDynameh.requestBuilder.buildUpdateInputFromActions(
-                {
-                    email: acceptInviteTokenAction.email
-                },
-                {
-                    action: "put",
-                    attribute: "emailVerified",
-                    value: true
-                }
-            ),
+        const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
             {
-                attribute: "email",
-                operator: "attribute_exists"
+                email: acceptInviteTokenAction.email
+            },
+            {
+                action: "put",
+                attribute: "emailVerified",
+                value: true
             }
-        ));
+        );
+        userDynameh.requestBuilder.addCondition(updateUserReq, {
+            attribute: "email",
+            operator: "attribute_exists"
+        });
+        updates.push(updateUserReq);
     }
 
     const teamMember = await getTeamMember(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
@@ -215,22 +207,22 @@ async function acceptInvite(token: string): Promise<string> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {
-        updates.push(teamMemberDynameh.requestBuilder.addCondition(
-            teamMemberDynameh.requestBuilder.buildUpdateInputFromActions(
-                {
-                    userId: acceptInviteTokenAction.userId,
-                    teamMemberId: acceptInviteTokenAction.teamMemberId
-                },
-                {
-                    action: "remove",
-                    attribute: "invitation"
-                }
-            ),
+        const updateTeamMemberReq = teamMemberDynameh.requestBuilder.buildUpdateInputFromActions(
             {
+                userId: acceptInviteTokenAction.userId,
+                teamMemberId: acceptInviteTokenAction.teamMemberId
+            },
+            {
+                action: "remove",
+                attribute: "invitation"
+            }
+        );
+        teamMemberDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
                 attribute: "userId",
                 operator: "attribute_exists"
             }
-        ));
+        );
+        updates.push(updateTeamMemberReq);
     }
 
     const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);

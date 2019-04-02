@@ -49,20 +49,15 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
     }
 
     const userPassword: UserPassword = await hashPassword(params.newPlaintextPassword);
-    const updateUserReq = userDynameh.requestBuilder.addCondition(
-        userDynameh.requestBuilder.buildUpdateInputFromActions(
-            user,
-            {
-                action: "put",
-                attribute: "password",
-                value: userPassword
-            }
-        ),
-        {
-            attribute: "email",
-            operator: "attribute_exists"
-        }
-    );
+    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(user, {
+        action: "put",
+        attribute: "password",
+        value: userPassword
+    });
+    userDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "email",
+        operator: "attribute_exists"
+    });
     await dynamodb.updateItem(updateUserReq).promise();
     log.info("User", user.email, "has changed their password");
 }

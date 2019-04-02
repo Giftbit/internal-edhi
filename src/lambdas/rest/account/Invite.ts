@@ -1,4 +1,4 @@
-export interface Invitation {
+export interface Invite {
     userId: string;
     teamMemberId: string;
     email: string;
