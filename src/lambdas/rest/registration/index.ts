@@ -8,6 +8,7 @@ import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationE
 import {TokenAction} from "../../../model/TokenAction";
 import {TeamMember} from "../../../model/TeamMember";
 import {generateUserId, getTeamMember, getUserById} from "../../../utils/userUtils";
+import {deleteTokenAction, getTokenAction, putTokenAction} from "../../../utils/tokenActionUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -139,9 +140,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 }
 
 async function verifyEmail(token: string): Promise<void> {
-    const tokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(token);
-    const tokenActionResp = await dynamodb.getItem(tokenActionReq).promise();
-    const tokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(tokenActionResp);
+    const tokenAction = await getTokenAction(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the email verification expired.");
@@ -160,15 +159,13 @@ async function verifyEmail(token: string): Promise<void> {
         attribute: "email",
         operator: "attribute_exists"
     });
-
     await dynamodb.updateItem(updateUserReq).promise();
+    await deleteTokenAction(tokenAction);
     log.info("User", tokenAction.email, "has verified their email address");
 }
 
 async function acceptInvite(token: string): Promise<string> {
-    const acceptInviteTokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(token);
-    const acceptInviteTokenActionResp = await dynamodb.getItem(acceptInviteTokenActionReq).promise();
-    const acceptInviteTokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(acceptInviteTokenActionResp);
+    const acceptInviteTokenAction = await getTokenAction(token);
     if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
         log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error completing your registration.  Maybe the invite expired.");
@@ -232,8 +229,7 @@ async function acceptInvite(token: string): Promise<string> {
     if (!user.password) {
         log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
-        const setPasswordTokenActionReq = tokenActionDynameh.requestBuilder.buildPutInput(setPasswordTokenAction);
-        await dynamodb.putItem(setPasswordTokenActionReq).promise();
+        await putTokenAction(setPasswordTokenAction);
         return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
     }
 

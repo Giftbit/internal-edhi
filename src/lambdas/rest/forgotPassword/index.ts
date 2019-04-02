@@ -1,10 +1,10 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
-import {dynamodb, tokenActionDynameh, userDynameh} from "../../../dynamodb";
-import {TokenAction} from "../../../model/TokenAction";
+import {dynamodb, userDynameh} from "../../../dynamodb";
 import {UserPassword} from "../../../model/User";
 import {hashPassword} from "../../../utils/passwordUtils";
+import {deleteTokenAction, getTokenAction} from "../../../utils/tokenActionUtils";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -63,9 +63,7 @@ export function installForgotPasswordRest(router: cassava.Router): void {
 }
 
 async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
-    const tokenActionReq = tokenActionDynameh.requestBuilder.buildGetInput(params.token);
-    const tokenActionResp = await dynamodb.getItem(tokenActionReq).promise();
-    const tokenAction: TokenAction = tokenActionDynameh.responseUnwrapper.unwrapGetOutput(tokenActionResp);
+    const tokenAction = await getTokenAction(params.token);
     if (!tokenAction || tokenAction.action !== "resetPassword") {
         log.warn("Could not find resetPassword TokenAction for token", params.token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error resetting the password.  Maybe the email link timed out.");
@@ -86,10 +84,8 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
         attribute: "email",
         operator: "attribute_exists"
     });
-    const deleteTokenActionReq = tokenActionDynameh.requestBuilder.buildDeleteInput(tokenAction);
-
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, deleteTokenActionReq);  // TODO should be batch
-    await dynamodb.transactWriteItems(writeReq).promise();
+    await dynamodb.updateItem(updateUserReq).promise();
+    await deleteTokenAction(tokenAction);
 
     log.info("User", tokenAction.email, "has changed their password through forgotPassword");
 }
