@@ -61,6 +61,10 @@ export async function getTeamMember(accountUserId: string, teamMemberId: string)
  */
 export async function getAccountTeamMembers(accountUserId: string): Promise<TeamMember[]> {
     const req = teamMemberDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(accountUserId));
+    teamMemberDynameh.requestBuilder.addFilter(req, {
+        attribute: "invitation",
+        operator: "attribute_not_exists"
+    });
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberDynameh.responseUnwrapper.unwrapQueryOutput(resp);
 
@@ -101,6 +105,10 @@ export async function getAccountInvitedTeamMembers(accountUserId: string): Promi
  */
 export async function getUserTeamMemberships(teamMemberId: string): Promise<TeamMember[]> {
     const req = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(stripUserIdTestMode(teamMemberId));
+    teamMemberDynameh.requestBuilder.addFilter(req, {
+        attribute: "invitation",
+        operator: "attribute_not_exists"
+    });
     let resp = await dynamodb.query(req).promise();
     const teamUsers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(resp);
 
@@ -127,6 +135,10 @@ export async function getUserLoginTeamMembership(user: User): Promise<TeamMember
 
     // Get any random TeamMember to log in as.
     const queryReq = teamMemberByTeamMemberIdDynameh.requestBuilder.buildQueryInput(user.userId);
+    teamMemberDynameh.requestBuilder.addFilter(queryReq, {
+        attribute: "invitation",
+        operator: "attribute_not_exists"
+    });
     queryReq.Limit = 1;
     const queryResp = await dynamodb.query(queryReq).promise();
     const teamMembers: TeamMember[] = teamMemberByTeamMemberIdDynameh.responseUnwrapper.unwrapQueryOutput(queryResp);
@@ -155,6 +167,7 @@ export function getUserBadge(user: User, teamMember: TeamMember | null, liveMode
     auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
     auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");
     auth.roles = teamMember.roles;
+    auth.scopes = teamMember.scopes || [];
     auth.issuer = "EDHI";
     auth.audience = shortLived ? "WEBAPP" : "API";
     auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60000) : null;

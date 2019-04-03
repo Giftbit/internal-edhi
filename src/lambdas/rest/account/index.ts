@@ -5,6 +5,7 @@ import {GiftbitRestError} from "giftbit-cassava-routes";
 import {
     generateUserId,
     getAccountInvitedTeamMembers,
+    getAccountTeamMembers,
     getTeamMember,
     getUserBadge,
     getUserBadgeCookies,
@@ -57,15 +58,26 @@ export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/users")
         .method("GET")
         .handler(async evt => {
-            // TODO list team members
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("userId");
+            const teamMembers = await getAccountTeamMembers(auth.userId);
+            return {
+                body: teamMembers
+            };
         });
 
     router.route("/v2/account/users/{id}")
         .method("GET")
         .handler(async evt => {
-            // TODO read team member
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("userId");
+            const teamMember = await getTeamMember(auth.userId, evt.pathParameters.id);
+            if (!teamMember || teamMember.invitation) {
+                throw new GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
+            }
+            return {
+                body: teamMember
+            };
         });
 
     router.route("/v2/account/users/{id}")
@@ -125,7 +137,7 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             const invite = await getInvite(auth, evt.pathParameters.id);
             if (!invite) {
-                throw new GiftbitRestError(404);
+                throw new GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find invite with id '${evt.pathParameters.id}'.`, "InviteNotFound");
             }
             return {
                 body: invite

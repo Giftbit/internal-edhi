@@ -27,10 +27,10 @@ describe("/v2/user/register", () => {
     });
 
     it("can register a new user, send an email, verifyEmail, login", async () => {
-        let verifyEmail: string;
+        let verifyEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                verifyEmail = params.htmlBody;
+                verifyEmail = params;
                 return null;
             });
 
@@ -42,10 +42,9 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isString(verifyEmail, "Got email.");
-        chai.assert.notMatch(verifyEmail, /{{.*}}/, "No unreplaced tokens.");
+        chai.assert.notMatch(verifyEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
-        const verifyEmailMatcher = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(verifyEmail);
-        const verifyUrl = verifyEmailMatcher[1];
+        const verifyUrl = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
         chai.assert.isString(verifyEmail, "Found verify url in email body.");
         const token = /\/v2\/user\/register\/verifyEmail\?token=(.*)/.exec(verifyUrl)[1];
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");

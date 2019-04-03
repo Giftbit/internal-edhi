@@ -4,6 +4,7 @@ export interface TeamMember {
     teamMemberId: string;
     invitation?: TeamMemberInvitation;
     roles: string[];
+    scopes?: string[];
     dateCreated: string;
 
 }
