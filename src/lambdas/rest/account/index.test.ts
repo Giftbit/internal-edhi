@@ -94,11 +94,18 @@ describe("/v2/account", () => {
         chai.assert.equal(cantDeleteInvitationResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
     });
 
-    it("can cancel an invitation", async () => {
-        let inviteEmail: emailUtils.SendEmailParams;
+    it("can cancel an invitation and then resend it", async () => {
+        let inviteEmail1: emailUtils.SendEmailParams;
+        let inviteEmail2: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                inviteEmail = params;
+                inviteEmail1 = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                inviteEmail2 = params;
                 return null;
             });
 
@@ -110,9 +117,6 @@ describe("/v2/account", () => {
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.userId, testUtils.defaultTestUser.userId);
         chai.assert.equal(inviteResp.body.email, email);
-        chai.assert.isObject(inviteEmail, "invite email sent");
-        chai.assert.equal(inviteEmail.toAddress, email);
-        chai.assert.notMatch(inviteEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const listInvitationsResp = await router.testApiRequest<Invitation[]>("/v2/account/invites", "GET");
         chai.assert.equal(listInvitationsResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -121,7 +125,7 @@ describe("/v2/account", () => {
         const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invites/${inviteResp.body.teamMemberId}`, "DELETE");
         chai.assert.equal(deleteInvitationResp.statusCode, cassava.httpStatusCode.success.OK);
 
-        const acceptInviteLink = /(https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=[a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
+        const acceptInviteLink = /(https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=[a-zA-Z0-9]*)/.exec(inviteEmail1.htmlBody)[1];
         chai.assert.isString(acceptInviteLink);
 
         const acceptInviteToken = /\?token=([a-zA-Z0-9]*)/.exec(acceptInviteLink)[1];
@@ -129,5 +133,36 @@ describe("/v2/account", () => {
 
         const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
         chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, acceptInviteResp.bodyRaw);
+
+        const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
+            email: email,
+            access: "full"
+        });
+        chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(reinviteResp.body.userId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(reinviteResp.body.email, email);
+
+        const acceptReinviteLink = /(https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=[a-zA-Z0-9]*)/.exec(inviteEmail2.htmlBody)[1];
+        chai.assert.isString(acceptInviteLink);
+
+        const acceptReinviteToken = /\?token=([a-zA-Z0-9]*)/.exec(acceptReinviteLink)[1];
+        chai.assert.isString(acceptInviteToken);
+        chai.assert.notEqual(acceptReinviteToken, acceptInviteToken);
+
+        const acceptReinviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptReinviteToken}`, "GET");
+        chai.assert.equal(acceptReinviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptReinviteResp.bodyRaw);
+        chai.assert.isString(acceptReinviteResp.headers["Location"]);
+        chai.assert.match(acceptReinviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
+
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptReinviteResp.headers["Location"])[1];
+        chai.assert.isString(resetPasswordToken);
+
+        const password = generateId();
+        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+            token: resetPasswordToken,
+            password
+        });
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isString(completeResp.headers["Location"]);
     });
 });
