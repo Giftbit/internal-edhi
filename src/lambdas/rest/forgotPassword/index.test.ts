@@ -1,13 +1,13 @@
+import * as cassava from "cassava";
 import * as chai from "chai";
 import * as sinon from "sinon";
+import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import * as emailUtils from "../../../utils/emailUtils";
-import * as cassava from "cassava";
-import {initializeBadgeSigningSecrets} from "../../../utils/userUtils";
+import {DbUser} from "../../../db/DbUser";
 
 describe("/v2/user/forgotPassword", () => {
 
@@ -19,7 +19,7 @@ describe("/v2/user/forgotPassword", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {

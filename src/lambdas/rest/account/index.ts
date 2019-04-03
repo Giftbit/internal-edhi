@@ -2,22 +2,12 @@ import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {GiftbitRestError} from "giftbit-cassava-routes";
-import {
-    generateUserId,
-    getAccountInvitedTeamMembers,
-    getAccountTeamMembers,
-    getTeamMember,
-    getUserBadge,
-    getUserBadgeCookies,
-    getUserByAuth,
-    getUserByEmail,
-    stripUserIdTestMode
-} from "../../../utils/userUtils";
-import {User} from "../../../model/User";
-import {TeamMember} from "../../../model/TeamMember";
+import {DbUser} from "../../../db/DbUser";
+import {DbTeamMember} from "../../../db/DbTeamMember";
 import {Invitation} from "./Invitation";
-import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../dynamodb";
+import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../db/dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
+import {stripUserIdTestMode} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -41,9 +31,9 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const user = await getUserByAuth(auth);
+            const user = await DbUser.getByAuth(auth);
             const teamMember = await switchAccount(user, evt.body.mode, evt.body.userId);
-            const userBadge = getUserBadge(user, teamMember, true, true);
+            const userBadge = DbUser.getBage(user, teamMember, true, true);
 
             return {
                 body: null,
@@ -51,7 +41,7 @@ export function installAccountRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await getUserBadgeCookies(userBadge)
+                cookies: await DbUser.getBadgeCookies(userBadge)
             };
         });
 
@@ -60,7 +50,7 @@ export function installAccountRest(router: cassava.Router): void {
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireIds("userId");
-            const teamMembers = await getAccountTeamMembers(auth.userId);
+            const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
             return {
                 body: teamMembers
             };
@@ -71,7 +61,7 @@ export function installAccountRest(router: cassava.Router): void {
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireIds("userId");
-            const teamMember = await getTeamMember(auth.userId, evt.pathParameters.id);
+            const teamMember = await DbTeamMember.get(auth.userId, evt.pathParameters.id);
             if (!teamMember || teamMember.invitation) {
                 throw new GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
@@ -155,7 +145,7 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function switchAccount(user: User, mode?: "live" | "test", accountUserId?: string): Promise<TeamMember> {
+async function switchAccount(user: DbUser, mode?: "live" | "test", accountUserId?: string): Promise<DbTeamMember> {
     return null;
     // TODO determine correct organization userId, maybe save change, pass user back
 }
@@ -168,11 +158,11 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
-    let user = await getUserByEmail(email);
+    let user = await DbUser.getByEmail(email);
     if (user) {
         log.info("Found existing User", user.userId);
     } else {
-        const userId = generateUserId();
+        const userId = DbUser.generateUserId();
         user = {
             email: email,
             userId,
@@ -190,7 +180,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         log.info("Creating new User", user.userId);
     }
 
-    let teamMember = await getTeamMember(accountUserId, user.userId);
+    let teamMember = await DbTeamMember.get(accountUserId, user.userId);
     if (teamMember) {
         log.info("Found existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
@@ -231,14 +221,14 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
 export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");
-    const teamMembers = await getAccountInvitedTeamMembers(auth.userId);
+    const teamMembers = await DbTeamMember.getAccountInvitedTeamMembers(auth.userId);
     return teamMembers.map(Invitation.fromTeamMember);
 }
 
 export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<Invitation> {
     auth.requireIds("userId");
-    const teamMember = await getTeamMember(auth.userId, teamMemberId);
-    if (!teamMember) {
+    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    if (!teamMember || !teamMember.invitation) {
         return null;
     }
     return Invitation.fromTeamMember(teamMember);

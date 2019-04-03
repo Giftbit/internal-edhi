@@ -1,14 +1,12 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {User} from "../../../model/User";
-import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../dynamodb";
+import {DbUser} from "../../../db/DbUser";
+import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
-import {TokenAction} from "../../../model/TokenAction";
-import {TeamMember} from "../../../model/TeamMember";
-import {generateUserId, getTeamMember, getUserById} from "../../../utils/userUtils";
-import {deleteTokenAction, getTokenAction, putTokenAction} from "../../../utils/tokenActionUtils";
+import {DbTeamMember} from "../../../db/DbTeamMember";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -81,11 +79,11 @@ export function installRegistrationRest(router: cassava.Router): void {
 async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
-    const userId = generateUserId();
-    const teamMemberId = generateUserId();
+    const userId = DbUser.generateUserId();
+    const teamMemberId = DbUser.generateUserId();
     const dateCreated = dateCreatedNow();
 
-    const user: User = {
+    const user: DbUser = {
         email: params.email,
         userId: teamMemberId,
         password: await hashPassword(params.plaintextPassword),
@@ -100,7 +98,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const teamMember: TeamMember = {
+    const teamMember: DbTeamMember = {
         userId,
         teamMemberId,
         roles: [
@@ -140,7 +138,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 }
 
 async function verifyEmail(token: string): Promise<void> {
-    const tokenAction = await getTokenAction(token);
+    const tokenAction = await DbTokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
@@ -160,12 +158,12 @@ async function verifyEmail(token: string): Promise<void> {
         operator: "attribute_exists"
     });
     await dynamodb.updateItem(updateUserReq).promise();
-    await deleteTokenAction(tokenAction);
-    log.info("User", tokenAction.email, "has verified their email address");
+    await DbTokenAction.del(tokenAction);
+    log.info("DbUser.ts", tokenAction.email, "has verified their email address");
 }
 
 async function acceptInvite(token: string): Promise<string> {
-    const acceptInviteTokenAction = await getTokenAction(token);
+    const acceptInviteTokenAction = await DbTokenAction.get(token);
     if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
         log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
@@ -175,7 +173,7 @@ async function acceptInvite(token: string): Promise<string> {
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
     ];
 
-    const user = await getUserById(acceptInviteTokenAction.teamMemberId);
+    const user = await DbUser.getById(acceptInviteTokenAction.teamMemberId);
     if (!user) {
         throw new Error(`Cannot accept team invite: can't find User with id ${acceptInviteTokenAction.teamMemberId}`);
     }
@@ -198,7 +196,7 @@ async function acceptInvite(token: string): Promise<string> {
         updates.push(updateUserReq);
     }
 
-    const teamMember = await getTeamMember(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+    const teamMember = await DbTeamMember.get(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
     if (!teamMember) {
         log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
@@ -224,12 +222,12 @@ async function acceptInvite(token: string): Promise<string> {
 
     const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
-    log.info("User", acceptInviteTokenAction.email, "has accepted a team invite");
+    log.info("DbUser.ts", acceptInviteTokenAction.email, "has accepted a team invite");
 
     if (!user.password) {
-        log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
-        const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
-        await putTokenAction(setPasswordTokenAction);
+        log.info("DbUser.ts", acceptInviteTokenAction.email, "has no password, setting up password reset");
+        const setPasswordTokenAction = DbTokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
+        await DbTokenAction.put(setPasswordTokenAction);
         return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
     }
 

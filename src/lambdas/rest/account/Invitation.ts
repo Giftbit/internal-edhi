@@ -1,4 +1,4 @@
-import {TeamMember} from "../../../model/TeamMember";
+import {DbTeamMember} from "../../../db/DbTeamMember";
 
 export interface Invitation {
     userId: string;
@@ -9,7 +9,7 @@ export interface Invitation {
 }
 
 export namespace Invitation {
-    export function fromTeamMember(teamMember: TeamMember): Invitation {
+    export function fromTeamMember(teamMember: DbTeamMember): Invitation {
         return {
             userId: teamMember.userId,
             teamMemberId: teamMember.teamMemberId,

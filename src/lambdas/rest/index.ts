@@ -1,9 +1,10 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as logPrefix from "loglevel-plugin-prefix";
-import log = require("loglevel");
 import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
+import {DbUser} from "../../db/DbUser";
+import log = require("loglevel");
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)
 // Otherwise all log calls are prefixed with the requestId from the first
@@ -45,6 +46,7 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     infoLogFunction: log.info,
     errorLogFunction: log.error
 }));
+DbUser.initializeBadgeSigningSecrets(authConfigPromise);
 
 installAuthedRestRoutes(router);
 

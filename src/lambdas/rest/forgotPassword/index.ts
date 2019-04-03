@@ -1,10 +1,10 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
-import {dynamodb, userDynameh} from "../../../dynamodb";
-import {UserPassword} from "../../../model/User";
+import {dynamodb, userDynameh} from "../../../db/dynamodb";
+import {DbUser, UserPassword} from "../../../db/DbUser";
 import {hashPassword} from "../../../utils/passwordUtils";
-import {deleteTokenAction, getTokenAction} from "../../../utils/tokenActionUtils";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -63,7 +63,7 @@ export function installForgotPasswordRest(router: cassava.Router): void {
 }
 
 async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
-    const tokenAction = await getTokenAction(params.token);
+    const tokenAction = await DbTokenAction.get(params.token);
     if (!tokenAction || tokenAction.action !== "resetPassword") {
         log.warn("Could not find resetPassword TokenAction for token", params.token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error resetting the password.  Maybe the email link timed out.");
@@ -85,7 +85,7 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
         operator: "attribute_exists"
     });
     await dynamodb.updateItem(updateUserReq).promise();
-    await deleteTokenAction(tokenAction);
+    await DbTokenAction.del(tokenAction);
 
-    log.info("User", tokenAction.email, "has changed their password through forgotPassword");
+    log.info("DbUser.ts", tokenAction.email, "has changed their password through forgotPassword");
 }

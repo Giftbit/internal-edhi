@@ -1,9 +1,8 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, userDynameh} from "../../../dynamodb";
-import {UserPassword} from "../../../model/User";
+import {dynamodb, userDynameh} from "../../../db/dynamodb";
+import {DbUser, UserPassword} from "../../../db/DbUser";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
-import {getUserByAuth} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -41,7 +40,7 @@ export function installChangePasswordRest(router: cassava.Router): void {
 }
 
 async function changePassword(params: { auth: giftbitRoutes.jwtauth.AuthorizationBadge, oldPlaintextPassword: string, newPlaintextPassword: string }): Promise<void> {
-    const user = await getUserByAuth(params.auth);
+    const user = await DbUser.getByAuth(params.auth);
 
     if (!await validatePassword(params.oldPlaintextPassword, user.password)) {
         log.warn("Could change user password for", user.email, "old password did not validate");

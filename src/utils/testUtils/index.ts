@@ -7,9 +7,9 @@ import {
     tokenActionDynameh,
     userByUserIdSchema,
     userDynameh
-} from "../../dynamodb";
-import {User} from "../../model/User";
-import {TeamMember} from "../../model/TeamMember";
+} from "../../db/dynamodb";
+import {DbUser} from "../../db/DbUser";
+import {DbTeamMember} from "../../db/DbTeamMember";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -46,7 +46,7 @@ export namespace defaultTestUser {
     export const jwt = auth.sign("secret");
     export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
     export const password = "password";
-    export const user: User = {
+    export const user: DbUser = {
         userId: teamMemberId,
         email: "default-test-user@example.com",
         password: {
@@ -59,7 +59,7 @@ export namespace defaultTestUser {
         defaultLoginUserId: userId + "-TEST",
         dateCreated: "2017-03-07T18:34:06.603Z"
     };
-    export const teamMember: TeamMember = {
+    export const teamMember: DbTeamMember = {
         userId: userId,
         teamMemberId: teamMemberId,
         roles: auth.roles,

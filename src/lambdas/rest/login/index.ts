@@ -1,11 +1,11 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {User} from "../../../model/User";
-import {dateCreatedNow} from "../../../dynamodb";
+import {DbUser} from "../../../db/DbUser";
+import {dateCreatedNow} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
-import {getUserBadge, getUserBadgeCookies, getUserByEmail, getUserLoginTeamMembership} from "../../../utils/userUtils";
+import {DbTeamMember} from "../../../db/DbTeamMember";
 import log = require("loglevel");
 
 export function installLoginRest(router: cassava.Router): void {
@@ -30,9 +30,9 @@ export function installLoginRest(router: cassava.Router): void {
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp
             });
-            const teamMember = await getUserLoginTeamMembership(user);
+            const teamMember = await DbTeamMember.getUserLoginTeamMembership(user);
             const liveMode = user.defaultLoginUserId.endsWith("-TEST");
-            const userBadge = getUserBadge(user, teamMember, liveMode, true);
+            const userBadge = DbUser.getBage(user, teamMember, liveMode, true);
 
             return {
                 body: null,
@@ -40,7 +40,7 @@ export function installLoginRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await getUserBadgeCookies(userBadge)
+                cookies: await DbUser.getBadgeCookies(userBadge)
             };
         });
 
@@ -76,8 +76,8 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<User> {
-    const user = await getUserByEmail(params.email);
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<DbUser> {
+    const user = await DbUser.getByEmail(params.email);
 
     if (!user) {
         log.warn("Could not log in user", params.email, "user not found");
