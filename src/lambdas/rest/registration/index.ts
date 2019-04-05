@@ -155,7 +155,7 @@ async function verifyEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
-    const userLogin = await DbUserLogin.get(tokenAction.action);
+    const userLogin = await DbUserLogin.get(tokenAction.email);
     if (!userLogin) {
         throw new Error(`Could not find DbUserLogin for TokenAction with email '${tokenAction.email}'.`);
     }

@@ -186,7 +186,7 @@ describe("/v2/account", () => {
 
         const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=(.*)/.exec(verifyEmail.htmlBody)[1];
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
-        chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND, verifyResp.bodyRaw);
         chai.assert.isString(verifyResp.headers["Location"]);
 
         const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {

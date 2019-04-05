@@ -71,7 +71,7 @@ export namespace DbTeamMember {
         if (conditions && conditions.length) {
             objectDynameh.requestBuilder.addCondition(req, ...conditions);
         }
-        await dynamodb.deleteItem(req);
+        await dynamodb.deleteItem(req).promise();
     }
 
     /**

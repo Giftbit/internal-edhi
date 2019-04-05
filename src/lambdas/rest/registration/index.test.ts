@@ -41,11 +41,11 @@ describe("/v2/user/register", () => {
             password
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.isString(verifyEmail, "Got email.");
+        chai.assert.isString(verifyEmail.htmlBody);
         chai.assert.notMatch(verifyEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const verifyUrl = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
-        chai.assert.isString(verifyEmail, "Found verify url in email body.");
+        chai.assert.isString(verifyUrl, "Found verify url in email body.");
         const token = /\/v2\/user\/register\/verifyEmail\?token=(.*)/.exec(verifyUrl)[1];
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
         chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
