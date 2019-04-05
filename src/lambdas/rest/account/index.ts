@@ -94,8 +94,11 @@ export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/users/{id}")
         .method("DELETE")
         .handler(async evt => {
-            // TODO delete team member
-            throw new Error("Not implemented");
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            await deleteUser(auth, evt.pathParameters.id);
+            return {
+                body: {}
+            };
         });
 
     router.route("/v2/account/invites")
@@ -249,6 +252,36 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
     return Invitation.fromDbTeamMember(teamMember);
 }
+
+export async function deleteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
+    auth.requireIds("userId");
+    log.info("Deleting user", auth.userId, teamMemberId);
+
+    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    if (!teamMember) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+    }
+    if (teamMember.invitation) {
+        log.info("The user is invited but not a full team member");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+    }
+
+    // TODO invalidate API keys
+
+    try {
+        await DbTeamMember.del(teamMember, {
+            attribute: "invitation",
+            operator: "attribute_not_exists"
+        });
+    } catch (error) {
+        if (error.code === "ConditionalCheckFailedException") {
+            log.info("The user is invited but not a full team member");
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+        }
+        throw error;
+    }
+}
+
 
 export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");

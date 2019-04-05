@@ -28,7 +28,7 @@ describe("/v2/account", () => {
         sinonSandbox.restore();
     });
 
-    it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
+    it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance, delete the user", async () => {
         let inviteEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -93,6 +93,9 @@ describe("/v2/account", () => {
 
         const cantDeleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invites/${inviteResp.body.teamMemberId}`, "DELETE");
         chai.assert.equal(cantDeleteInvitationResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+
+        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${inviteResp.body.teamMemberId}`, "DELETE");
+        chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
     });
 
     it("can cancel an invitation and then resend it", async () => {
