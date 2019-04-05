@@ -9,6 +9,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {Invitation} from "../../../model/Invitation";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import {TeamMember} from "../../../model/TeamMember";
 
 describe("/v2/account", () => {
 
@@ -184,7 +185,7 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
-        const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=(.*)/.exec(verifyEmail.htmlBody)[1];
+        const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
         chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND, verifyResp.bodyRaw);
         chai.assert.isString(verifyResp.headers["Location"]);
@@ -210,8 +211,24 @@ describe("/v2/account", () => {
         const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
         chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInviteResp.bodyRaw);
         chai.assert.isString(acceptInviteResp.headers["Location"]);
-        chai.assert.match(acceptInviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
 
-        // TODO switch accounts
+        const listAccountsResp = await router.testPostLoginRequest<TeamMember[]>(loginResp, "/v2/account/switch", "GET");
+        chai.assert.lengthOf(listAccountsResp.body, 2);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.userId !== testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.userId === testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
+
+        const switchAccountResp = await router.testPostLoginRequest(loginResp, "/v2/account/switch", "POST", {
+            userId: listAccountsResp.body.find(tm => tm.userId !== testUtils.defaultTestUser.userId).userId,
+            mode: "test"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.isString(switchAccountResp.headers["Location"]);
+        chai.assert.notEqual(switchAccountResp.headers["Set-Cookie"], loginResp.headers["Set-Cookie"]);
+        chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
+        chai.assert.match(switchAccountResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
+        chai.assert.match(switchAccountResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+
+        const pingResp = await router.testPostLoginRequest(switchAccountResp, "/v2/user/ping", "GET");
+        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
     });
 });

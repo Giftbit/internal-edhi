@@ -84,6 +84,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     const teamMemberId = DbUserDetails.generateUserId();
     const dateCreated = dateCreatedNow();
 
+    log.info("Registering new user email=", params.email, "userId=", userId, "teamMemberId=", teamMemberId);
+
     const userLogin: DbUserLogin = {
         email: params.email,
         userId: teamMemberId,
@@ -112,6 +114,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     const teamMember: DbTeamMember = {
         userId,
         teamMemberId,
+        userDisplayName: params.email,
+        accountDisplayName: "Organization", // TODO fill with Account details
         roles: [
             "accountManager",
             "contactManager",
@@ -167,7 +171,7 @@ async function verifyEmail(token: string): Promise<void> {
     });
 
     await TokenAction.del(tokenAction);
-    log.info("DbUser.ts", tokenAction.email, "has verified their email address");
+    log.info("User", tokenAction.email, "has verified their email address");
 }
 
 async function acceptInvite(token: string): Promise<string> {

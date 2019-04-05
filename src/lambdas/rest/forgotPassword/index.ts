@@ -81,5 +81,5 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
     });
     await TokenAction.del(tokenAction);
 
-    log.info("DbUser.ts", tokenAction.email, "has changed their password through forgotPassword");
+    log.info("User", userLogin.email, "has changed their password through forgotPassword");
 }

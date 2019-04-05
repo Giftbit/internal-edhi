@@ -5,16 +5,29 @@ import {DbTeamMember} from "../../../db/DbTeamMember";
 import {Invitation} from "../../../model/Invitation";
 import {dateCreatedNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
-import {stripUserIdTestMode} from "../../../utils/userUtils";
+import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUserDetails} from "../../../db/DbUserDetails";
+import {TeamMember} from "../../../model/TeamMember";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
     router.route("/v2/account/switch")
+        .method("GET")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("teamMemberId");
+            const accounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
+            return {
+                body: accounts.map(TeamMember.getAccountDisplay)
+            };
+        });
+
+    router.route("/v2/account/switch")
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("userId", "teamMemberId");
 
             evt.validateBody({
                 properties: {
@@ -32,8 +45,9 @@ export function installAccountRest(router: cassava.Router): void {
             });
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            const teamMember = await switchAccount(userLogin, evt.body.mode, evt.body.userId);
-            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, true, true);
+            const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin, evt.body.userId);
+            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.userId && isTestModeUserId(evt.body.userId));
+            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, liveMode, true);
 
             return {
                 body: null,
@@ -52,7 +66,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("userId");
             const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
             return {
-                body: teamMembers
+                body: teamMembers.map(TeamMember.getUserDisplay)
             };
         });
 
@@ -66,7 +80,7 @@ export function installAccountRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: teamMember
+                body: TeamMember.getUserDisplay(teamMember)
             };
         });
 
@@ -145,15 +159,10 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function switchAccount(userLogin: DbUserLogin, mode?: "live" | "test", accountUserId?: string): Promise<DbTeamMember> {
-    return null;
-    // TODO determine correct organization userId, maybe save change, pass user back
-}
-
 export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUserId = stripUserIdTestMode(auth.userId);
-    log.info("Inviting user", email, "to organization", accountUserId);
+    log.info("Inviting User", email, "to Account", accountUserId);
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
@@ -214,6 +223,8 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         teamMember = {
             userId: accountUserId,
             teamMemberId: userLogin.userId,
+            userDisplayName: email,
+            accountDisplayName: "Organization", // TODO set from account details
             invitation: {
                 email: email,
                 dateCreated,

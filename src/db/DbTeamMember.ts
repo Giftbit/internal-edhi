@@ -3,11 +3,14 @@ import {stripUserIdTestMode} from "../utils/userUtils";
 import {DbObject} from "./DbObject";
 import {DbUserLogin} from "./DbUserLogin";
 import * as dynameh from "dynameh";
+import log = require("loglevel");
 
 export interface DbTeamMember {
 
     userId: string;
     teamMemberId: string;
+    userDisplayName: string;
+    accountDisplayName: string;
     invitation?: DbTeamMember.Invitation;
     roles: string[];
     scopes?: string[];
@@ -119,16 +122,28 @@ export namespace DbTeamMember {
     /**
      * Get the team member the given user should login as.
      */
-    export async function getUserLoginTeamMembership(user: DbUserLogin): Promise<DbTeamMember> {
-        if (user.defaultLoginUserId) {
-            const teamMember = await DbTeamMember.get(user.defaultLoginUserId, user.userId);
+    export async function getUserLoginTeamMembership(userLogin: DbUserLogin, accountUserId?: string): Promise<DbTeamMember> {
+        if (!accountUserId) {
+            accountUserId = userLogin.defaultLoginUserId;
+        }
+        if (accountUserId) {
+            const teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
             if (teamMember) {
+                if (accountUserId !== userLogin.defaultLoginUserId) {
+                    await DbUserLogin.update(userLogin, {
+                        action: "put",
+                        attribute: "defaultLoginUserId",
+                        value: accountUserId
+                    });
+                }
                 return teamMember;
             }
         }
 
+        log.info("Could not find team membership", accountUserId, "for User", userLogin.email);
+
         // Get any random TeamMember to log in as.
-        const queryReq = objectReverseIndexDynameh.requestBuilder.buildQueryInput(user.userId);
+        const queryReq = objectReverseIndexDynameh.requestBuilder.buildQueryInput(userLogin.userId);
         objectReverseIndexDynameh.requestBuilder.addFilter(queryReq, {
             attribute: "invitation",
             operator: "attribute_not_exists"
@@ -137,6 +152,11 @@ export namespace DbTeamMember {
         const queryResp = await dynamodb.query(queryReq).promise();
         const teamMembers = objectReverseIndexDynameh.responseUnwrapper.unwrapQueryOutput(queryResp).map(fromDbObject);
         if (teamMembers && teamMembers.length) {
+            await DbUserLogin.update(userLogin, {
+                action: "put",
+                attribute: "defaultLoginUserId",
+                value: teamMembers[0].userId
+            });
             return teamMembers[0];
         }
 

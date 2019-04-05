@@ -20,7 +20,7 @@ const colors = {
 logPrefix.reg(log);
 logPrefix.apply(log, {
     format: (level, name, timestamp) => {
-        return `${colors[level]}[${level}\u001b[0m]`;
+        return `[${colors[level]}${level}\u001b[0m]`;
     },
 });
 

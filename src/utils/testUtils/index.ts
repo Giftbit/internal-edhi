@@ -61,6 +61,8 @@ export namespace defaultTestUser {
     export const teamMember: DbTeamMember = {
         userId: userId,
         teamMemberId: teamMemberId,
+        userDisplayName: email,
+        accountDisplayName: "Test Organization",
         roles: auth.roles,
         dateCreated: "2017-03-07T18:34:06.603Z"
     };

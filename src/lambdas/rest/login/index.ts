@@ -6,6 +6,7 @@ import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginMana
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
 import {DbTeamMember} from "../../../db/DbTeamMember";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import {isTestModeUserId} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installLoginRest(router: cassava.Router): void {
@@ -25,14 +26,14 @@ export function installLoginRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const user = await loginUser({
+            const userLogin = await loginUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp
             });
-            const teamMember = await DbTeamMember.getUserLoginTeamMembership(user);
-            const liveMode = user.defaultLoginUserId.endsWith("-TEST");
-            const userBadge = DbUserLogin.getBadge(user, teamMember, liveMode, true);
+            const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
+            const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
+            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, liveMode, true);
 
             return {
                 body: null,
