@@ -1,15 +1,9 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {
-    dynamodb,
-    teamMemberByTeamMemberIdSchema,
-    teamMemberDynameh,
-    tokenActionDynameh,
-    userByUserIdSchema,
-    userDynameh
-} from "../../db/dynamodb";
-import {DbUser} from "../../db/DbUser";
+import {dynamodb, objectDynameh, objectReverseIndexSchema, tokenActionDynameh,} from "../../db/dynamodb";
 import {DbTeamMember} from "../../db/DbTeamMember";
+import {DbUserLogin} from "../../db/DbUserLogin";
+import {DbUserDetails} from "../../db/DbUserDetails";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -21,6 +15,7 @@ if (!process.env["TEST_ENV"]) {
 export namespace defaultTestUser {
     export const userId = "user-testaccount";
     export const teamMemberId = "user-testuser";
+    export const email = "default-test-user@example.com";
     export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
             "gui": userId + "-TEST",
@@ -46,9 +41,9 @@ export namespace defaultTestUser {
     export const jwt = auth.sign("secret");
     export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
     export const password = "password";
-    export const user: DbUser = {
+    export const userLogin: DbUserLogin = {
         userId: teamMemberId,
-        email: "default-test-user@example.com",
+        email: email,
         password: {
             algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
@@ -58,6 +53,10 @@ export namespace defaultTestUser {
         frozen: false,
         defaultLoginUserId: userId + "-TEST",
         dateCreated: "2017-03-07T18:34:06.603Z"
+    };
+    export const userDetails: DbUserDetails = {
+        userId: teamMemberId,
+        email: email
     };
     export const teamMember: DbTeamMember = {
         userId: userId,
@@ -82,9 +81,8 @@ export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuth
 export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
-        await dynamodb.deleteTable(teamMemberDynameh.requestBuilder.buildDeleteTableInput()).promise();
+        await dynamodb.deleteTable(objectDynameh.requestBuilder.buildDeleteTableInput()).promise();
         await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
-        await dynamodb.deleteTable(userDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {
         if (err.code !== "ResourceNotFoundException") {
             throw err;
@@ -92,13 +90,13 @@ export async function resetDb(): Promise<void> {
     }
 
     log.trace("creating tables");
-    await dynamodb.createTable(teamMemberDynameh.requestBuilder.buildCreateTableInput([teamMemberByTeamMemberIdSchema])).promise();
+    await dynamodb.createTable(objectDynameh.requestBuilder.buildCreateTableInput([objectReverseIndexSchema])).promise();
     await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
-    await dynamodb.createTable(userDynameh.requestBuilder.buildCreateTableInput([userByUserIdSchema])).promise();
 
     log.trace("adding default data");
-    await dynamodb.putItem(userDynameh.requestBuilder.buildPutInput(defaultTestUser.user)).promise();
-    await dynamodb.putItem(teamMemberDynameh.requestBuilder.buildPutInput(defaultTestUser.teamMember)).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.userLogin))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.userDetails))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(defaultTestUser.teamMember))).promise();
 }
 
 export function generateId(length?: number): string {

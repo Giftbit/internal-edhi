@@ -1,11 +1,11 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbUser} from "../../../db/DbUser";
 import {dateCreatedNow} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {addFailedLoginAttempt, clearFailedLoginAttempts} from "./failedLoginManagement";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
 import {DbTeamMember} from "../../../db/DbTeamMember";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 import log = require("loglevel");
 
 export function installLoginRest(router: cassava.Router): void {
@@ -32,7 +32,7 @@ export function installLoginRest(router: cassava.Router): void {
             });
             const teamMember = await DbTeamMember.getUserLoginTeamMembership(user);
             const liveMode = user.defaultLoginUserId.endsWith("-TEST");
-            const userBadge = DbUser.getBage(user, teamMember, liveMode, true);
+            const userBadge = DbUserLogin.getBadge(user, teamMember, liveMode, true);
 
             return {
                 body: null,
@@ -40,7 +40,7 @@ export function installLoginRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await DbUser.getBadgeCookies(userBadge)
+                cookies: await DbUserLogin.getBadgeCookies(userBadge)
             };
         });
 
@@ -76,33 +76,33 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<DbUser> {
-    const user = await DbUser.getByEmail(params.email);
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<DbUserLogin> {
+    const userLogin = await DbUserLogin.get(params.email);
 
-    if (!user) {
+    if (!userLogin) {
         log.warn("Could not log in user", params.email, "user not found");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!user.emailVerified) {
+    if (!userLogin.emailVerified) {
         log.warn("Could not log in user", params.email, "email is not verified");
-        await sendEmailAddressVerificationEmail(user);
+        await sendEmailAddressVerificationEmail(userLogin.email);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
-    if (user.frozen) {
+    if (userLogin.frozen) {
         log.warn("Could not log in user", params.email, "user is frozen");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (user.lockedUntilDate && user.lockedUntilDate >= dateCreatedNow()) {
-        log.warn("Could not log in user", params.email, "user is locked until", user.lockedUntilDate);
+    if (userLogin.lockedUntilDate && userLogin.lockedUntilDate >= dateCreatedNow()) {
+        log.warn("Could not log in user", params.email, "user is locked until", userLogin.lockedUntilDate);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!await validatePassword(params.plaintextPassword, user.password)) {
+    if (!await validatePassword(params.plaintextPassword, userLogin.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
-        await addFailedLoginAttempt(user, params.sourceIp);
+        await addFailedLoginAttempt(userLogin, params.sourceIp);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
     log.info("Logged in user", params.email);
-    await clearFailedLoginAttempts(user);
-    return user;
+    await clearFailedLoginAttempts(userLogin);
+    return userLogin;
 }

@@ -27,25 +27,25 @@ Conditions:
   UseProductionCapacity: !Equals [!Ref Capacity, high]
 
 Resources:
-  TeamMemberTable:
+  ObjectTable:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
-        - AttributeName: userId
+        - AttributeName: pk
           AttributeType: S
-        - AttributeName: teamMemberId
+        - AttributeName: sk
           AttributeType: S
       KeySchema:
-        - AttributeName: userId
+        - AttributeName: pk
           KeyType: HASH
-        - AttributeName: teamMemberId
+        - AttributeName: sk
           KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: ByTeamMemberId
+        - IndexName: ReverseIndex
           KeySchema:
-            - AttributeName: teamMemberId
+            - AttributeName: sk
               KeyType: HASH
-            - AttributeName: userId
+            - AttributeName: pk
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -57,7 +57,7 @@ Resources:
         WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
       Tags:
         - Key: ShortName
-          Value: TeamMemberTable
+          Value: ObjectTable
         - Key: Service
           Value: Edhi
 
@@ -82,36 +82,6 @@ Resources:
         - Key: Service
           Value: Edhi
 
-  UserTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      AttributeDefinitions:
-        - AttributeName: email
-          AttributeType: S
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: email
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: ByUserId
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: !If [UseProductionCapacity, 20, 4]
-            WriteCapacityUnits: !If [UseProductionCapacity, 8, 4]
-      ProvisionedThroughput:
-        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
-        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
-      Tags:
-        - Key: ShortName
-          Value: UserTable
-        - Key: Service
-          Value: Edhi
-
   RestFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -125,6 +95,5 @@ Resources:
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
-          TEAM_MEMBER_TABLE: !Ref TeamMemberTable
+          OBJECT_TABLE: !Ref ObjectTable
           TOKEN_ACTION_TABLE: !Ref TokenActionTable
-          USER_TABLE: !Ref UserTable

@@ -5,9 +5,9 @@ import {dynamodb, tokenActionDynameh} from "./dynamodb";
  * Send a user an email with a token that lets them take an
  * anonymous action based on the token.
  */
-export interface DbTokenAction {
+export interface TokenAction {
     token: string;
-    action: DbTokenAction.Action;
+    action: TokenAction.Action;
     email: string;
     userId?: string;
     teamMemberId?: string;
@@ -15,7 +15,7 @@ export interface DbTokenAction {
 }
 
 
-export namespace DbTokenAction {
+export namespace TokenAction {
     export type Action = "emailVerification" | "resetPassword" | "acceptTeamInvite";
 
     export interface GenerateAdditionalParams {
@@ -24,7 +24,7 @@ export namespace DbTokenAction {
         teamMemberId?: string;
     }
 
-    export function generate(action: Action, durationInDays: number, params: GenerateAdditionalParams): DbTokenAction {
+    export function generate(action: Action, durationInDays: number, params: GenerateAdditionalParams): TokenAction {
         const timeoutDate = new Date();
         timeoutDate.setDate(timeoutDate.getDate() + durationInDays);
         return {
@@ -35,18 +35,18 @@ export namespace DbTokenAction {
         };
     }
 
-    export async function get(token: string): Promise<DbTokenAction> {
+    export async function get(token: string): Promise<TokenAction> {
         const req = tokenActionDynameh.requestBuilder.buildGetInput(token);
         const resp = await dynamodb.getItem(req).promise();
         return tokenActionDynameh.responseUnwrapper.unwrapGetOutput(resp);
     }
 
-    export async function put(tokenAction: DbTokenAction): Promise<void> {
+    export async function put(tokenAction: TokenAction): Promise<void> {
         const req = tokenActionDynameh.requestBuilder.buildPutInput(tokenAction);
         await dynamodb.putItem(req).promise();
     }
 
-    export async function del(tokenAction: DbTokenAction): Promise<void> {
+    export async function del(tokenAction: TokenAction): Promise<void> {
         const req = tokenActionDynameh.requestBuilder.buildDeleteInput(tokenAction);
         await dynamodb.deleteItem(req).promise();
     }

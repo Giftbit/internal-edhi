@@ -5,9 +5,9 @@ import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
-import {dynamodb, userDynameh} from "../../../db/dynamodb";
+import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
-import {DbUser} from "../../../db/DbUser";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 
 describe("/v2/user/login", () => {
 
@@ -17,7 +17,7 @@ describe("/v2/user/login", () => {
     before(async () => {
         await testUtils.resetDb();
         installUnauthedRestRoutes(router);
-        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -48,7 +48,7 @@ describe("/v2/user/login", () => {
 
     it("cannot login with a user with the wrong password", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: generateId()
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -56,7 +56,7 @@ describe("/v2/user/login", () => {
 
     it("can login the test user", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -75,7 +75,7 @@ describe("/v2/user/login", () => {
 
         for (let i = 0; i < 10; i++) {
             const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.user.email,
+                email: testUtils.defaultTestUser.userLogin.email,
                 password: generateId()
             });
             chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -88,7 +88,7 @@ describe("/v2/user/login", () => {
         }
 
         const goodPasswordButLockedResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodPasswordButLockedResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -96,8 +96,8 @@ describe("/v2/user/login", () => {
         // Manually move the lockedUntilDate to over an hour ago.
         const pastLockedDate = new Date();
         pastLockedDate.setMinutes(pastLockedDate.getMinutes() - 65);
-        const updateLockedDateReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
-            testUtils.defaultTestUser.user,
+        const updateLockedDateReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+            DbUserLogin.getKeys(testUtils.defaultTestUser.userLogin),
             {
                 action: "put",
                 attribute: "lockedUntilDate",
@@ -107,7 +107,7 @@ describe("/v2/user/login", () => {
         await dynamodb.updateItem(updateLockedDateReq).promise();
 
         const goodLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);

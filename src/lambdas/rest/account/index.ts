@@ -1,13 +1,13 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {GiftbitRestError} from "giftbit-cassava-routes";
-import {DbUser} from "../../../db/DbUser";
 import {DbTeamMember} from "../../../db/DbTeamMember";
-import {Invitation} from "./Invitation";
-import {dateCreatedNow, dynamodb, teamMemberDynameh, userDynameh} from "../../../db/dynamodb";
+import {Invitation} from "../../../model/Invitation";
+import {dateCreatedNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
+import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUserDetails} from "../../../db/DbUserDetails";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -31,9 +31,9 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const user = await DbUser.getByAuth(auth);
-            const teamMember = await switchAccount(user, evt.body.mode, evt.body.userId);
-            const userBadge = DbUser.getBage(user, teamMember, true, true);
+            const userLogin = await DbUserLogin.getByAuth(auth);
+            const teamMember = await switchAccount(userLogin, evt.body.mode, evt.body.userId);
+            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, true, true);
 
             return {
                 body: null,
@@ -41,7 +41,7 @@ export function installAccountRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await DbUser.getBadgeCookies(userBadge)
+                cookies: await DbUserLogin.getBadgeCookies(userBadge)
             };
         });
 
@@ -63,7 +63,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("userId");
             const teamMember = await DbTeamMember.get(auth.userId, evt.pathParameters.id);
             if (!teamMember || teamMember.invitation) {
-                throw new GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
+                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
                 body: teamMember
@@ -127,7 +127,7 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             const invite = await getInvite(auth, evt.pathParameters.id);
             if (!invite) {
-                throw new GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find invite with id '${evt.pathParameters.id}'.`, "InviteNotFound");
+                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find invite with id '${evt.pathParameters.id}'.`, "InviteNotFound");
             }
             return {
                 body: invite
@@ -145,7 +145,7 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function switchAccount(user: DbUser, mode?: "live" | "test", accountUserId?: string): Promise<DbTeamMember> {
+async function switchAccount(userLogin: DbUserLogin, mode?: "live" | "test", accountUserId?: string): Promise<DbTeamMember> {
     return null;
     // TODO determine correct organization userId, maybe save change, pass user back
 }
@@ -158,33 +158,53 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
-    let user = await DbUser.getByEmail(email);
-    if (user) {
-        log.info("Found existing User", user.userId);
+    let userLogin = await DbUserLogin.get(email);
+    if (userLogin) {
+        log.info("Found existing User", userLogin.userId);
     } else {
-        const userId = DbUser.generateUserId();
-        user = {
-            email: email,
+        const userId = DbUserDetails.generateUserId();
+        userLogin = {
+            email,
             userId,
             emailVerified: false,
             frozen: false,
             defaultLoginUserId: accountUserId,
             dateCreated
         };
-        const putUserReq = userDynameh.requestBuilder.buildPutInput(user);
-        userDynameh.requestBuilder.addCondition(putUserReq, {
-            attribute: "email",
+        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
+        objectDynameh.requestBuilder.addCondition(putUserReq, {
+            attribute: "pk",
             operator: "attribute_not_exists"
         });
         updates.push(putUserReq);
-        log.info("Creating new User", user.userId);
+
+        const userDetails: DbUserDetails = {
+            userId,
+            email
+        };
+        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
+        objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        updates.push(putUserDetailsReq);
+
+        log.info("Creating new User", userLogin.userId);
     }
 
-    let teamMember = await DbTeamMember.get(accountUserId, user.userId);
+    let teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
     if (teamMember) {
         log.info("Found existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
-            // TODO update and resend invitation
+            const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+                DbTeamMember.getKeys(teamMember),
+                {
+                    action: "put",
+                    attribute: "invitation.dateCreated",
+                    value: dateCreated
+                });
+            updates.push(updateTeamMemberReq);
+            log.info("Resending invitation to invited TeamMember", teamMember.userId, teamMember.teamMemberId);
         } else {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${email} has already accepted an invitation.`);
         }
@@ -193,7 +213,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         dateExpires.setDate(dateExpires.getDate() + 5);
         teamMember = {
             userId: accountUserId,
-            teamMemberId: user.userId,
+            teamMemberId: userLogin.userId,
             invitation: {
                 email: email,
                 dateCreated,
@@ -202,27 +222,27 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             roles: [],  // TODO base on access
             dateCreated
         };
-        const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildPutInput(teamMember);
-        teamMemberDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+        const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+        objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
             attribute: "userId",
             operator: "attribute_not_exists"
         });
         updates.push(putTeamMemberReq);
-        log.info("Invited new TeamMember", teamMember.userId, teamMember.teamMemberId);
+        log.info("Inviting new TeamMember", teamMember.userId, teamMember.teamMemberId);
     }
 
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: user.userId});
+    await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: userLogin.userId});
 
-    return Invitation.fromTeamMember(teamMember);
+    return Invitation.fromDbTeamMember(teamMember);
 }
 
 export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");
     const teamMembers = await DbTeamMember.getAccountInvitedTeamMembers(auth.userId);
-    return teamMembers.map(Invitation.fromTeamMember);
+    return teamMembers.map(Invitation.fromDbTeamMember);
 }
 
 export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<Invitation> {
@@ -231,28 +251,30 @@ export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     if (!teamMember || !teamMember.invitation) {
         return null;
     }
-    return Invitation.fromTeamMember(teamMember);
+    return Invitation.fromDbTeamMember(teamMember);
 }
 
 export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
     auth.requireIds("userId");
     log.info("Cancel invitation", auth.userId, teamMemberId);
 
-    const req = teamMemberDynameh.requestBuilder.buildDeleteInput({
-        userId: stripUserIdTestMode(auth.userId),
-        teamMemberId: stripUserIdTestMode(teamMemberId)
-    });
-    teamMemberDynameh.requestBuilder.addCondition(req, {
-        attribute: "invitation",
-        operator: "attribute_exists"
-    });
+    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    if (!teamMember) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound")
+    }
+    if (!teamMember.invitation) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
+    }
 
     try {
-        await dynamodb.deleteItem(req).promise();
+        await DbTeamMember.del(teamMember, {
+            attribute: "invitation",
+            operator: "attribute_exists"
+        });
     } catch (error) {
         if (error.code === "ConditionalCheckFailedException") {
             log.info("The invitation cannot be deleted because it was already accepted");
-            throw new GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
         }
         throw error;
     }

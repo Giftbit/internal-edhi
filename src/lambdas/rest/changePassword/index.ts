@@ -1,8 +1,7 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, userDynameh} from "../../../db/dynamodb";
-import {DbUser, UserPassword} from "../../../db/DbUser";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -40,23 +39,21 @@ export function installChangePasswordRest(router: cassava.Router): void {
 }
 
 async function changePassword(params: { auth: giftbitRoutes.jwtauth.AuthorizationBadge, oldPlaintextPassword: string, newPlaintextPassword: string }): Promise<void> {
-    const user = await DbUser.getByAuth(params.auth);
+    const userLogin = await DbUserLogin.getByAuth(params.auth);
+    if (!userLogin) {
+        throw new Error("Could not find UserLogin for valid auth.");
+    }
 
-    if (!await validatePassword(params.oldPlaintextPassword, user.password)) {
-        log.warn("Could change user password for", user.email, "old password did not validate");
+    if (!await validatePassword(params.oldPlaintextPassword, userLogin.password)) {
+        log.warn("Could change user password for", userLogin.email, "old password did not validate");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Old password does not match.");
     }
 
-    const userPassword: UserPassword = await hashPassword(params.newPlaintextPassword);
-    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(user, {
+    const userPassword: DbUserLogin.Password = await hashPassword(params.newPlaintextPassword);
+    await DbUserLogin.update(userLogin, {
         action: "put",
         attribute: "password",
         value: userPassword
     });
-    userDynameh.requestBuilder.addCondition(updateUserReq, {
-        attribute: "email",
-        operator: "attribute_exists"
-    });
-    await dynamodb.updateItem(updateUserReq).promise();
-    log.info("User", user.email, "has changed their password");
+    log.info("User", userLogin.email, "has changed their password");
 }

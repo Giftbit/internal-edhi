@@ -3,7 +3,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as logPrefix from "loglevel-plugin-prefix";
 import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
-import {DbUser} from "../../db/DbUser";
+import {DbUserLogin} from "../../db/DbUserLogin";
 import log = require("loglevel");
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)
@@ -46,7 +46,7 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     infoLogFunction: log.info,
     errorLogFunction: log.error
 }));
-DbUser.initializeBadgeSigningSecrets(authConfigPromise);
+DbUserLogin.initializeBadgeSigningSecrets(authConfigPromise);
 
 installAuthedRestRoutes(router);
 

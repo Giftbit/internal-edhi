@@ -12,24 +12,38 @@ export function dateCreatedNow(): string {
     return new Date().toISOString();
 }
 
-export const teamMemberSchema: dynameh.TableSchema = {
-    tableName: process.env["TEAM_MEMBER_TABLE"],
-    partitionKeyField: "userId",
+export async function queryAll(req: aws.DynamoDB.QueryInput): Promise<any[]> {
+    let resp = await dynamodb.query(req).promise();
+    const results = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+
+    // TODO this should be a utility in dynameh
+    while (resp.LastEvaluatedKey) {
+        req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        resp = await dynamodb.query(req).promise();
+        results.push(...objectDynameh.responseUnwrapper.unwrapQueryOutput(resp));
+    }
+
+    return results;
+}
+
+export const objectSchema: dynameh.TableSchema = {
+    tableName: process.env["OBJECT_TABLE"],
+    partitionKeyField: "pk",
     partitionKeyType: "string",
-    sortKeyField: "teamMemberId",
+    sortKeyField: "sk",
     sortKeyType: "string"
 };
 
-export const teamMemberByTeamMemberIdSchema: dynameh.TableSchema = {
-    tableName: teamMemberSchema.tableName,
-    indexName: "ByTeamMemberId",
+export const objectReverseIndexSchema: dynameh.TableSchema = {
+    tableName: process.env["OBJECT_TABLE"],
+    indexName: "ReverseIndex",
     indexProperties: {
-        type: "GLOBAL",
-        projectionType: "ALL"
+        projectionType: "ALL",
+        type: "GLOBAL"
     },
-    partitionKeyField: "teamMemberId",
+    partitionKeyField: "sk",
     partitionKeyType: "string",
-    sortKeyField: "userId",
+    sortKeyField: "pk",
     sortKeyType: "string"
 };
 
@@ -40,25 +54,6 @@ export const tokenActionSchema: dynameh.TableSchema = {
     ttlField: "ttl"
 };
 
-export const userSchema: dynameh.TableSchema = {
-    tableName: process.env["USER_TABLE"],
-    partitionKeyField: "email",
-    partitionKeyType: "string"
-};
-
-export const userByUserIdSchema: dynameh.TableSchema = {
-    tableName: userSchema.tableName,
-    indexName: "ByUserId",
-    indexProperties: {
-        type: "GLOBAL",
-        projectionType: "ALL"
-    },
-    partitionKeyField: "userId",
-    partitionKeyType: "string"
-};
-
-export const teamMemberDynameh = dynameh.scope(teamMemberSchema);
-export const teamMemberByTeamMemberIdDynameh = dynameh.scope(teamMemberByTeamMemberIdSchema);
+export const objectDynameh = dynameh.scope(objectSchema);
+export const objectReverseIndexDynameh = dynameh.scope(objectReverseIndexSchema);
 export const tokenActionDynameh = dynameh.scope(tokenActionSchema);
-export const userDynameh = dynameh.scope(userSchema);
-export const userByUserIdDynameh = dynameh.scope(userByUserIdSchema);

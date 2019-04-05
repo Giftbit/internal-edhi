@@ -1,12 +1,13 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbUser} from "../../../db/DbUser";
-import {dateCreatedNow, dynamodb, teamMemberDynameh, tokenActionDynameh, userDynameh} from "../../../db/dynamodb";
+import {dateCreatedNow, dynamodb, objectDynameh, tokenActionDynameh} from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {DbTeamMember} from "../../../db/DbTeamMember";
-import {DbTokenAction} from "../../../db/DbTokenAction";
+import {TokenAction} from "../../../db/TokenAction";
+import {DbUserDetails} from "../../../db/DbUserDetails";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -79,11 +80,11 @@ export function installRegistrationRest(router: cassava.Router): void {
 async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
-    const userId = DbUser.generateUserId();
-    const teamMemberId = DbUser.generateUserId();
+    const userId = DbUserDetails.generateUserId();
+    const teamMemberId = DbUserDetails.generateUserId();
     const dateCreated = dateCreatedNow();
 
-    const user: DbUser = {
+    const userLogin: DbUserLogin = {
         email: params.email,
         userId: teamMemberId,
         password: await hashPassword(params.plaintextPassword),
@@ -92,9 +93,19 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         defaultLoginUserId: userId,
         dateCreated
     };
-    const putUserReq = userDynameh.requestBuilder.buildPutInput(user);
-    userDynameh.requestBuilder.addCondition(putUserReq, {
+    const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
+    objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
         attribute: "email",
+        operator: "attribute_not_exists"
+    });
+
+    const userDetails: DbUserDetails = {
+        userId: teamMemberId,
+        email: params.email
+    };
+    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
+    objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
+        attribute: "userId",
         operator: "attribute_not_exists"
     });
 
@@ -116,13 +127,13 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         ],
         dateCreated
     };
-    const putTeamMemberReq = teamMemberDynameh.requestBuilder.buildPutInput(teamMember);
-    teamMemberDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+    const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+    objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
         attribute: "userId",
         operator: "attribute_not_exists"
     });
 
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putTeamMemberReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putTeamMemberReq);
     try {
         await dynamodb.transactWriteItems(writeReq).promise();
     } catch (error) {
@@ -134,36 +145,33 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         }
     }
 
-    await sendEmailAddressVerificationEmail(user);
+    await sendEmailAddressVerificationEmail(params.email);
 }
 
 async function verifyEmail(token: string): Promise<void> {
-    const tokenAction = await DbTokenAction.get(token);
+    const tokenAction = await TokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
-    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
-        {
-            email: tokenAction.email
-        },
-        {
-            action: "put",
-            attribute: "emailVerified",
-            value: true
-        });
-    userDynameh.requestBuilder.addCondition(updateUserReq, {
-        attribute: "email",
-        operator: "attribute_exists"
+    const userLogin = await DbUserLogin.get(tokenAction.action);
+    if (!userLogin) {
+        throw new Error(`Could not find DbUserLogin for TokenAction with email '${tokenAction.email}'.`);
+    }
+
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "emailVerified",
+        value: true
     });
-    await dynamodb.updateItem(updateUserReq).promise();
-    await DbTokenAction.del(tokenAction);
+
+    await TokenAction.del(tokenAction);
     log.info("DbUser.ts", tokenAction.email, "has verified their email address");
 }
 
 async function acceptInvite(token: string): Promise<string> {
-    const acceptInviteTokenAction = await DbTokenAction.get(token);
+    const acceptInviteTokenAction = await TokenAction.get(token);
     if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
         log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
@@ -173,24 +181,22 @@ async function acceptInvite(token: string): Promise<string> {
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
     ];
 
-    const user = await DbUser.getById(acceptInviteTokenAction.teamMemberId);
-    if (!user) {
-        throw new Error(`Cannot accept team invite: can't find User with id ${acceptInviteTokenAction.teamMemberId}`);
+    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.teamMemberId);
+    if (!userLogin) {
+        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.teamMemberId}`);
     }
-    if (!user.emailVerified) {
+    if (!userLogin.emailVerified) {
         // Accepting the invite verifies the email address.
-        const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
-            {
-                email: acceptInviteTokenAction.email
-            },
+        const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+            DbUserLogin.getKeys(userLogin),
             {
                 action: "put",
                 attribute: "emailVerified",
                 value: true
             }
         );
-        userDynameh.requestBuilder.addCondition(updateUserReq, {
-            attribute: "email",
+        objectDynameh.requestBuilder.addCondition(updateUserReq, {
+            attribute: "pk",
             operator: "attribute_exists"
         });
         updates.push(updateUserReq);
@@ -202,17 +208,14 @@ async function acceptInvite(token: string): Promise<string> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {
-        const updateTeamMemberReq = teamMemberDynameh.requestBuilder.buildUpdateInputFromActions(
-            {
-                userId: acceptInviteTokenAction.userId,
-                teamMemberId: acceptInviteTokenAction.teamMemberId
-            },
+        const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+            DbTeamMember.getKeys(teamMember),
             {
                 action: "remove",
                 attribute: "invitation"
             }
         );
-        teamMemberDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
+        objectDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
                 attribute: "userId",
                 operator: "attribute_exists"
             }
@@ -220,14 +223,14 @@ async function acceptInvite(token: string): Promise<string> {
         updates.push(updateTeamMemberReq);
     }
 
-    const writeReq = userDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
-    log.info("DbUser.ts", acceptInviteTokenAction.email, "has accepted a team invite");
+    log.info("User", acceptInviteTokenAction.email, "has accepted a team invite");
 
-    if (!user.password) {
-        log.info("DbUser.ts", acceptInviteTokenAction.email, "has no password, setting up password reset");
-        const setPasswordTokenAction = DbTokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
-        await DbTokenAction.put(setPasswordTokenAction);
+    if (!userLogin.password) {
+        log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
+        const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
+        await TokenAction.put(setPasswordTokenAction);
         return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
     }
 

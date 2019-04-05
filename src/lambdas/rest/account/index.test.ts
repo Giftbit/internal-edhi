@@ -7,8 +7,8 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {Invitation} from "./Invitation";
-import {DbUser} from "../../../db/DbUser";
+import {Invitation} from "../../../model/Invitation";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 
 describe("/v2/account", () => {
 
@@ -20,7 +20,7 @@ describe("/v2/account", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {

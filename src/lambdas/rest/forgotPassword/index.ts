@@ -1,10 +1,9 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
-import {dynamodb, userDynameh} from "../../../db/dynamodb";
-import {DbUser, UserPassword} from "../../../db/DbUser";
 import {hashPassword} from "../../../utils/passwordUtils";
-import {DbTokenAction} from "../../../db/DbTokenAction";
+import {TokenAction} from "../../../db/TokenAction";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -63,29 +62,24 @@ export function installForgotPasswordRest(router: cassava.Router): void {
 }
 
 async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
-    const tokenAction = await DbTokenAction.get(params.token);
+    const tokenAction = await TokenAction.get(params.token);
     if (!tokenAction || tokenAction.action !== "resetPassword") {
         log.warn("Could not find resetPassword TokenAction for token", params.token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error resetting the password.  Maybe the email link timed out.");
     }
 
-    const userPassword: UserPassword = await hashPassword(params.plaintextPassword);
-    const updateUserReq = userDynameh.requestBuilder.buildUpdateInputFromActions(
-        {
-            email: tokenAction.email
-        },
-        {
-            action: "put",
-            attribute: "password",
-            value: userPassword
-        }
-    );
-    userDynameh.requestBuilder.addCondition(updateUserReq, {
-        attribute: "email",
-        operator: "attribute_exists"
+    const userLogin = await DbUserLogin.get(tokenAction.email);
+    if (!userLogin) {
+        throw new Error(`Could not find UserLogin for user '${tokenAction.email}'.`);
+    }
+
+    const userPassword: DbUserLogin.Password = await hashPassword(params.plaintextPassword);
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "password",
+        value: userPassword
     });
-    await dynamodb.updateItem(updateUserReq).promise();
-    await DbTokenAction.del(tokenAction);
+    await TokenAction.del(tokenAction);
 
     log.info("DbUser.ts", tokenAction.email, "has changed their password through forgotPassword");
 }

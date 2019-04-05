@@ -1,8 +1,8 @@
 import * as bcrypt from "bcrypt";
-import {UserPassword} from "../db/DbUser";
 import {dateCreatedNow} from "../db/dynamodb";
+import {DbUserLogin} from "../db/DbUserLogin";
 
-export async function hashPassword(plaintextPassword: string): Promise<UserPassword> {
+export async function hashPassword(plaintextPassword: string): Promise<DbUserLogin.Password> {
     if (typeof plaintextPassword !== "string") {
         throw new Error("password must be a string");
     }
@@ -19,7 +19,7 @@ export async function hashPassword(plaintextPassword: string): Promise<UserPassw
     };
 }
 
-export function validatePassword(plaintextPassword: string, userPassword: UserPassword): Promise<boolean> {
+export function validatePassword(plaintextPassword: string, userPassword: DbUserLogin.Password): Promise<boolean> {
     if (!userPassword) {
         return Promise.resolve(false);
     }
@@ -30,6 +30,6 @@ export function validatePassword(plaintextPassword: string, userPassword: UserPa
     }
 }
 
-async function validateBcrypt10Password(plaintextPassword: string, userPassword: UserPassword): Promise<boolean> {
+async function validateBcrypt10Password(plaintextPassword: string, userPassword: DbUserLogin.Password): Promise<boolean> {
     return await bcrypt.compare(plaintextPassword, userPassword.hash);
 }

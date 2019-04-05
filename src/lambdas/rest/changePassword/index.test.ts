@@ -5,7 +5,7 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUser} from "../../../db/DbUser";
+import {DbUserLogin} from "../../../db/DbUserLogin";
 
 describe("/v2/user/changePassword", () => {
 
@@ -16,7 +16,7 @@ describe("/v2/user/changePassword", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     it("can change the password", async () => {
@@ -29,13 +29,13 @@ describe("/v2/user/changePassword", () => {
 
         // Cannot log in with the old password.
         const oldPasswordLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(oldPasswordLoginResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
         const newPasswordLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.user.email,
+            email: testUtils.defaultTestUser.userLogin.email,
             password: newPassword
         });
         chai.assert.equal(newPasswordLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
