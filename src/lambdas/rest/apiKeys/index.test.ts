@@ -1,6 +1,7 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
 import * as sinon from "sinon";
+import * as superagent from "superagent";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
@@ -45,6 +46,13 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.dateCreated);
 
+        const pingResp = await cassava.testing.testRouter(router, cassava.testing.createTestProxyEvent("/v2/user/ping", "GET", {
+            headers: {
+                Authorization: `Bearer ${createKeyResp.body.token}`
+            }
+        }));
+        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK);
+
         const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqualExcluding(getKeyResp.body, createKeyResp.body, ["token"]);
@@ -54,8 +62,17 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
+            .returns({
+                set: () => ({
+                    timeout: () => ({
+                        retry: () => Promise.resolve({})
+                    })
+                })
+            } as any);
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isTrue(sinonDeleteStub.called);
 
         const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyPostDeleteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
@@ -90,7 +107,16 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
+            .returns({
+                set: () => ({
+                    timeout: () => ({
+                        retry: () => Promise.resolve({})
+                    })
+                })
+            } as any);
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isTrue(sinonDeleteStub.called);
     });
 });

@@ -28,7 +28,7 @@ export namespace DbApiKey {
         return apiKey as any;
     }
 
-    export function toDbObject(apiKey: DbApiKey) {
+    export function toDbObject(apiKey: DbApiKey): DbObject {
         if (!apiKey) {
             return null;
         }
@@ -50,6 +50,23 @@ export namespace DbApiKey {
         }
     }
 
+    /**
+     * Get the DB keys for the deleted API key.  This isn't publicly exposed
+     * because we don't actually do anything with these yet.  We're just keeping
+     * them around for future reference.
+     */
+    function getDeletedKeys(apiKey: DbApiKey): DbObject {
+        if (!apiKey || !apiKey.userId || !apiKey.teamMemberId || !apiKey.tokenId) {
+            throw new Error("Not a valid ApiKey.");
+        }
+        return {
+            pk: "Account/" + apiKey.userId,
+            sk: "DeletedApiKey/" + apiKey.tokenId,
+            pk2: "User/" + apiKey.teamMemberId,
+            sk2: "DeletedApiKey/" + apiKey.tokenId,
+        }
+    }
+
     export async function getByAccount(userId: string, tokenId: string): Promise<DbApiKey> {
         const req = objectDynameh.requestBuilder.buildGetInput("Account/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId);
         const resp = await dynamodb.getItem(req).promise();
@@ -68,8 +85,17 @@ export namespace DbApiKey {
     }
 
     export async function del(apiKey: DbApiKey): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildDeleteInput(toDbObject(apiKey));
-        await dynamodb.deleteItem(req).promise();
+        const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(toDbObject(apiKey));
+
+        // Store a copy of the deleted API key for future reference.
+        const deletedObject: DbObject = {
+            ...apiKey,
+            ...getDeletedKeys(apiKey)
+        };
+        const putDeletedReq = objectDynameh.requestBuilder.buildPutInput(deletedObject);
+
+        const req = objectDynameh.requestBuilder.buildTransactWriteItemsInput(deleteReq, putDeletedReq);
+        await dynamodb.transactWriteItems(req).promise();
     }
 
     export async function getAllForAccount(userId: string): Promise<DbApiKey[]> {

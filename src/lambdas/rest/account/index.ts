@@ -9,6 +9,7 @@ import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUserDetails} from "../../../db/DbUserDetails";
 import {TeamMember} from "../../../model/TeamMember";
+import {deleteApiKeysForUser} from "../apiKeys";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -94,7 +95,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("DELETE")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            await deleteUser(auth, evt.pathParameters.id);
+            await removeTeamMember(auth, evt.pathParameters.id);
             return {
                 body: {}
             };
@@ -253,9 +254,9 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     return Invitation.fromDbTeamMember(teamMember);
 }
 
-export async function deleteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
+export async function removeTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
     auth.requireIds("userId");
-    log.info("Deleting user", auth.userId, teamMemberId);
+    log.info("Removing TeamMember", teamMemberId, "from Account", auth.userId);
 
     const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
     if (!teamMember) {
@@ -266,7 +267,7 @@ export async function deleteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
 
-    // TODO invalidate API keys
+    await deleteApiKeysForUser(auth, teamMemberId);
 
     try {
         await DbTeamMember.del(teamMember, {
