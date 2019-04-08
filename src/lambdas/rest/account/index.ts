@@ -172,7 +172,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
     let userLogin = await DbUserLogin.get(email);
     if (userLogin) {
-        log.info("Found existing User", userLogin.userId);
+        log.info("Inviting existing User", userLogin.userId);
     } else {
         const userId = DbUserDetails.generateUserId();
         userLogin = {
@@ -201,12 +201,12 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         });
         updates.push(putUserDetailsReq);
 
-        log.info("Creating new User", userLogin.userId);
+        log.info("Inviting new User", userLogin.userId);
     }
 
     let teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
     if (teamMember) {
-        log.info("Found existing TeamMember", teamMember.userId, teamMember.teamMemberId);
+        log.info("Inviting existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
             const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
                 DbTeamMember.getKeys(teamMember),
@@ -281,7 +281,6 @@ export async function deleteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         throw error;
     }
 }
-
 
 export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");

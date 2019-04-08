@@ -136,11 +136,12 @@ export namespace DbTeamMember {
                         value: accountUserId
                     });
                 }
+                log.info("Got login team membership", accountUserId, "for User", userLogin.email);
                 return teamMember;
             }
         }
 
-        log.info("Could not find team membership", accountUserId, "for User", userLogin.email);
+        log.info("Could not find login team membership", accountUserId, "for User", userLogin.email, "; falling back to one at random");
 
         // Get any random TeamMember to log in as.
         const queryReq = objectReverseIndexDynameh.requestBuilder.buildQueryInput(userLogin.userId);

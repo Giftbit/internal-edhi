@@ -17,11 +17,15 @@ describe("/v2/account", () => {
     const sinonSandbox = sinon.createSandbox();
 
     before(async () => {
-        await testUtils.resetDb();
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+    });
+
+    beforeEach(async () => {
+        // Because we do a lot of counting users in the account between tests.
+        await testUtils.resetDb();
     });
 
     afterEach(() => {
@@ -96,6 +100,49 @@ describe("/v2/account", () => {
 
         const deleteUserResp = await router.testApiRequest(`/v2/account/users/${inviteResp.body.teamMemberId}`, "DELETE");
         chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
+    });
+
+    it("can resend an invitation without canceling it", async () => {
+        let firstInviteEmail: emailUtils.SendEmailParams;
+        let reinviteEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                firstInviteEmail = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                reinviteEmail = params;
+                return null;
+            });
+
+        const email = testUtils.generateId() + "@example.com";
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
+            email: email,
+            access: "full"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(firstInviteEmail);
+        chai.assert.isUndefined(reinviteEmail);
+
+        const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
+            email: email,
+            access: "full"
+        });
+        chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(reinviteEmail);
+
+        const acceptInviteLink = /(https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=[a-zA-Z0-9]*)/.exec(firstInviteEmail.htmlBody)[1];
+        chai.assert.isString(acceptInviteLink);
+
+        const acceptInviteToken = /\?token=([a-zA-Z0-9]*)/.exec(acceptInviteLink)[1];
+        chai.assert.isString(acceptInviteToken);
+
+        const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
+        chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInviteResp.bodyRaw);
+        chai.assert.isString(acceptInviteResp.headers["Location"]);
+        chai.assert.match(acceptInviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
     });
 
     it("can cancel an invitation and then resend it", async () => {
@@ -199,6 +246,10 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
+        const firstAccountUsersResp = await router.testPostLoginRequest<TeamMember[]>(loginResp, "/v2/account/users", "GET");
+        chai.assert.equal(firstAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(firstAccountUsersResp.body, 1);
+
         // Default test user invites the new user to their account.
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
@@ -221,7 +272,7 @@ describe("/v2/account", () => {
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.userId === testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
 
         const switchAccountResp = await router.testPostLoginRequest(loginResp, "/v2/account/switch", "POST", {
-            userId: listAccountsResp.body.find(tm => tm.userId !== testUtils.defaultTestUser.userId).userId,
+            userId: testUtils.defaultTestUser.userId,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
@@ -231,7 +282,8 @@ describe("/v2/account", () => {
         chai.assert.match(switchAccountResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(switchAccountResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
-        const pingResp = await router.testPostLoginRequest(switchAccountResp, "/v2/user/ping", "GET");
-        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
+        const secondAccountUsersResp = await router.testPostLoginRequest<TeamMember[]>(switchAccountResp, "/v2/account/users", "GET");
+        chai.assert.equal(secondAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(secondAccountUsersResp.body, 2);
     });
 });
