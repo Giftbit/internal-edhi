@@ -36,13 +36,13 @@ export namespace DbUserDetails {
             throw new Error("Not a valid UserDetails.");
         }
         return {
-            pk: "UserDetails/" + userDetails.userId,
-            sk: "UserDetails/" + userDetails.userId
+            pk: "User/" + userDetails.userId,
+            sk: "User/" + userDetails.userId
         }
     }
 
     export async function get(userId: string): Promise<DbUserDetails> {
-        return fromDbObject(await DbObject.get("UserDetails/" + stripUserIdTestMode(userId), "UserDetails/" + stripUserIdTestMode(userId)));
+        return fromDbObject(await DbObject.get("User/" + stripUserIdTestMode(userId), "User/" + stripUserIdTestMode(userId)));
     }
 
     export function generateUserId(): string {

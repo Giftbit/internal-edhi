@@ -129,6 +129,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
             "teamAdmin",
             "webPortal"
         ],
+        scopes: [],
         dateCreated
     };
     const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));

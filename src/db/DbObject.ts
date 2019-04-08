@@ -3,6 +3,8 @@ import {dynamodb, objectDynameh} from "./dynamodb";
 export interface DbObject {
     pk: string;
     sk: string;
+    pk2?: string;
+    sk2?: string;
 }
 
 export namespace DbObject {

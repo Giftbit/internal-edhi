@@ -17,15 +17,11 @@ describe("/v2/account", () => {
     const sinonSandbox = sinon.createSandbox();
 
     before(async () => {
+        await testUtils.resetDb();
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
-    });
-
-    beforeEach(async () => {
-        // Because we do a lot of counting users in the account between tests.
-        await testUtils.resetDb();
     });
 
     afterEach(() => {
@@ -212,6 +208,9 @@ describe("/v2/account", () => {
     });
 
     it("can invite a user to your account that already has their own account", async () => {
+        // Reset the DB because we're going to count users.
+        await testUtils.resetDb();
+
         // Set up a new account.
         let verifyEmail: emailUtils.SendEmailParams;
         let inviteEmail: emailUtils.SendEmailParams;
@@ -284,6 +283,6 @@ describe("/v2/account", () => {
 
         const secondAccountUsersResp = await router.testPostLoginRequest<TeamMember[]>(switchAccountResp, "/v2/account/users", "GET");
         chai.assert.equal(secondAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.lengthOf(secondAccountUsersResp.body, 2);
+        chai.assert.lengthOf(secondAccountUsersResp.body, 3);
     });
 });

@@ -47,7 +47,7 @@ export function installAccountRest(router: cassava.Router): void {
             const userLogin = await DbUserLogin.getByAuth(auth);
             const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin, evt.body.userId);
             let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.userId && isTestModeUserId(evt.body.userId));
-            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, liveMode, true);
+            const userBadge = DbUserLogin.getBadge(teamMember, liveMode, true);
 
             return {
                 body: null,
@@ -84,12 +84,11 @@ export function installAccountRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/account/users/{id}")
-        .method("PATCH")
-        .handler(async evt => {
-            // TODO update team member
-            throw new Error("Not implemented");
-        });
+    // router.route("/v2/account/users/{id}")
+    //     .method("PATCH")
+    //     .handler(async evt => {
+    //         // TODO update team member
+    //     });
 
     router.route("/v2/account/users/{id}")
         .method("DELETE")
@@ -234,6 +233,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
                 dateExpires: dateExpires.toISOString()
             },
             roles: [],  // TODO base on access
+            scopes: [],
             dateCreated
         };
         const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));

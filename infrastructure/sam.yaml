@@ -35,6 +35,10 @@ Resources:
           AttributeType: S
         - AttributeName: sk
           AttributeType: S
+        - AttributeName: pk2
+          AttributeType: S
+        - AttributeName: sk2
+          AttributeType: S
       KeySchema:
         - AttributeName: pk
           KeyType: HASH
@@ -43,9 +47,9 @@ Resources:
       GlobalSecondaryIndexes:
         - IndexName: ReverseIndex
           KeySchema:
-            - AttributeName: sk
+            - AttributeName: pk2
               KeyType: HASH
-            - AttributeName: pk
+            - AttributeName: sk2
               KeyType: RANGE
           Projection:
             ProjectionType: ALL

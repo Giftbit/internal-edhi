@@ -33,7 +33,7 @@ export function installLoginRest(router: cassava.Router): void {
             });
             const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
             const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
-            const userBadge = DbUserLogin.getBadge(userLogin, teamMember, liveMode, true);
+            const userBadge = teamMember ? DbUserLogin.getBadge(teamMember, liveMode, true) : DbUserLogin.getOrphanBadge(userLogin);
 
             return {
                 body: null,

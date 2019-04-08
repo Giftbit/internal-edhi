@@ -31,13 +31,12 @@ export namespace DbAccountDetails {
 
     export function getKeys(accountDetails: DbAccountDetails): DbObject {
         return {
-            pk: "AccountDetails/" + accountDetails.userId,
-            sk: "AccountDetails/" + accountDetails.userId
+            pk: "Account/" + accountDetails.userId,
+            sk: "Account/" + accountDetails.userId
         }
     }
 
     export async function get(userId: string): Promise<DbAccountDetails> {
-        return fromDbObject(await DbObject.get("AccountDetails/" + userId, "AccountDetails/" + userId));
+        return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
     }
-
 }

@@ -34,16 +34,16 @@ export const objectSchema: dynameh.TableSchema = {
     sortKeyType: "string"
 };
 
-export const objectReverseIndexSchema: dynameh.TableSchema = {
+export const objectSchema2: dynameh.TableSchema = {
     tableName: process.env["OBJECT_TABLE"],
     indexName: "ReverseIndex",
     indexProperties: {
         projectionType: "ALL",
         type: "GLOBAL"
     },
-    partitionKeyField: "sk",
+    partitionKeyField: "pk2",
     partitionKeyType: "string",
-    sortKeyField: "pk",
+    sortKeyField: "sk2",
     sortKeyType: "string"
 };
 
@@ -55,5 +55,5 @@ export const tokenActionSchema: dynameh.TableSchema = {
 };
 
 export const objectDynameh = dynameh.scope(objectSchema);
-export const objectReverseIndexDynameh = dynameh.scope(objectReverseIndexSchema);
+export const objectDynameh2 = dynameh.scope(objectSchema2);
 export const tokenActionDynameh = dynameh.scope(tokenActionSchema);

@@ -80,4 +80,21 @@ export class TestRouter extends cassava.Router {
             body: resp.body && JSON.parse(resp.body) || undefined
         };
     }
+
+    async testTeamMateRequest<T>(url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
+        const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
+            headers: {
+                Cookie: defaultTestUser.teamMate.cookie,
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: body && JSON.stringify(body) || undefined
+        }));
+
+        return {
+            statusCode: resp.statusCode,
+            headers: resp.headers,
+            bodyRaw: resp.body,
+            body: resp.body && JSON.parse(resp.body) || undefined
+        };
+    }
 }

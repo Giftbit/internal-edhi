@@ -98,28 +98,31 @@ export namespace DbUserLogin {
         return getById(stripUserIdTestMode(auth.teamMemberId));
     }
 
-    export function getBadge(user: DbUserLogin, teamMember: DbTeamMember | null, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
-        if (!teamMember) {
-            // This is an orphaned user with no team.  All they can do is create
-            // a new team.
-            const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-            auth.teamMemberId = user.userId;
-            auth.roles = [];
-            auth.issuer = "EDHI";
-            auth.audience = "WEBAPP";
-            auth.expirationTime = new Date(Date.now() + 180 * 60000);
-            auth.issuedAtTime = new Date();
-            return auth;
-        }
-
+    export function getBadge(teamMember: DbTeamMember, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
         auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");
         auth.roles = teamMember.roles;
-        auth.scopes = teamMember.scopes || [];
+        auth.scopes = teamMember.scopes;
         auth.issuer = "EDHI";
         auth.audience = shortLived ? "WEBAPP" : "API";
         auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60000) : null;
+        auth.issuedAtTime = new Date();
+        return auth;
+    }
+
+    /**
+     * An orphaned user has no team.  All they can do is create an Account.
+     * @param userLogin
+     */
+    export function getOrphanBadge(userLogin: DbUserLogin): giftbitRoutes.jwtauth.AuthorizationBadge {
+        const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+        auth.teamMemberId = userLogin.userId;
+        auth.roles = [];
+        auth.scopes = [];
+        auth.issuer = "EDHI";
+        auth.audience = "WEBAPP";
+        auth.expirationTime = new Date(Date.now() + 180 * 60000);
         auth.issuedAtTime = new Date();
         return auth;
     }
@@ -128,6 +131,14 @@ export namespace DbUserLogin {
 
     export function initializeBadgeSigningSecrets(authConfigPromise: Promise<giftbitRoutes.secureConfig.AuthenticationConfig>): void {
         authConfig = authConfigPromise;
+    }
+
+    export async function getBadgeApiToken(badge: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<string> {
+        if (!authConfig) {
+            throw new Error("authConfig is not initialized");
+        }
+
+        return badge.sign((await authConfig).secretkey);
     }
 
     export async function getBadgeCookies(badge: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ [key: string]: RouterResponseCookie }> {
