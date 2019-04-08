@@ -39,4 +39,8 @@ export namespace DbAccountDetails {
     export async function get(userId: string): Promise<DbAccountDetails> {
         return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
     }
+
+    export async function put(accountDetails: DbAccountDetails): Promise<void> {
+        await DbObject.put(toDbObject(accountDetails));
+    }
 }

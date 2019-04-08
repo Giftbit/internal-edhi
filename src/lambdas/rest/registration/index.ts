@@ -8,6 +8,7 @@ import {DbTeamMember} from "../../../db/DbTeamMember";
 import {TokenAction} from "../../../db/TokenAction";
 import {DbUserDetails} from "../../../db/DbUserDetails";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbAccountDetails} from "../../../db/DbAccountDetails";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -111,11 +112,21 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
+    const accountDetails: DbAccountDetails = {
+        userId,
+        displayName: "My Organization"
+    };
+    const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
+    objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
+        attribute: "userId",
+        operator: "attribute_not_exists"
+    });
+
     const teamMember: DbTeamMember = {
         userId,
         teamMemberId,
         userDisplayName: params.email,
-        accountDisplayName: "Organization", // TODO fill with Account details
+        accountDisplayName: accountDetails.displayName,
         roles: [
             "accountManager",
             "contactManager",
@@ -138,11 +149,11 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putTeamMemberReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountDetailsReq, putTeamMemberReq);
     try {
         await dynamodb.transactWriteItems(writeReq).promise();
     } catch (error) {
-        log.error("Error creating user and team", error);
+        log.error("Error creating user, acccount or team member", error);
         if (error.code === "ConditionalCheckFailedException") {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "User already exists.");
         } else {

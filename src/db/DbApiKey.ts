@@ -68,20 +68,15 @@ export namespace DbApiKey {
     }
 
     export async function getByAccount(userId: string, tokenId: string): Promise<DbApiKey> {
-        const req = objectDynameh.requestBuilder.buildGetInput("Account/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId);
-        const resp = await dynamodb.getItem(req).promise();
-        return objectDynameh.responseUnwrapper.unwrapGetOutput(resp);
+        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId));
     }
 
     export async function getByUser(teamMemberId: string, tokenId: string): Promise<DbApiKey> {
-        const req = objectDynameh2.requestBuilder.buildGetInput("User/" + stripUserIdTestMode(teamMemberId), "ApiKey/" + tokenId);
-        const resp = await dynamodb.getItem(req).promise();
-        return objectDynameh2.responseUnwrapper.unwrapGetOutput(resp);
+        return fromDbObject(await DbObject.getSecondary("User/" + stripUserIdTestMode(teamMemberId), "ApiKey/" + tokenId));
     }
 
     export async function put(apiKey: DbApiKey): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(apiKey));
-        await dynamodb.putItem(req).promise();
+        await DbObject.put(toDbObject(apiKey));
     }
 
     export async function del(apiKey: DbApiKey): Promise<void> {
