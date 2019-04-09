@@ -1,5 +1,6 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
+import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbTeamMember} from "../../../db/DbTeamMember";
 import {Invitation} from "../../../model/Invitation";
@@ -8,8 +9,10 @@ import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUserDetails} from "../../../db/DbUserDetails";
-import {TeamMember} from "../../../model/TeamMember";
 import {deleteApiKeysForUser} from "../apiKeys";
+import {UserAccount} from "../../../model/UserAccount";
+import {AccountUser} from "../../../model/AccountUser";
+import {DbAccountDetails} from "../../../db/DbAccountDetails";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -20,7 +23,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("teamMemberId");
             const accounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
             return {
-                body: accounts.map(TeamMember.getAccountDisplay)
+                body: accounts.map(UserAccount.fromDbTeamMember)
             };
         });
 
@@ -67,7 +70,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("userId");
             const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
             return {
-                body: teamMembers.map(TeamMember.getUserDisplay)
+                body: teamMembers.map(AccountUser.fromDbTeamMember)
             };
         });
 
@@ -81,15 +84,41 @@ export function installAccountRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: TeamMember.getUserDisplay(teamMember)
+                body: AccountUser.fromDbTeamMember(teamMember)
             };
         });
 
-    // router.route("/v2/account/users/{id}")
-    //     .method("PATCH")
-    //     .handler(async evt => {
-    //         // TODO update team member
-    //     });
+    router.route("/v2/account/users/{id}")
+        .method("PATCH")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+
+            evt.validateBody({
+                properties: {
+                    roles: {
+                        type: "array",
+                        items: {
+                            type: "string",
+                            minLength: 1
+                        }
+                    },
+                    scopes: {
+                        type: "array",
+                        items: {
+                            type: "string",
+                            minLength: 1
+                        }
+                    },
+                },
+                required: [],
+                additionalProperties: false
+            });
+
+            const teamMember = await updateTeamMember(auth, evt.pathParameters.id, evt.body);
+            return {
+                body: teamMember
+            };
+        });
 
     router.route("/v2/account/users/{id}")
         .method("DELETE")
@@ -167,6 +196,11 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const accountUserId = stripUserIdTestMode(auth.userId);
     log.info("Inviting User", email, "to Account", accountUserId);
 
+    const accountDetails = await DbAccountDetails.get(auth.userId);
+    if (!accountDetails) {
+        throw new Error(`Could not find AccountDetails for authed userId '${auth.userId}'`);
+    }
+
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
@@ -227,7 +261,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             userId: accountUserId,
             teamMemberId: userLogin.userId,
             userDisplayName: email,
-            accountDisplayName: "Organization", // TODO set from account details
+            accountDisplayName: accountDetails.displayName,
             invitation: {
                 email: email,
                 dateCreated,
@@ -252,6 +286,45 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: userLogin.userId});
 
     return Invitation.fromDbTeamMember(teamMember);
+}
+
+export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<AccountUser> {
+    auth.requireIds("userId");
+    log.info("Updating TeamMember", teamMemberId, "in Account", auth.userId, "\n", params);
+
+    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    if (!teamMember) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+    }
+
+    const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.roles) {
+        updates.push({
+            action: "put",
+            attribute: "roles",
+            value: params.roles
+        });
+        teamMember.roles = params.roles;
+    }
+    if (params.scopes) {
+        updates.push({
+            action: "put",
+            attribute: "scopes",
+            value: params.scopes
+        });
+        teamMember.scopes = params.scopes;
+    }
+
+    if (params.roles || params.scopes) {
+        // This is separated from the above because other params might be patchable in the future.
+        // Arguably we could only delete the API keys if we're strictly reducing their permissions,
+        // but that seems like it might be more subtle and confusing.  This is easier to explain.
+        log.info("Updating roles or scopes for TeamMember", teamMemberId, "in Account", auth.userId, "has triggered deleting all of their API keys");
+        await deleteApiKeysForUser(auth, teamMemberId);
+    }
+
+    await DbTeamMember.update(teamMember, ...updates);
+    return AccountUser.fromDbTeamMember(teamMember);
 }
 
 export async function removeTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {

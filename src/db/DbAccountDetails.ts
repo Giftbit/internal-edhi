@@ -1,4 +1,5 @@
 import {DbObject} from "./DbObject";
+import {stripUserIdTestMode} from "../utils/userUtils";
 
 export interface DbAccountDetails {
 
@@ -37,6 +38,7 @@ export namespace DbAccountDetails {
     }
 
     export async function get(userId: string): Promise<DbAccountDetails> {
+        userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
     }
 

@@ -62,6 +62,7 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        // Stub the superagent calls that revoke the credentials.
         const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
             .returns({
                 set: () => ({
@@ -107,6 +108,7 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        // Stub the superagent calls that revoke the credentials.
         const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
             .returns({
                 set: () => ({

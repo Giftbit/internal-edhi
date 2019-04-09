@@ -42,7 +42,8 @@ export namespace DbUserDetails {
     }
 
     export async function get(userId: string): Promise<DbUserDetails> {
-        return fromDbObject(await DbObject.get("User/" + stripUserIdTestMode(userId), "User/" + stripUserIdTestMode(userId)));
+        userId = stripUserIdTestMode(userId);
+        return fromDbObject(await DbObject.get("User/" + userId, "User/" + userId));
     }
 
     export function generateUserId(): string {
