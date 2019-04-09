@@ -14,9 +14,8 @@ export interface TokenAction {
     ttl: Date | number;
 }
 
-
 export namespace TokenAction {
-    export type Action = "emailVerification" | "resetPassword" | "acceptTeamInvite";
+    export type Action = "emailVerification" | "resetPassword" | "acceptTeamInvite" | "changeEmail";
 
     export interface GenerateAdditionalParams {
         email: string;
@@ -24,9 +23,9 @@ export namespace TokenAction {
         teamMemberId?: string;
     }
 
-    export function generate(action: Action, durationInDays: number, params: GenerateAdditionalParams): TokenAction {
+    export function generate(action: Action, durationInHours: number, params: GenerateAdditionalParams): TokenAction {
         const timeoutDate = new Date();
-        timeoutDate.setDate(timeoutDate.getDate() + durationInDays);
+        timeoutDate.setHours(timeoutDate.getHours() + durationInHours);
         return {
             token: uuid().replace(/-/g, ""),
             action: action,
@@ -36,6 +35,10 @@ export namespace TokenAction {
     }
 
     export async function get(token: string): Promise<TokenAction> {
+        if (!token) {
+            return null;
+        }
+
         const req = tokenActionDynameh.requestBuilder.buildGetInput(token);
         const resp = await dynamodb.getItem(req).promise();
         return tokenActionDynameh.responseUnwrapper.unwrapGetOutput(resp);

@@ -71,7 +71,7 @@ describe("/v2/user/register", () => {
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
     });
 
-    it("will not register an invalid email", async () => {
+    it("cannot register an invalid email", async () => {
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email: "notanemail",
             password: generateId()
@@ -79,7 +79,7 @@ describe("/v2/user/register", () => {
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
-    it("will not register a user with a short password", async () => {
+    it("cannot register a user with a short password", async () => {
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email: "shortpass@example.com",
             password: "1234"
@@ -87,8 +87,36 @@ describe("/v2/user/register", () => {
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
-    it("will not verifyEmail with a bad token", async () => {
+    it("cannot verifyEmail with a bad token", async () => {
         const resp = await router.testUnauthedRequest<any>("/v2/user/register/verifyEmail?token=asdfasdfasdf", "GET");
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
+    });
+
+    it("sends an account recovery email when someone attempts to register with a taken email address", async () => {
+        let recoverEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                recoverEmail = params;
+                return null;
+            });
+
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: testUtils.defaultTestUser.email,
+            password: generateId()
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(recoverEmail);
+        chai.assert.notMatch(recoverEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
+
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(recoverEmail.htmlBody)[1];
+        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
+
+        const password = generateId();
+        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+            token: resetPasswordToken,
+            password
+        });
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isString(completeResp.headers["Location"]);
     });
 });

@@ -41,10 +41,10 @@ describe("/v2/user/forgotPassword", () => {
     });
 
     it("can reset the password (using the webapp)", async () => {
-        let resetPasswordEmail: string;
+        let resetPasswordEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                resetPasswordEmail = params.htmlBody;
+                resetPasswordEmail = params;
                 return null;
             });
 
@@ -52,24 +52,22 @@ describe("/v2/user/forgotPassword", () => {
             email: testUtils.defaultTestUser.userLogin.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isString(resetPasswordEmail, "Got email.");
-        chai.assert.notMatch(resetPasswordEmail, /{{.*}}/, "No unreplaced tokens.");
+        chai.assert.isDefined(resetPasswordEmail);
+        chai.assert.notMatch(resetPasswordEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
-        const resetPasswordMatcher = /(https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*)/.exec(resetPasswordEmail);
-        const resetPasswordUrl = resetPasswordMatcher[1];
-        chai.assert.isString(resetPasswordUrl, "Found reset password url in email body.");
-        const token = /\?token=(.*)/.exec(resetPasswordUrl)[1];
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(resetPasswordEmail.htmlBody)[1];
+        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
 
         // Can't reset to a short password.
         const badCompleteResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
-            token,
+            token: resetPasswordToken,
             password: "1234"
         });
         chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
 
         const password = generateId();
         const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
-            token,
+            token: resetPasswordToken,
             password
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -95,7 +93,7 @@ describe("/v2/user/forgotPassword", () => {
 
         // Can't use the same email to reset the password again
         const completeRepeatResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
-            token,
+            token: resetPasswordToken,
             password
         });
         chai.assert.equal(completeRepeatResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);

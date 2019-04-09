@@ -60,6 +60,7 @@ describe("/v2/user/login", () => {
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isString(resp.headers["Location"]);
         chai.assert.isString(resp.headers["Set-Cookie"]);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);

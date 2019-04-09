@@ -4,6 +4,7 @@ import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh,} from "../..
 import {DbTeamMember} from "../../db/DbTeamMember";
 import {DbUserLogin} from "../../db/DbUserLogin";
 import {DbUserDetails} from "../../db/DbUserDetails";
+import {DbAccountDetails} from "../../db/DbAccountDetails";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -58,6 +59,10 @@ export namespace defaultTestUser {
         userId: teamMemberId,
         email: email
     };
+    export const accountDetails: DbAccountDetails = {
+        userId: userId,
+        displayName: "Test Account"
+    };
     export const teamMember: DbTeamMember = {
         userId: userId,
         teamMemberId: teamMemberId,
@@ -69,7 +74,7 @@ export namespace defaultTestUser {
     };
 
     export namespace teamMate {
-        export const teamMemberId = "user-teammate";
+        export const teamMemberId = "user-testteammate";
         export const email = "teammate@example.com";
         export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
             "g": {
@@ -155,6 +160,7 @@ export async function resetDb(): Promise<void> {
     log.trace("adding default data");
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.userLogin))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.userDetails))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(defaultTestUser.accountDetails))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(defaultTestUser.teamMember))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.teamMate.userLogin))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.teamMate.userDetails))).promise();

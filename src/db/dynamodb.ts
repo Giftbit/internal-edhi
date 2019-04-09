@@ -26,6 +26,28 @@ export async function queryAll(req: aws.DynamoDB.QueryInput): Promise<any[]> {
     return results;
 }
 
+/**
+ * Execute the TransactWriteItems request and get a response.
+ * If an error is thrown it will include the CancellationReasons
+ * object which is not available in the JS API currently.
+ * @see https://github.com/aws/aws-sdk-js/issues/2464
+ */
+export async function transactWriteItemsFixed(req: aws.DynamoDB.TransactWriteItemsInput): Promise<aws.DynamoDB.TransactGetItemsOutput> {
+    let txErrorResponse: { CancellationReasons: { Code: string }[] };
+    try {
+        const request = dynamodb.transactWriteItems(req);
+        request.on("extractError", resp => {
+            txErrorResponse = JSON.parse(resp.httpResponse.body.toString());
+        });
+        return await request.promise();
+    } catch (error) {
+        if (txErrorResponse && txErrorResponse.CancellationReasons) {
+            error.CancellationReasons = txErrorResponse.CancellationReasons;
+        }
+        throw error;
+    }
+}
+
 export const objectSchema: dynameh.TableSchema = {
     tableName: process.env["OBJECT_TABLE"],
     partitionKeyField: "pk",

@@ -1,7 +1,13 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dateCreatedNow, dynamodb, objectDynameh, tokenActionDynameh} from "../../../db/dynamodb";
+import {
+    dateCreatedNow,
+    dynamodb,
+    objectDynameh,
+    tokenActionDynameh,
+    transactWriteItemsFixed
+} from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {DbTeamMember} from "../../../db/DbTeamMember";
@@ -9,6 +15,7 @@ import {TokenAction} from "../../../db/TokenAction";
 import {DbUserDetails} from "../../../db/DbUserDetails";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -151,14 +158,18 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountDetailsReq, putTeamMemberReq);
     try {
-        await dynamodb.transactWriteItems(writeReq).promise();
+        await transactWriteItemsFixed(writeReq);
     } catch (error) {
-        log.error("Error creating user, acccount or team member", error);
-        if (error.code === "ConditionalCheckFailedException") {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "User already exists.");
-        } else {
-            throw error;
+        if (error.code === "TransactionCanceledException"
+            && error.CancellationReasons
+            && error.CancellationReasons.length === 4
+            && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
+        ) {
+            // Silently claim success but send an email notifying of the attempted registration.
+            await sendEmailAddressAlreadyRegisteredEmail(params.email);
+            return;
         }
+        throw error;
     }
 
     await sendEmailAddressVerificationEmail(params.email);
@@ -245,7 +256,7 @@ async function acceptInvite(token: string): Promise<string> {
 
     if (!userLogin.password) {
         log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
-        const setPasswordTokenAction = TokenAction.generate("resetPassword", 1, {email: acceptInviteTokenAction.email});
+        const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInviteTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
         return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
     }
