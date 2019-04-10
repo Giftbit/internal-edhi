@@ -37,7 +37,8 @@ export function installAccountRest(router: cassava.Router): void {
                 properties: {
                     name: {
                         type: "string",
-                        minLength: 1
+                        minLength: 1,
+                        maxLength: 1024
                     }
                 },
                 required: [],
@@ -47,6 +48,31 @@ export function installAccountRest(router: cassava.Router): void {
             const account = await updateAccount(auth, evt.body);
             return {
                 body: Account.getFromDbAccountDetails(account)
+            };
+        });
+
+    router.route("/v2/account")
+        .method("POST")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+
+            evt.validateBody({
+                properties: {
+                    name: {
+                        type: "string",
+                        minLength: 1,
+                        maxLength: 1024
+                    }
+                },
+                required: ["name"],
+                additionalProperties: false
+            });
+
+            const account = await createAccount(auth, evt.body);
+
+            return {
+                body: Account.getFromDbAccountDetails(account),
+                statusCode: cassava.httpStatusCode.success.CREATED
             };
         });
 
@@ -269,6 +295,47 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     }
 
     return account;
+}
+
+async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name: string }): Promise<DbAccountDetails> {
+    auth.requireIds("teamMemberId");
+    const userId = DbUserDetails.generateUserId();
+    log.info("Creating new Account", userId, "for existing user", auth.teamMemberId);
+
+    const userDetails = await DbUserDetails.get(auth.teamMemberId);
+    if (!userDetails) {
+        throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
+    }
+
+    const accountDetails: DbAccountDetails = {
+        userId,
+        name: params.name
+    };
+    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
+    objectDynameh.requestBuilder.addCondition(createAccountReq, {
+        operator: "attribute_not_exists",
+        attribute: "pk"
+    });
+
+    const teamMember: DbTeamMember = {
+        userId,
+        teamMemberId: stripUserIdTestMode(auth.teamMemberId),
+        roles: [],  // TODO fill in correct scopes for account owner
+        scopes: [],
+        userDisplayName: userDetails.email,
+        accountDisplayName: accountDetails.name,
+        dateCreated: dateCreatedNow()
+    };
+    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+    objectDynameh.requestBuilder.addCondition(createTeamMemberReq, {
+        operator: "attribute_not_exists",
+        attribute: "pk"
+    });
+
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(createAccountReq, createTeamMemberReq);
+    await dynamodb.transactWriteItems(writeReq).promise();
+
+    return accountDetails;
 }
 
 export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invitation> {

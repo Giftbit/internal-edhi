@@ -59,6 +59,38 @@ describe("/v2/account", () => {
         chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Organization");
     });
 
+    it("can create a brand new account and switch to it", async () => {
+        const initialUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(initialUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+
+        const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
+            name: "Totally Not a Drug Front"
+        });
+        chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
+
+        const userAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(userAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(userAccountsResp.body, initialUserAccountsResp.body.length + 1, userAccountsResp.bodyRaw);
+
+        const createdUserAccount = userAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
+        chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
+        chai.assert.equal(createdUserAccount.userId, createAccountResp.body.userId);
+        chai.assert.equal(createdUserAccount.teamMemberId, testUtils.defaultTestUser.teamMemberId);
+
+        const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+            userId: createAccountResp.body.userId,
+            mode: "test"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.isString(switchAccountResp.headers["Location"]);
+        chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
+
+        const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getAccountResp.body.userId, createAccountResp.body.userId);
+    });
+
     it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
         let inviteEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
@@ -309,6 +341,10 @@ describe("/v2/account", () => {
         const secondAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(switchAccountResp, "/v2/account/users", "GET");
         chai.assert.equal(secondAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(secondAccountUsersResp.body, 3);
+
+        const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getAccountResp.body.userId, testUtils.defaultTestUser.userId);
     });
 
     it("can update a team member's roles and scopes (which deletes their API keys)", async () => {

@@ -122,7 +122,7 @@ export namespace defaultTestUser {
             userId: userId,
             teamMemberId: teamMemberId,
             userDisplayName: email,
-            accountDisplayName: "Test Organization",
+            accountDisplayName: "Test Account",
             roles: auth.roles,
             scopes: [],
             dateCreated: "2019-04-08T21:09:21.127Z"
