@@ -34,10 +34,10 @@ describe("/v2/user/forgotPassword", () => {
                 return null;
             });
 
-        const registerResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+        const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
             email: "nosuchuser@example.com"
         });
-        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("can reset the password (using the webapp)", async () => {
@@ -97,5 +97,19 @@ describe("/v2/user/forgotPassword", () => {
             password
         });
         chai.assert.equal(completeRepeatResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+    });
+
+    it("requires a non-empty email address", async () => {
+        const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+            email: ""
+        });
+        chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
+    it("requires a valid email address", async () => {
+        const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+            email: "notanemail"
+        });
+        chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 });

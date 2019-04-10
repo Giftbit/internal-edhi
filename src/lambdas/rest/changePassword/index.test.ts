@@ -44,7 +44,16 @@ describe("/v2/user/changePassword", () => {
         chai.assert.match(newPasswordLoginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
     });
 
-    it("cannot change the password if the old password does not match", async () => {
+    it("requires a non-empty password", async () => {
+        const newPassword = generateId();
+        const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+            oldPassword: testUtils.defaultTestUser.password,
+            newPassword: ""
+        });
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
+    it("requires the oldPassword to validate", async () => {
         const newPassword = generateId();
         const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
             oldPassword: generateId(),

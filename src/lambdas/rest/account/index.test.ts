@@ -390,7 +390,7 @@ describe("/v2/account", () => {
         chai.assert.deepEqual(getTeamMateApiKeysResp.body, []);
     });
 
-    it("can delete the team member and their api keys", async () => {
+    it("can delete the team member (and their api keys)", async () => {
         let inviteEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
