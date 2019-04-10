@@ -1,10 +1,12 @@
+import * as dynameh from "dynameh";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
+import {dynamodb, objectDynameh} from "./dynamodb";
 
 export interface DbAccountDetails {
 
     userId: string;
-    displayName: string;
+    name: string;
 
 }
 
@@ -44,5 +46,14 @@ export namespace DbAccountDetails {
 
     export async function put(accountDetails: DbAccountDetails): Promise<void> {
         await DbObject.put(toDbObject(accountDetails));
+    }
+
+    export async function update(accountDetails: DbAccountDetails, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(accountDetails), ...actions);
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_exists"
+        });
+        await dynamodb.updateItem(req).promise();
     }
 }

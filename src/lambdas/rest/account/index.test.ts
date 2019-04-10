@@ -14,6 +14,7 @@ import {ApiKey} from "../../../model/ApiKey";
 import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {UserAccount} from "../../../model/UserAccount";
+import {Account} from "../../../model/Account";
 
 chai.use(chaiExclude);
 
@@ -32,6 +33,30 @@ describe("/v2/account", () => {
 
     afterEach(() => {
         sinonSandbox.restore();
+    });
+
+    it("can get account details", async () => {
+        const getAccoundResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
+        chai.assert.equal(getAccoundResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getAccoundResp.body.userId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getAccoundResp.body.name, testUtils.defaultTestUser.accountDetails.name);
+    });
+
+    it("can update account name", async () => {
+        const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
+            name: "Worlds Okayest Organization"
+        });
+        chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(patchAccountResp.body.name, "Worlds Okayest Organization");
+
+        const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(getAccountResp.body, patchAccountResp.body);
+
+        const getUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(getUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(getUserAccountsResp.body, 1);
+        chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Organization");
     });
 
     it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
@@ -292,7 +317,7 @@ describe("/v2/account", () => {
         chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
 
         const createTeamMateApiKey = await router.testTeamMateRequest<ApiKey>("/v2/user/apiKeys", "POST", {
-            displayName: generateId()
+            name: generateId()
         });
         chai.assert.equal(createTeamMateApiKey.statusCode, cassava.httpStatusCode.success.CREATED);
 
@@ -371,7 +396,7 @@ describe("/v2/account", () => {
 
         // New account creates an API key.
         const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(loginResp, "/v2/user/apiKeys", "POST", {
-            displayName: generateId()
+            name: generateId()
         });
         chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
 

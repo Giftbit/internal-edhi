@@ -13,17 +13,51 @@ import {deleteApiKeysForUser} from "../apiKeys";
 import {UserAccount} from "../../../model/UserAccount";
 import {AccountUser} from "../../../model/AccountUser";
 import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {Account} from "../../../model/Account";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
+    router.route("/v2/account")
+        .method("GET")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireIds("userId");
+            const account = await DbAccountDetails.get(auth.userId);
+            return {
+                body: Account.getFromDbAccountDetails(account)
+            };
+        });
+
+    router.route("/v2/account")
+        .method("PATCH")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+
+            evt.validateBody({
+                properties: {
+                    name: {
+                        type: "string",
+                        minLength: 1
+                    }
+                },
+                required: [],
+                additionalProperties: false
+            });
+
+            const account = await updateAccount(auth, evt.body);
+            return {
+                body: Account.getFromDbAccountDetails(account)
+            };
+        });
+
     router.route("/v2/account/switch")
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireIds("teamMemberId");
-            const accounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
+            const userAccounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
             return {
-                body: accounts.map(UserAccount.fromDbTeamMember)
+                body: userAccounts.map(UserAccount.fromDbTeamMember)
             };
         });
 
@@ -116,7 +150,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             const teamMember = await updateTeamMember(auth, evt.pathParameters.id, evt.body);
             return {
-                body: teamMember
+                body: AccountUser.fromDbTeamMember(teamMember)
             };
         });
 
@@ -191,6 +225,52 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
+async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccountDetails> {
+    auth.requireIds("userId");
+    log.info("Updating Account", auth.userId);
+
+    const account = await DbAccountDetails.get(auth.userId);
+    if (!account) {
+        throw new Error(`Could not find DbAccountDetails for user '${auth.userId}'`);
+    }
+
+    const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.name) {
+        updates.push({
+            action: "put",
+            attribute: "name",
+            value: params.name
+        });
+        account.name = params.name;
+    }
+
+    if (!updates.length) {
+        return account;
+    }
+
+    await DbAccountDetails.update(account, ...updates);
+
+    // Update non-authoritative data.
+    if (params.name) {
+        log.info("Updating TeamMember.accountDisplayName for Account", auth.userId);
+
+        const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
+        for (const teamMember of teamMembers) {
+            try {
+                await DbTeamMember.update(teamMember, {
+                    attribute: "accountDisplayName",
+                    action: "put",
+                    value: params.name
+                });
+            } catch (error) {
+                log.error("Unable to change accountDisplayName for team member", teamMember.userId, teamMember.teamMemberId, "\n", error);
+            }
+        }
+    }
+
+    return account;
+}
+
 export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUserId = stripUserIdTestMode(auth.userId);
@@ -261,7 +341,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             userId: accountUserId,
             teamMemberId: userLogin.userId,
             userDisplayName: email,
-            accountDisplayName: accountDetails.displayName,
+            accountDisplayName: accountDetails.name,
             invitation: {
                 email: email,
                 dateCreated,
@@ -288,7 +368,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     return Invitation.fromDbTeamMember(teamMember);
 }
 
-export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<AccountUser> {
+export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbTeamMember> {
     auth.requireIds("userId");
     log.info("Updating TeamMember", teamMemberId, "in Account", auth.userId, "\n", params);
 
@@ -323,8 +403,10 @@ export async function updateTeamMember(auth: giftbitRoutes.jwtauth.Authorization
         await deleteApiKeysForUser(auth, teamMemberId);
     }
 
-    await DbTeamMember.update(teamMember, ...updates);
-    return AccountUser.fromDbTeamMember(teamMember);
+    if (updates.length) {
+        await DbTeamMember.update(teamMember, ...updates);
+    }
+    return teamMember;
 }
 
 export async function removeTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {

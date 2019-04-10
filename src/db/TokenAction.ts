@@ -2,8 +2,8 @@ import * as uuid from "uuid/v4";
 import {dynamodb, tokenActionDynameh} from "./dynamodb";
 
 /**
- * Send a user an email with a token that lets them take an
- * anonymous action based on the token.
+ * Allows actions based upon passing the token to the correct endpoint.
+ * Eg: confirm email address, reset password.
  */
 export interface TokenAction {
     token: string;

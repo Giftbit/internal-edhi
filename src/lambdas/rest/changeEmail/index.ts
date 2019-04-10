@@ -113,6 +113,8 @@ export async function completeChangeEmail(token: string): Promise<void> {
             && error.CancellationReasons.length === 3
             && error.CancellationReasons[2].Code === "ConditionalCheckFailed"
         ) {
+            // This can only happen if there email address wasn't taken before the confirmation
+            // email was sent out, making this an edge case.
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The email address is already in use in the Lightrail system.");
         }
         throw error;

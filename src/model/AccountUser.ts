@@ -13,7 +13,7 @@ export namespace AccountUser {
         return {
             userId: teamMember.userId,
             teamMemberId: teamMember.teamMemberId,
-            displayName: teamMember.userDisplayName,
+            displayName: teamMember.accountDisplayName,
             roles: teamMember.roles,
             scopes: teamMember.scopes
         };

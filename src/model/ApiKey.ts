@@ -4,7 +4,7 @@ export interface ApiKey {
 
     userId: string;
     teamMemberId: string;
-    displayName: string;
+    name: string;
 
     tokenId: string;
     roles: string[];
@@ -22,7 +22,7 @@ export namespace ApiKey {
         return {
             userId: apiKey.userId,
             teamMemberId: apiKey.teamMemberId,
-            displayName: apiKey.displayName,
+            name: apiKey.name,
             tokenId: apiKey.tokenId,
             roles: apiKey.roles,
             scopes: apiKey.scopes,

@@ -121,7 +121,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     const accountDetails: DbAccountDetails = {
         userId,
-        displayName: "My Organization"
+        name: "My Organization"
     };
     const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
@@ -133,7 +133,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         userId,
         teamMemberId,
         userDisplayName: params.email,
-        accountDisplayName: accountDetails.displayName,
+        accountDisplayName: accountDetails.name,
         roles: [
             "accountManager",
             "contactManager",

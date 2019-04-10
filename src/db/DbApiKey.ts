@@ -6,7 +6,7 @@ export interface DbApiKey {
 
     userId: string;
     teamMemberId: string;
-    displayName: string;
+    name: string;
 
     tokenId: string;
     tokenVersion: number;

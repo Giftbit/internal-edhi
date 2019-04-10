@@ -30,14 +30,14 @@ export function installApiKeysRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
-                    displayName: {
+                    name: {
                         type: "string",
                         minLength: 1
                     }
                 }
             });
 
-            const apiKey = await createApiKey(auth, evt.body.displayName);
+            const apiKey = await createApiKey(auth, evt.body.name);
             return {
                 body: apiKey,
                 statusCode: cassava.httpStatusCode.success.CREATED
@@ -70,16 +70,16 @@ export function installApiKeysRest(router: cassava.Router): void {
         });
 }
 
-async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, displayName: string): Promise<ApiKey> {
+async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name: string): Promise<ApiKey> {
     auth.requireIds("userId", "teamMemberId");
 
-    log.info("Creating API key for", auth.userId, auth.teamMemberId, "with name", displayName);
+    log.info("Creating API key for", auth.userId, auth.teamMemberId, "with name", name);
 
     const teamMember = await DbTeamMember.getByAuth(auth);
     const apiKey: DbApiKey = {
         userId: stripUserIdTestMode(auth.userId),
         teamMemberId: stripUserIdTestMode(auth.teamMemberId),
-        displayName,
+        name: name,
         tokenId: uuid().replace(/-/g, ""),
         tokenVersion: 3,
         roles: teamMember.roles,

@@ -11,7 +11,7 @@ export namespace UserAccount {
         return {
             userId: teamMember.userId,
             teamMemberId: teamMember.teamMemberId,
-            displayName: teamMember.userDisplayName
+            displayName: teamMember.accountDisplayName
         };
     }
 }

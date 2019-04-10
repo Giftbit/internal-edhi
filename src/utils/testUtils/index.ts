@@ -61,13 +61,13 @@ export namespace defaultTestUser {
     };
     export const accountDetails: DbAccountDetails = {
         userId: userId,
-        displayName: "Test Account"
+        name: "Test Account"
     };
     export const teamMember: DbTeamMember = {
         userId: userId,
         teamMemberId: teamMemberId,
         userDisplayName: email,
-        accountDisplayName: "Test Organization",
+        accountDisplayName: accountDetails.name,
         roles: auth.roles,
         scopes: [],
         dateCreated: "2017-03-07T18:34:06.603Z"

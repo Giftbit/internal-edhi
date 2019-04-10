@@ -1,9 +1,9 @@
+import * as dynameh from "dynameh";
+import * as giftbitRoutes from "giftbit-cassava-routes";
 import {dynamodb, objectDynameh, objectDynameh2, queryAll} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {DbObject} from "./DbObject";
 import {DbUserLogin} from "./DbUserLogin";
-import * as dynameh from "dynameh";
-import * as giftbitRoutes from "giftbit-cassava-routes";
 import log = require("loglevel");
 
 export interface DbTeamMember {
@@ -55,14 +55,14 @@ export namespace DbTeamMember {
         }
         return {
             pk: "Account/" + teamMember.userId,
-            sk: "TeamMemberUser/" + teamMember.teamMemberId,
+            sk: "TeamMember/" + teamMember.teamMemberId,
             pk2: "User/" + teamMember.teamMemberId,
-            sk2: "TeamMemberAccount/" + teamMember.userId,
+            sk2: "TeamMember/" + teamMember.userId,
         }
     }
 
     export async function get(userId: string, teamMemberId: string): Promise<DbTeamMember> {
-        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(userId), "TeamMemberUser/" + stripUserIdTestMode(teamMemberId)));
+        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(userId), "TeamMember/" + stripUserIdTestMode(teamMemberId)));
     }
 
     export async function update(teamMember: DbTeamMember, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
@@ -91,7 +91,7 @@ export namespace DbTeamMember {
      * Get all users on the given team.
      */
     export async function getAccountTeamMembers(accountUserId: string): Promise<DbTeamMember[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMemberUser/");
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
             operator: "attribute_not_exists"
@@ -105,7 +105,7 @@ export namespace DbTeamMember {
      * Get invited users on the given team.
      */
     export async function getAccountInvitedTeamMembers(accountUserId: string): Promise<DbTeamMember[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMemberUser/");
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
             operator: "attribute_exists"
@@ -119,7 +119,7 @@ export namespace DbTeamMember {
      * Get all teams for the given user.
      */
     export async function getUserTeamMemberships(teamMemberId: string): Promise<DbTeamMember[]> {
-        const req = objectDynameh2.requestBuilder.buildQueryInput("User/" + stripUserIdTestMode(teamMemberId), "begins_with", "TeamMemberAccount/");
+        const req = objectDynameh2.requestBuilder.buildQueryInput("User/" + stripUserIdTestMode(teamMemberId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
             operator: "attribute_not_exists"

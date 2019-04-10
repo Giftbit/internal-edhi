@@ -4,7 +4,15 @@ import {stripUserIdTestMode} from "../utils/userUtils";
 
 export interface DbUserDetails {
 
+    /**
+     * The primary index.
+     */
     userId: string;
+
+    /**
+     * This email address *must* match the entry in the UserLogin.  It may show up
+     * in other places that are non-authoritative.
+     */
     email: string;
 
 }

@@ -35,14 +35,14 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysInitialResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(listKeysInitialResp.body, 0);
 
-        const displayName = generateId();
+        const name = generateId();
         const createKeyResp = await router.testApiRequest<ApiKey>("/v2/user/apiKeys", "POST", {
-            displayName
+            name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.userId);
         chai.assert.equal(createKeyResp.body.teamMemberId, testUtils.defaultTestUser.teamMemberId);
-        chai.assert.equal(createKeyResp.body.displayName, displayName);
+        chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.dateCreated);
 
@@ -88,14 +88,14 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.equal(listKeysInitialResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(listKeysInitialResp.body, 0);
 
-        const displayName = generateId();
+        const name = generateId();
         const createKeyResp = await router.testTeamMateRequest<ApiKey>("/v2/user/apiKeys", "POST", {
-            displayName
+            name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.userId);
         chai.assert.equal(createKeyResp.body.teamMemberId, testUtils.defaultTestUser.teamMate.teamMemberId);
-        chai.assert.equal(createKeyResp.body.displayName, displayName);
+        chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.dateCreated);
 

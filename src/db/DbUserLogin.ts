@@ -8,13 +8,23 @@ import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
 
 export interface DbUserLogin {
-    email: string;  // pk+sk
+
+    /**
+     * The primary index.
+     */
+    email: string;
+
+    /**
+     * This userId/email combo *must* match the UserDetails.  It may show up
+     * in other places that are non-authoritative.
+     */
     userId: string;
+
     password?: DbUserLogin.Password;
     emailVerified: boolean;
     frozen: boolean;
     lockedUntilDate?: string;
-    twoFactorAuthenticationDevice?: string;
+    mfa?: DbUserLogin.MFA;
     defaultLoginUserId: string;
     failedLoginAttempts?: Set<string>;
     dateCreated: string;
@@ -43,6 +53,13 @@ export namespace DbUserLogin {
          * The date the password was set.
          */
         dateCreated: string;
+    }
+
+    export interface MFA {
+        /**
+         * Was `twoFactorAuthenticationDevice` in v1.
+         */
+        smsDevice?: string;
     }
 
     export function fromDbObject(o: DbObject): DbUserLogin {
