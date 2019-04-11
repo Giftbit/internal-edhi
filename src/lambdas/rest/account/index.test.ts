@@ -89,6 +89,11 @@ describe("/v2/account", () => {
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getAccountResp.body.userId, createAccountResp.body.userId);
+
+        const createdAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(switchAccountResp, "/v2/account/users", "GET");
+        chai.assert.equal(createdAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK,);
+        chai.assert.lengthOf(createdAccountUsersResp.body, 1, "the only user in this account");
+        chai.assert.isAtLeast(createdAccountUsersResp.body[0].roles.length, 1, "has at least 1 role");
     });
 
     it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
@@ -102,7 +107,7 @@ describe("/v2/account", () => {
         const email = testUtils.generateId() + "@example.com";
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.userId, testUtils.defaultTestUser.userId);
@@ -173,7 +178,7 @@ describe("/v2/account", () => {
         const email = testUtils.generateId() + "@example.com";
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isDefined(firstInviteEmail);
@@ -181,7 +186,7 @@ describe("/v2/account", () => {
 
         const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isDefined(reinviteEmail);
@@ -216,7 +221,7 @@ describe("/v2/account", () => {
         const email = testUtils.generateId() + "@example.com";
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.userId, testUtils.defaultTestUser.userId);
@@ -237,7 +242,7 @@ describe("/v2/account", () => {
 
         const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(reinviteResp.body.userId, testUtils.defaultTestUser.userId);
@@ -309,7 +314,7 @@ describe("/v2/account", () => {
         // Default test user invites the new user to their account.
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.userId, testUtils.defaultTestUser.userId);
@@ -401,7 +406,7 @@ describe("/v2/account", () => {
         const email = testUtils.generateId() + "@example.com";
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invites", "POST", {
             email: email,
-            access: "full"
+            userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
 

@@ -16,6 +16,7 @@ import {DbUserDetails} from "../../../db/DbUserDetails";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbAccountDetails} from "../../../db/DbAccountDetails";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
+import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -134,19 +135,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         teamMemberId,
         userDisplayName: params.email,
         accountDisplayName: accountDetails.name,
-        roles: [
-            "accountManager",
-            "contactManager",
-            "customerServiceRepresentative",
-            "customerServiceManager",
-            "pointOfSale",
-            "programManager",
-            "promoter",
-            "reporter",
-            "securityManager",
-            "teamAdmin",
-            "webPortal"
-        ],
+        roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         dateCreated
     };

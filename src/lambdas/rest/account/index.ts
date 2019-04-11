@@ -14,6 +14,7 @@ import {UserAccount} from "../../../model/UserAccount";
 import {AccountUser} from "../../../model/AccountUser";
 import {DbAccountDetails} from "../../../db/DbAccountDetails";
 import {Account} from "../../../model/Account";
+import {getRolesForUserPrivilege, UserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -201,16 +202,32 @@ export function installAccountRest(router: cassava.Router): void {
                         type: "string",
                         format: "email"
                     },
-                    access: {
+                    userPrivilegeType: {
                         type: "string",
-                        enum: ["owner", "full", "limited"]
+                        enum: ["OWNER", "FULL_ACCESS", "LIMITED_ACCESS"]
+                    },
+                    roles: {
+                        type: "array",
+                        items: {
+                            type: "string",
+                            minLength: 1,
+                            maxLength: 255
+                        }
+                    },
+                    scopes: {
+                        type: "array",
+                        items: {
+                            type: "string",
+                            minLength: 1,
+                            maxLength: 255
+                        }
                     }
                 },
-                required: ["email", "access"],
+                required: ["email"],
                 additionalProperties: false
             });
 
-            const invitation = await inviteUser(auth, evt.body.email, evt.body.access);
+            const invitation = await inviteUser(auth, evt.body);
             return {
                 body: invitation,
                 statusCode: cassava.httpStatusCode.success.CREATED
@@ -320,7 +337,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     const teamMember: DbTeamMember = {
         userId,
         teamMemberId: stripUserIdTestMode(auth.teamMemberId),
-        roles: [],  // TODO fill in correct scopes for account owner
+        roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         userDisplayName: userDetails.email,
         accountDisplayName: accountDetails.name,
@@ -338,10 +355,10 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return accountDetails;
 }
 
-export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string, access: "owner" | "full" | "limited"): Promise<Invitation> {
+export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUserId = stripUserIdTestMode(auth.userId);
-    log.info("Inviting User", email, "to Account", accountUserId);
+    log.info("Inviting User", params.email, "to Account", accountUserId);
 
     const accountDetails = await DbAccountDetails.get(auth.userId);
     if (!accountDetails) {
@@ -351,13 +368,13 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const dateCreated = dateCreatedNow();
 
-    let userLogin = await DbUserLogin.get(email);
+    let userLogin = await DbUserLogin.get(params.email);
     if (userLogin) {
         log.info("Inviting existing User", userLogin.userId);
     } else {
         const userId = DbUserDetails.generateUserId();
         userLogin = {
-            email,
+            email: params.email,
             userId,
             emailVerified: false,
             frozen: false,
@@ -373,7 +390,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
         const userDetails: DbUserDetails = {
             userId,
-            email
+            email: params.email
         };
         const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
         objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
@@ -399,23 +416,32 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             updates.push(updateTeamMemberReq);
             log.info("Resending invitation to invited TeamMember", teamMember.userId, teamMember.teamMemberId);
         } else {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${email} has already accepted an invitation.`);
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
         }
     } else {
+        if (params.userPrivilegeType && params.roles) {
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Cannot specify both userPrivilegeType and roles.")
+        }
+        if (!params.userPrivilegeType && !(params.roles && params.roles.length) && !(params.scopes && params.scopes.length)) {
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Must specify userPrivilegeType or one of roles, scopes.")
+        }
+        const roles = (params.userPrivilegeType && getRolesForUserPrivilege(params.userPrivilegeType)) || params.roles;
+        const scopes = params.scopes || [];
+
         const dateExpires = new Date();
         dateExpires.setDate(dateExpires.getDate() + 5);
         teamMember = {
             userId: accountUserId,
             teamMemberId: userLogin.userId,
-            userDisplayName: email,
+            userDisplayName: params.email,
             accountDisplayName: accountDetails.name,
             invitation: {
-                email: email,
+                email: params.email,
                 dateCreated,
                 dateExpires: dateExpires.toISOString()
             },
-            roles: [],  // TODO base on access
-            scopes: [],
+            roles,
+            scopes,
             dateCreated
         };
         const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
@@ -430,7 +456,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    await sendTeamInvitation({email: email, userId: accountUserId, teamMemberId: userLogin.userId});
+    await sendTeamInvitation({email: params.email, userId: accountUserId, teamMemberId: userLogin.userId});
 
     return Invitation.fromDbTeamMember(teamMember);
 }
