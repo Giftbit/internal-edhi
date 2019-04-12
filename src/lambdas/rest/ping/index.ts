@@ -6,7 +6,7 @@ export function installPingRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireIds("userId");
+            auth.requireIds("teamMemberId");
 
             // When JwtAuthorizationRoute does not find this header it will not think it needs to refresh
             // the cookie.  This is a bit magic but the unit tests will catch it breaking.

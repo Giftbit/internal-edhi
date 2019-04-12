@@ -8,6 +8,8 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import * as smsUtils from "../../../utils/smsUtils";
+import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 
 describe("/v2/user/login", () => {
 
@@ -17,11 +19,16 @@ describe("/v2/user/login", () => {
     before(async () => {
         await testUtils.resetDb();
         installUnauthedRestRoutes(router);
+        router.route(testUtils.authRoute);
+        installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         sinonSandbox.restore();
+
+        // Reset MFA status.
+        await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
 
     it("422s when missing an email", async () => {
@@ -172,4 +179,45 @@ describe("/v2/user/login", () => {
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
     });
+
+    describe.only("SMS MFA", () => {
+        async function enableSmsMfa(): Promise<void> {
+            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+            const mfaSettings: DbUserLogin.Mfa = {
+                smsDevice: "+15558675309"
+            };
+            await DbUserLogin.update(userLogin, {
+                action: "put",
+                attribute: "mfa",
+                value: mfaSettings
+            });
+        }
+
+        it("requires SMS MFA to complete when challenged", async () => {
+            await enableSmsMfa();
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .callsFake(async params => {
+                });
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
+            chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
+
+            const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
+            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, "token does not have permission to list users");
+
+            const changePasswordResp = await router.testPostLoginRequest(loginResp, "/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: generateId()
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, "token does not have permission to change password");
+        });
+    });
 });
+
+

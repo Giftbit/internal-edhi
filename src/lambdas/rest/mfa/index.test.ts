@@ -23,6 +23,8 @@ describe("/v2/user/mfa", () => {
 
     afterEach(async () => {
         sinonSandbox.restore();
+
+        // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
 

@@ -69,10 +69,10 @@ describe("/v2/user/register", () => {
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
-        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
+        chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, pingResp.bodyRaw);
 
         const accountUsersResp = await router.testWebAppRequest<AccountUser[]>("/v2/account/users", "GET");
-        chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK,);
+        chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(accountUsersResp.body, 2, "2 users in the account now");
         chai.assert.isTrue(accountUsersResp.body.every(user => user.roles.length > 0), "every user has at least 1 role");
     });
