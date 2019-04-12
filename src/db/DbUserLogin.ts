@@ -54,9 +54,12 @@ export namespace DbUserLogin {
         dateCreated: string;
     }
 
+    /**
+     * For MFA to be enabled this object must be set and one of the devices defined.
+     */
     export interface Mfa {
         /**
-         * The SMS device to use as a factor in authentication.
+         * SMS device (phone number) to use as a factor in authentication.
          */
         smsDevice?: string;
 

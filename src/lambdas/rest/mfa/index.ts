@@ -3,7 +3,8 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {dateCreatedNow} from "../../../db/dynamodb";
-import {sendSms} from "../../../utils/twilioUtils";
+import {sendSms} from "../../../utils/smsUtils";
+import log = require("loglevel");
 
 export function installMfaRest(router: cassava.Router): void {
     router.route("/v2/user/mfa")
@@ -53,8 +54,8 @@ export function installMfaRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
-                    device: {
-                        type: "code",
+                    code: {
+                        type: "string",
                         minLength: 1
                     }
                 },
@@ -99,6 +100,8 @@ export function installMfaRest(router: cassava.Router): void {
 }
 
 async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { device: string }): Promise<{ message: string }> {
+    log.info("Beginning MFA enable for", auth.teamMemberId);
+
     const userLogin = await DbUserLogin.getByAuth(auth);
     const code = generateCode();
 
@@ -112,11 +115,21 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
         dateExpires: dateExpires.toISOString()
     };
 
-    await DbUserLogin.update(userLogin, {
-        attribute: "mfa.smsAuthState",
-        action: "put",
-        value: smsAuthState
-    });
+    if (userLogin.mfa) {
+        await DbUserLogin.update(userLogin, {
+            attribute: "mfa.smsAuthState",
+            action: "put",
+            value: smsAuthState
+        });
+    } else {
+        await DbUserLogin.update(userLogin, {
+            attribute: "mfa",
+            action: "put",
+            value: {
+                smsAuthState
+            }
+        });
+    }
 
     await sendSms({
         to: params.device,
@@ -129,29 +142,36 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
 }
 
 async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ message: string }> {
+    log.info("Completing MFA enable for", auth.teamMemberId);
     const userLogin = await DbUserLogin.getByAuth(auth);
 
-    if (userLogin.mfa
-        && userLogin.mfa.smsAuthState
-        && userLogin.mfa.smsAuthState.action === "enable"
-        && userLogin.mfa.smsAuthState.dateExpires < dateCreatedNow()
-        && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
-    ) {
-        await DbUserLogin.update(userLogin, {
-            action: "remove",
-            attribute: "mfa.smsAuthState"
-        }, {
-            action: "put",
-            attribute: "mfa.smsDevice",
-            value: userLogin.mfa.smsAuthState.device
-        });
-        return {
-            message: "Success."
-        };
+    if (!userLogin.mfa || !userLogin.mfa.smsAuthState || userLogin.mfa.smsAuthState.action !== "enable") {
+        log.info("MFA not enabled for", auth.teamMemberId, "not in the process");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Not in the process of enabling MFA.");
     }
 
+    if (userLogin.mfa.smsAuthState.dateExpires < dateCreatedNow()) {
+        log.info("MFA not enabled for", auth.teamMemberId, "code expired");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
+    }
+
+    if (userLogin.mfa.smsAuthState.code !== params.code.toUpperCase()) {
+        log.info("MFA not enabled for", auth.teamMemberId, "code", userLogin.mfa.smsAuthState.code, "does not match passed in", params.code);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
+    }
+
+    await DbUserLogin.update(userLogin, {
+        action: "remove",
+        attribute: "mfa.smsAuthState"
+    }, {
+        action: "put",
+        attribute: "mfa.smsDevice",
+        value: userLogin.mfa.smsAuthState.device
+    });
+    log.info("Code matches, MFA enabled for", auth.teamMemberId, userLogin.mfa.smsAuthState.device);
+    
     return {
-        message: "Sorry, the code submitted was incorrect."
+        message: "Success."
     };
 }
 
@@ -181,7 +201,7 @@ async function disableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promi
 
 function generateCode(length: number = 6): string {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    return Array(length).fill(null).map(() => alphabet[Math.random() * alphabet.length]).join("");
+    return Array(length).fill(null).map(() => alphabet[(Math.random() * alphabet.length) | 0]).join("");
 }
 
 async function getBackupCodes(userLogin: DbUserLogin): Promise<string[]> {
