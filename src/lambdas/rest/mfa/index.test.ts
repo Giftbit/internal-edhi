@@ -8,7 +8,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 
-describe.only("/v2/user/mfa", () => {
+describe("/v2/user/mfa", () => {
 
     const router = new TestRouter();
     const sinonSandbox = sinon.createSandbox();
@@ -199,5 +199,42 @@ describe.only("/v2/user/mfa", () => {
             code: "ABCDEF"
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+    });
+
+    describe("/v2/user/mfa/backupCodes", () => {
+        it("does not have backup codes before setting up MFA", async () => {
+            const backupCodesResp = await router.testWebAppRequest<string[]>("/v2/user/mfa/backupCodes", "GET");
+            chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
+        });
+
+        it("has backup codes after setting up MFA", async () => {
+            let sms: smsUtils.SendSmsParams;
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .onFirstCall()
+                .callsFake(async params => {
+                    sms = params;
+                });
+
+            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isDefined(sms);
+            chai.assert.equal(sms.to, "+15008675309");
+            chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
+
+            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(code, "got code from sms");
+
+            const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
+                code: code
+            });
+            chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK, completeResp.bodyRaw);
+
+            const backupCodesResp = await router.testWebAppRequest<string[]>("/v2/user/mfa/backupCodes", "GET");
+            chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isArray(backupCodesResp.body);
+            chai.assert.isString(backupCodesResp.body[0]);
+        });
     });
 });
