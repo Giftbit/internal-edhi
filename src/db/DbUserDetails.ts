@@ -1,3 +1,4 @@
+import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
@@ -52,6 +53,15 @@ export namespace DbUserDetails {
     export async function get(userId: string): Promise<DbUserDetails> {
         userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("User/" + userId, "User/" + userId));
+    }
+
+    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUserDetails> {
+        auth.requireIds("teamMemberId");
+        const user = await get(stripUserIdTestMode(auth.teamMemberId));
+        if (!user) {
+            throw new Error(`Could not find authed UserDetails ${auth.teamMemberId}`);
+        }
+        return user;
     }
 
     export function generateUserId(): string {

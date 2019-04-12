@@ -319,7 +319,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     const userId = DbUserDetails.generateUserId();
     log.info("Creating new Account", userId, "for existing user", auth.teamMemberId);
 
-    const userDetails = await DbUserDetails.get(auth.teamMemberId);
+    const userDetails = await DbUserDetails.getByAuth(auth);
     if (!userDetails) {
         throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
     }

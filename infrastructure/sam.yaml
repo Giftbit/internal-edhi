@@ -100,4 +100,35 @@ Resources:
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
           OBJECT_TABLE: !Ref ObjectTable
+          SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
+          SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
+          SECURE_CONFIG_KEY_ROLE_DEFINITIONS: RoleDefinitions.json
+          SECURE_CONFIG_KEY_SENTRY: sentry_lambda_services.json
           TOKEN_ACTION_TABLE: !Ref TokenActionTable
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/RoleDefinitions.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/sentry_lambda_services.json"
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:DescribeKey
+              Resource:
+                - !Ref SecureConfigKmsArn
+              Condition:
+                StringLike:
+                  "kms:ViaService":
+                    !Sub "s3.${AWS::Region}.amazonaws.com"
+                  "kms:EncryptionContext:aws:s3:arn":
+                    !Sub "arn:aws:s3:::${SecureConfigBucket}/*"
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"

@@ -15,8 +15,7 @@ export interface DbUserLogin {
     email: string;
 
     /**
-     * This userId/email combo *must* match the UserDetails.  It may show up
-     * in other places that are non-authoritative.
+     * This userId/email combo *must* match the UserDetails.
      */
     userId: string;
 
@@ -24,7 +23,7 @@ export interface DbUserLogin {
     emailVerified: boolean;
     frozen: boolean;
     lockedUntilDate?: string;
-    mfa?: DbUserLogin.MFA;
+    mfa?: DbUserLogin.Mfa;
     defaultLoginUserId: string;
     failedLoginAttempts?: Set<string>;
     dateCreated: string;
@@ -55,11 +54,23 @@ export namespace DbUserLogin {
         dateCreated: string;
     }
 
-    export interface MFA {
+    export interface Mfa {
         /**
-         * Was `twoFactorAuthenticationDevice` in v1.
+         * The SMS device to use as a factor in authentication.
          */
         smsDevice?: string;
+
+        smsAuthState?: SmsAuthState;
+
+        backupCodes?: Set<string>;
+    }
+
+    export interface SmsAuthState {
+        device: string;
+        code: string;
+        action?: "enable" | "auth";
+        dateCreated: string;
+        dateExpires: string;
     }
 
     export function fromDbObject(o: DbObject): DbUserLogin {
@@ -112,7 +123,11 @@ export namespace DbUserLogin {
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUserLogin> {
         auth.requireIds("teamMemberId");
-        return getById(stripUserIdTestMode(auth.teamMemberId));
+        const userLogin = await getById(stripUserIdTestMode(auth.teamMemberId));
+        if (!userLogin) {
+            throw new Error(`Could not find authed UserLogin ${auth.teamMemberId}`);
+        }
+        return userLogin;
     }
 
     export function getBadge(teamMember: DbTeamMember, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {

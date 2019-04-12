@@ -42,7 +42,8 @@
         "lightrailV1:stripeConnect",
         "lightrailV1:token",
         "lightrailV1:userImage:create",
-        "lightrailV2:currencies"
+        "lightrailV2:currencies",
+        "lightrailV2:user"
       ]
     },
     {
