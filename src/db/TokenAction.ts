@@ -24,12 +24,10 @@ export namespace TokenAction {
     }
 
     export function generate(action: Action, durationInHours: number, params: GenerateAdditionalParams): TokenAction {
-        const timeoutDate = new Date();
-        timeoutDate.setHours(timeoutDate.getHours() + durationInHours);
         return {
             token: uuid().replace(/-/g, ""),
             action: action,
-            ttl: timeoutDate,
+            ttl: new Date(Date.now() + durationInHours * 60 * 60 * 1000),
             ...params
         };
     }

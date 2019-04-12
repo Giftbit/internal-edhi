@@ -177,12 +177,10 @@ describe("/v2/user/mfa", () => {
         chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
 
         // Manually move back expiresDate
-        const dateExpires = new Date();
-        dateExpires.setHours(dateExpires.getHours() - 1);
         await DbUserLogin.update(await DbUserLogin.get(testUtils.defaultTestUser.email), {
             action: "put",
             attribute: "mfa.smsAuthState.expiresDate",
-            value: dateExpires.toISOString()
+            value: new Date(Date.now() - 60 * 1000).toISOString()
         });
 
         const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];

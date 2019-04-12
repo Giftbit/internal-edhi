@@ -104,15 +104,12 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
 
     const userLogin = await DbUserLogin.getByAuth(auth);
     const code = generateCode();
-
-    const dateExpires = new Date();
-    dateExpires.setMinutes(dateExpires.getMinutes() + 3);
     const smsAuthState: DbUserLogin.SmsAuthState = {
         action: "enable",
         code,
         device: params.device,
         dateCreated: dateCreatedNow(),
-        dateExpires: dateExpires.toISOString()
+        dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
     };
 
     if (userLogin.mfa) {
@@ -169,7 +166,7 @@ async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         value: userLogin.mfa.smsAuthState.device
     });
     log.info("Code matches, MFA enabled for", auth.teamMemberId, userLogin.mfa.smsAuthState.device);
-    
+
     return {
         message: "Success."
     };
@@ -196,6 +193,34 @@ async function disableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promi
     await DbUserLogin.update(userLogin, {
         action: "remove",
         attribute: "mfa"
+    });
+}
+
+export async function sendSmsMfaChallenge(userLogin: DbUserLogin): Promise<void> {
+    if (!userLogin) {
+        throw new Error("userLogin == null");
+    }
+    if (!userLogin.mfa || !userLogin.mfa.smsDevice) {
+        throw new Error("User does not have SMS MFA enabled.");
+    }
+
+    const code = generateCode();
+    const smsAuthState: DbUserLogin.SmsAuthState = {
+        action: "auth",
+        code,
+        device: userLogin.mfa.smsDevice,
+        dateCreated: dateCreatedNow(),
+        dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
+    };
+
+    await DbUserLogin.update(userLogin, {
+        attribute: "mfa.smsAuthState",
+        action: "put",
+        value: smsAuthState
+    });
+    await sendSms({
+        to: userLogin.mfa.smsDevice,
+        body: `Your Lightrail verification code is ${code}.`
     });
 }
 

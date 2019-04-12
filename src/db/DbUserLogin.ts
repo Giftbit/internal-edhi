@@ -141,7 +141,7 @@ export namespace DbUserLogin {
         auth.scopes = teamMember.scopes;
         auth.issuer = "EDHI";
         auth.audience = shortLived ? "WEBAPP" : "API";
-        auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60000) : null;
+        auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60 * 1000) : null;
         auth.issuedAtTime = new Date();
         return auth;
     }
@@ -157,7 +157,19 @@ export namespace DbUserLogin {
         auth.scopes = [];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
-        auth.expirationTime = new Date(Date.now() + 180 * 60000);
+        auth.expirationTime = new Date(Date.now() + 180 * 60 * 1000);
+        auth.issuedAtTime = new Date();
+        return auth;
+    }
+
+    export function getAdditionalAuthenticationRequiredBadge(userLogin: DbUserLogin): giftbitRoutes.jwtauth.AuthorizationBadge {
+        const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+        auth.teamMemberId = userLogin.userId;
+        auth.roles = [];
+        auth.scopes = ["lightrailV2:authenticate"];
+        auth.issuer = "EDHI";
+        auth.audience = "WEBAPP";
+        auth.expirationTime = new Date(Date.now() + 15 * 60 * 1000);
         auth.issuedAtTime = new Date();
         return auth;
     }

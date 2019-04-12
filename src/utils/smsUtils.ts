@@ -1,3 +1,5 @@
+import * as cassava from "cassava";
+import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as twilio from "twilio";
 import log = require("loglevel");
 
@@ -39,25 +41,30 @@ export async function sendSms(params: SendSmsParams): Promise<void> {
         });
         log.info("SMS sent", res.sid);
     } catch (error) {
-        log.error("Error sending SMS code=", error.code, "message=", error.message);
+        log.error("Error sending SMS to", params.to, "code=", error.code, "message=", error.message);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, getTwilioErrorCodeMessage(error.code));
     }
 }
 
-// Was in v1.
-// function getTwilioErrorCodeMessage(code: number): string {
-//     switch (code) {
-//         case 21211:
-//             return "The phone number submitted is not a valid phone number.";
-//         case 21612:
-//             return "The phone number submitted is not currently reachable via SMS.";
-//         case 21408:
-//             return "The phone number submitted is not in a reachable region to receive SMS messages.";
-//         case 21614:
-//             return "The phone number submitted is incapable of receiving SMS messages.";
-//         default:
-//             return "An unknown error occurred when trying to send SMS. Please try again later.";
-//     }
-// }
+/**
+ * Get an error message from the Twilio error code we can show users.
+ * Twilio error messages are written from our perspective and would
+ * confused our users.  eg: "The 'To' number 15555555555 is not a valid phone number."
+ */
+function getTwilioErrorCodeMessage(code: number): string {
+    switch (code) {
+        case 21211:
+            return "The phone number submitted is not a valid phone number.";
+        case 21612:
+            return "The phone number submitted is not currently reachable via SMS.";
+        case 21408:
+            return "The phone number submitted is not in a reachable region to receive SMS messages.";
+        case 21614:
+            return "The phone number submitted is incapable of receiving SMS messages.";
+        default:
+            return "An unknown error occurred when trying to send SMS. Please try again later.";
+    }
+}
 
 function sanitizePhoneNumber(phoneNumber: string): string {
     return phoneNumber.replace(/[. \-\(\)]/g, "");

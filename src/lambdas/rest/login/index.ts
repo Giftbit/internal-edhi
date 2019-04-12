@@ -7,6 +7,7 @@ import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddres
 import {DbTeamMember} from "../../../db/DbTeamMember";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId} from "../../../utils/userUtils";
+import {sendSmsMfaChallenge} from "../mfa";
 import log = require("loglevel");
 
 export function installLoginRest(router: cassava.Router): void {
@@ -26,14 +27,11 @@ export function installLoginRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const userLogin = await loginUser({
+            const userBadge = await loginUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp
             });
-            const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
-            const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
-            const userBadge = teamMember ? DbUserLogin.getBadge(teamMember, liveMode, true) : DbUserLogin.getOrphanBadge(userLogin);
 
             return {
                 body: null,
@@ -77,7 +75,7 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<DbUserLogin> {
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
     const userLogin = await DbUserLogin.get(params.email);
 
     if (!userLogin) {
@@ -105,5 +103,17 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
 
     log.info("Logged in user", params.email);
     await clearFailedLoginAttempts(userLogin);
-    return userLogin;
+
+    if (userLogin.mfa && userLogin.mfa.smsDevice) {
+        await sendSmsMfaChallenge(userLogin);
+        return DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+    }
+
+    const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
+    if (!teamMember) {
+        return DbUserLogin.getOrphanBadge(userLogin);
+    }
+
+    const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
+    return DbUserLogin.getBadge(teamMember, liveMode, true);
 }
