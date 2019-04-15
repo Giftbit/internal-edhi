@@ -65,7 +65,7 @@ export function installMfaRest(router: cassava.Router): void {
             });
 
             return {
-                body: await completeEnableMfa(auth, evt.body)
+                body: await completeEnableSmsMfa(auth, evt.body)
             };
         });
 
@@ -87,9 +87,6 @@ export function installMfaRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:user:mfa:read");
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            if (!userLogin) {
-                throw new Error(`Could not find authed user ${auth.teamMemberId}`);
-            }
             if (!userLogin.mfa) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "MFA is not enabled.");
             }
@@ -140,7 +137,7 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
     };
 }
 
-async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ message: string }> {
+async function completeEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ message: string }> {
     log.info("Completing MFA enable for", auth.teamMemberId);
     const userLogin = await DbUserLogin.getByAuth(auth);
 

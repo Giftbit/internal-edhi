@@ -219,9 +219,6 @@ describe("/v2/user/mfa", () => {
                 device: "+15008675309"
             });
             chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isDefined(sms);
-            chai.assert.equal(sms.to, "+15008675309");
-            chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code, "got code from sms");

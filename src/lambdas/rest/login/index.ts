@@ -10,7 +10,7 @@ import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import log = require("loglevel");
 
-export function installLoginRest(router: cassava.Router): void {
+export function installLoginUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/login")
         .method("POST")
         .handler(async evt => {
@@ -75,6 +75,39 @@ export function installLoginRest(router: cassava.Router): void {
         });
 }
 
+export function installLoginAuthedRest(router: cassava.Router): void {
+    router.route("/v2/user/login/mfa")
+        .method("POST")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:authenticate");
+
+            evt.validateBody({
+                properties: {
+                    code: {
+                        type: "string",
+                        minLength: 1
+                    }
+                },
+                required: ["code"],
+                additionalProperties: false
+            });
+
+            const userBadge = await completeMfaLogin(auth, {
+                code: evt.body.code,
+                sourceIp: evt.requestContext.identity.sourceIp
+            });
+            return {
+                body: null,
+                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                headers: {
+                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+                },
+                cookies: await DbUserLogin.getBadgeCookies(userBadge)
+            };
+        });
+}
+
 async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
     const userLogin = await DbUserLogin.get(params.email);
 
@@ -101,13 +134,58 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
-    log.info("Logged in user", params.email);
-    await clearFailedLoginAttempts(userLogin);
-
     if (userLogin.mfa && userLogin.mfa.smsDevice) {
+        log.info("Logged in user", params.email);
+
         await sendSmsMfaChallenge(userLogin);
         return DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
     }
+
+    return getLoginBadge(userLogin);
+}
+
+async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, sourceIp: string }): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+    const userLogin = await DbUserLogin.getByAuth(auth);
+
+    if (userLogin.frozen) {
+        log.warn("Could not log in user", auth.teamMemberId, "user is frozen");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (userLogin.lockedUntilDate && userLogin.lockedUntilDate >= dateCreatedNow()) {
+        log.warn("Could not log in user", auth.teamMemberId, "user is locked until", userLogin.lockedUntilDate);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (!userLogin.mfa) {
+        log.warn("Could not log in user", auth.teamMemberId, "MFA is not enabled");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+
+    if (userLogin.mfa.smsAuthState
+        && userLogin.mfa.smsAuthState.action === "auth"
+        && userLogin.mfa.smsAuthState.dateExpires >= dateCreatedNow()
+        && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
+    ) {
+        // clear smsAuthState?
+        return getLoginBadge(userLogin);
+    }
+
+    if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
+        await DbUserLogin.update(userLogin, {
+            action: "set_delete",
+            attribute: "mfa.backupCodes",
+            values: new Set([params.code.toUpperCase()])
+        });
+        return getLoginBadge(userLogin);
+    }
+
+    log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
+    await addFailedLoginAttempt(userLogin, params.sourceIp);
+    throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+}
+
+async function getLoginBadge(userLogin: DbUserLogin): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+    log.info("Logged in user", userLogin.email);
+    await clearFailedLoginAttempts(userLogin);
 
     const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
     if (!teamMember) {

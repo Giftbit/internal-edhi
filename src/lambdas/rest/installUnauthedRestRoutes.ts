@@ -1,6 +1,6 @@
 import * as cassava from "cassava";
 import {installRegistrationRest} from "./registration";
-import {installLoginRest} from "./login";
+import {installLoginUnauthedRest} from "./login";
 import {installForgotPasswordRest} from "./forgotPassword";
 import {installChangeEmailUnauthedRest} from "./changeEmail";
 
@@ -10,6 +10,6 @@ import {installChangeEmailUnauthedRest} from "./changeEmail";
 export function installUnauthedRestRoutes(router: cassava.Router): void {
     installChangeEmailUnauthedRest(router);
     installForgotPasswordRest(router);
-    installLoginRest(router);
+    installLoginUnauthedRest(router);
     installRegistrationRest(router);
 }
