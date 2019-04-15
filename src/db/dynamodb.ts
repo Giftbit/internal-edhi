@@ -8,7 +8,7 @@ export const dynamodb = new aws.DynamoDB({
     region: process.env["AWS_REGION"]
 });
 
-export function dateCreatedNow(): string {
+export function createdDateNow(): string {
     return new Date().toISOString();
 }
 

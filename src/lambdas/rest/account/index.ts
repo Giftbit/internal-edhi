@@ -4,7 +4,7 @@ import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbTeamMember} from "../../../db/DbTeamMember";
 import {Invitation} from "../../../model/Invitation";
-import {dateCreatedNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
+import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
@@ -354,7 +354,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         scopes: [],
         userDisplayName: userDetails.email,
         accountDisplayName: accountDetails.name,
-        dateCreated: dateCreatedNow()
+        createdDate: createdDateNow()
     };
     const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
     objectDynameh.requestBuilder.addCondition(createTeamMemberReq, {
@@ -379,7 +379,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     }
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
-    const dateCreated = dateCreatedNow();
+    const createdDate = createdDateNow();
 
     let userLogin = await DbUserLogin.get(params.email);
     if (userLogin) {
@@ -392,7 +392,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             emailVerified: false,
             frozen: false,
             defaultLoginUserId: accountUserId,
-            dateCreated
+            createdDate
         };
         const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
         objectDynameh.requestBuilder.addCondition(putUserReq, {
@@ -423,8 +423,8 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
                 DbTeamMember.getKeys(teamMember),
                 {
                     action: "put",
-                    attribute: "invitation.dateCreated",
-                    value: dateCreated
+                    attribute: "invitation.createdDate",
+                    value: createdDate
                 });
             updates.push(updateTeamMemberReq);
             log.info("Resending invitation to invited TeamMember", teamMember.userId, teamMember.teamMemberId);
@@ -450,12 +450,12 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             accountDisplayName: accountDetails.name,
             invitation: {
                 email: params.email,
-                dateCreated,
+                createdDate,
                 dateExpires: dateExpires.toISOString()
             },
             roles,
             scopes,
-            dateCreated
+            createdDate
         };
         const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
         objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {

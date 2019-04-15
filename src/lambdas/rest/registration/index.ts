@@ -2,7 +2,7 @@ import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {
-    dateCreatedNow,
+    createdDateNow,
     dynamodb,
     objectDynameh,
     tokenActionDynameh,
@@ -91,7 +91,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     // We no longer do that but you should be aware that is possible.
     const userId = DbUserDetails.generateUserId();
     const teamMemberId = DbUserDetails.generateUserId();
-    const dateCreated = dateCreatedNow();
+    const createdDate = createdDateNow();
 
     log.info("Registering new user email=", params.email, "userId=", userId, "teamMemberId=", teamMemberId);
 
@@ -102,7 +102,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         emailVerified: false,
         frozen: false,
         defaultLoginUserId: userId,
-        dateCreated
+        createdDate
     };
     const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
     objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
@@ -137,7 +137,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         accountDisplayName: accountDetails.name,
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
-        dateCreated
+        createdDate
     };
     const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
     objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {

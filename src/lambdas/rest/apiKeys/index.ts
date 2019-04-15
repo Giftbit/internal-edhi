@@ -4,7 +4,7 @@ import * as superagent from "superagent";
 import * as uuid from "uuid/v4";
 import {DbApiKey} from "../../../db/DbApiKey";
 import {DbTeamMember} from "../../../db/DbTeamMember";
-import {dateCreatedNow} from "../../../db/dynamodb";
+import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
@@ -88,7 +88,7 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
         tokenVersion: 3,
         roles: teamMember.roles,
         scopes: teamMember.scopes,
-        dateCreated: dateCreatedNow()
+        createdDate: createdDateNow()
     };
     await DbApiKey.put(apiKey);
 

@@ -9,7 +9,7 @@ export interface ApiKey {
     tokenId: string;
     roles: string[];
     scopes: string[];
-    dateCreated: string;
+    createdDate: string;
 
     // This is only set as a response when the token is first created.
     token?: string;
@@ -26,7 +26,7 @@ export namespace ApiKey {
             tokenId: apiKey.tokenId,
             roles: apiKey.roles,
             scopes: apiKey.scopes,
-            dateCreated: apiKey.dateCreated
+            createdDate: apiKey.createdDate
         };
     }
 

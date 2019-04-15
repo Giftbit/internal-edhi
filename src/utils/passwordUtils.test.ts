@@ -6,7 +6,7 @@ describe("passwordUtils", () => {
         const res = await validatePassword("password", {
             algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
-            dateCreated: "2019-03-19T23:43:25.886Z"
+            createdDate: "2019-03-19T23:43:25.886Z"
         });
         chai.assert.isTrue(res);
     });
@@ -15,7 +15,7 @@ describe("passwordUtils", () => {
         const res = await validatePassword("pigglywiggly", {
             algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
-            dateCreated: "2019-03-19T23:43:25.886Z"
+            createdDate: "2019-03-19T23:43:25.886Z"
         });
         chai.assert.isFalse(res);
     });

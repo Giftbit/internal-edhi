@@ -12,7 +12,7 @@ export interface DbApiKey {
     tokenVersion: number;
     roles: string[];
     scopes: string[];
-    dateCreated: string;
+    createdDate: string;
 
 }
 

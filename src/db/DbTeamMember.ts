@@ -15,7 +15,7 @@ export interface DbTeamMember {
     invitation?: DbTeamMember.Invitation;
     roles: string[];
     scopes: string[];
-    dateCreated: string;
+    createdDate: string;
 
 }
 
@@ -23,7 +23,7 @@ export namespace DbTeamMember {
 
     export interface Invitation {
         email: string;
-        dateCreated: string;
+        createdDate: string;
         dateExpires: string;
     }
 

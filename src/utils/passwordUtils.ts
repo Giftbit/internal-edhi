@@ -1,5 +1,5 @@
 import * as bcrypt from "bcrypt";
-import {dateCreatedNow} from "../db/dynamodb";
+import {createdDateNow} from "../db/dynamodb";
 import {DbUserLogin} from "../db/DbUserLogin";
 
 export async function hashPassword(plaintextPassword: string): Promise<DbUserLogin.Password> {
@@ -15,7 +15,7 @@ export async function hashPassword(plaintextPassword: string): Promise<DbUserLog
     return {
         algorithm: "BCRYPT",
         hash,
-        dateCreated: dateCreatedNow()
+        createdDate: createdDateNow()
     };
 }
 

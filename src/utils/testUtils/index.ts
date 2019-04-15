@@ -48,12 +48,12 @@ export namespace defaultTestUser {
         password: {
             algorithm: "BCRYPT",
             hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
-            dateCreated: "2017-03-07T18:34:06.603Z"
+            createdDate: "2017-03-07T18:34:06.603Z"
         },
         emailVerified: true,
         frozen: false,
         defaultLoginUserId: userId + "-TEST",
-        dateCreated: "2017-03-07T18:34:06.603Z"
+        createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userDetails: DbUserDetails = {
         userId: teamMemberId,
@@ -70,7 +70,7 @@ export namespace defaultTestUser {
         accountDisplayName: accountDetails.name,
         roles: auth.roles,
         scopes: [],
-        dateCreated: "2017-03-07T18:34:06.603Z"
+        createdDate: "2017-03-07T18:34:06.603Z"
     };
 
     export namespace teamMate {
@@ -107,12 +107,12 @@ export namespace defaultTestUser {
             password: {
                 algorithm: "BCRYPT",
                 hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
-                dateCreated: "2019-04-08T21:09:21.127Z"
+                createdDate: "2019-04-08T21:09:21.127Z"
             },
             emailVerified: true,
             frozen: false,
             defaultLoginUserId: userId + "-TEST",
-            dateCreated: "2019-04-08T21:09:21.127Z"
+            createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userDetails: DbUserDetails = {
             userId: teamMemberId,
@@ -125,7 +125,7 @@ export namespace defaultTestUser {
             accountDisplayName: "Test Account",
             roles: auth.roles,
             scopes: [],
-            dateCreated: "2019-04-08T21:09:21.127Z"
+            createdDate: "2019-04-08T21:09:21.127Z"
         };
     }
 }

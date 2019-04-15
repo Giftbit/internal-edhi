@@ -2,7 +2,7 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {MfaStatus} from "../../../model/MfaStatus";
-import {dateCreatedNow} from "../../../db/dynamodb";
+import {createdDateNow} from "../../../db/dynamodb";
 import {sendSms} from "../../../utils/smsUtils";
 import log = require("loglevel");
 
@@ -107,7 +107,7 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
         action: "enable",
         code,
         device: params.device,
-        dateCreated: dateCreatedNow(),
+        createdDate: createdDateNow(),
         dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
     };
 
@@ -146,7 +146,7 @@ async function completeEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBad
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Not in the process of enabling MFA.");
     }
 
-    if (userLogin.mfa.smsAuthState.dateExpires < dateCreatedNow()) {
+    if (userLogin.mfa.smsAuthState.dateExpires < createdDateNow()) {
         log.info("MFA not enabled for", auth.teamMemberId, "code expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
     }
@@ -208,7 +208,7 @@ export async function sendSmsMfaChallenge(userLogin: DbUserLogin): Promise<void>
         action: "auth",
         code,
         device: userLogin.mfa.smsDevice,
-        dateCreated: dateCreatedNow(),
+        createdDate: createdDateNow(),
         dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
     };
 

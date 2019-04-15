@@ -44,7 +44,7 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(createKeyResp.body.teamMemberId, testUtils.defaultTestUser.teamMemberId);
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
-        chai.assert.isString(createKeyResp.body.dateCreated);
+        chai.assert.isString(createKeyResp.body.createdDate);
 
         const pingResp = await cassava.testing.testRouter(router, cassava.testing.createTestProxyEvent("/v2/user/ping", "GET", {
             headers: {
@@ -97,7 +97,7 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(createKeyResp.body.teamMemberId, testUtils.defaultTestUser.teamMate.teamMemberId);
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
-        chai.assert.isString(createKeyResp.body.dateCreated);
+        chai.assert.isString(createKeyResp.body.createdDate);
 
         const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyResp.statusCode, cassava.httpStatusCode.success.OK);

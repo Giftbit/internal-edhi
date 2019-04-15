@@ -23,10 +23,11 @@ export interface DbUserLogin {
     emailVerified: boolean;
     frozen: boolean;
     lockedUntilDate?: string;
+    lastLoginDate?: string;
     mfa?: DbUserLogin.Mfa;
     defaultLoginUserId: string;
     failedLoginAttempts?: Set<string>;
-    dateCreated: string;
+    createdDate: string;
 }
 
 export namespace DbUserLogin {
@@ -51,7 +52,7 @@ export namespace DbUserLogin {
         /**
          * The date the password was set.
          */
-        dateCreated: string;
+        createdDate: string;
     }
 
     /**
@@ -72,7 +73,7 @@ export namespace DbUserLogin {
         device: string;
         code: string;
         action?: "enable" | "auth";
-        dateCreated: string;
+        createdDate: string;
         dateExpires: string;
     }
 
