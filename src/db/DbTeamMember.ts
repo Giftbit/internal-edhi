@@ -24,7 +24,7 @@ export namespace DbTeamMember {
     export interface Invitation {
         email: string;
         createdDate: string;
-        dateExpires: string;
+        expiresDate: string;
     }
 
     export function fromDbObject(o: DbObject): DbTeamMember {

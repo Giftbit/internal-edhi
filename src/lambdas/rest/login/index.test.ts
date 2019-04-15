@@ -4,7 +4,7 @@ import * as sinon from "sinon";
 import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
-import {TestRouter} from "../../../utils/testUtils/TestRouter";
+import {ParsedProxyResponse, TestRouter} from "../../../utils/testUtils/TestRouter";
 import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
@@ -30,6 +30,30 @@ describe("/v2/user/login", () => {
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
+
+    // Shortcut to enable SMS MFA.  Enabling is properly tested elsewhere.
+    async function enableSmsMfa(): Promise<void> {
+        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+        const mfaSettings: DbUserLogin.Mfa = {
+            smsDevice: "+15558675309",
+            trustedDevices: {}
+        };
+        await DbUserLogin.update(userLogin, {
+            action: "put",
+            attribute: "mfa",
+            value: mfaSettings
+        });
+    }
+
+    async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
+        const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
+        chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, "prove we're logged in");
+    }
+
+    async function assertNotFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
+        const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
+        chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, "prove we're not logged in");
+    }
 
     it("422s when missing an email", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
@@ -71,6 +95,8 @@ describe("/v2/user/login", () => {
         chai.assert.isString(resp.headers["Set-Cookie"]);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+
+        await assertFullyLoggedIn(resp);
     });
 
     it("locks the user for an hour after 10 unsuccessful login attempts", async () => {
@@ -181,18 +207,6 @@ describe("/v2/user/login", () => {
     });
 
     describe("SMS MFA", () => {
-        async function enableSmsMfa(): Promise<void> {
-            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            const mfaSettings: DbUserLogin.Mfa = {
-                smsDevice: "+15558675309"
-            };
-            await DbUserLogin.update(userLogin, {
-                action: "put",
-                attribute: "mfa",
-                value: mfaSettings
-            });
-        }
-
         it("gives a token that can only complete authentication after login", async () => {
             await enableSmsMfa();
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -208,8 +222,7 @@ describe("/v2/user/login", () => {
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
 
-            const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
-            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, "token does not have permission to list users");
+            await assertNotFullyLoggedIn(loginResp);
 
             const changePasswordResp = await router.testPostLoginRequest(loginResp, "/v2/user/changePassword", "POST", {
                 oldPassword: testUtils.defaultTestUser.password,
@@ -250,8 +263,7 @@ describe("/v2/user/login", () => {
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
-            const accountUsersResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/account/users", "GET");
-            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+            await assertFullyLoggedIn(loginCompleteResp);
         });
 
         it("can complete login with a case-insensitive code", async () => {
@@ -277,8 +289,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const accountUsersResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/account/users", "GET");
-            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+            await assertFullyLoggedIn(loginCompleteResp);
         });
 
         it("can send a new code (invalidating the old one)", async () => {
@@ -322,8 +333,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const accountUsersResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/account/users", "GET");
-            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+            await assertFullyLoggedIn(loginCompleteResp);
         });
 
         it("is secure against replay attack (using the same code a second time)", async () => {
@@ -391,8 +401,7 @@ describe("/v2/user/login", () => {
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
-            const accountUsersResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/account/users", "GET");
-            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+            await assertFullyLoggedIn(loginCompleteResp);
         });
 
         it("cannot use the same backup code twice", async () => {
@@ -425,6 +434,159 @@ describe("/v2/user/login", () => {
                 code: backupCodesResp.body[0]
             });
             chai.assert.equal(login2CompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        });
+    });
+
+    describe("trust this device", async () => {
+        it("allows skipping the MFA step with the correct token", async () => {
+            await enableSmsMfa();
+            let sms: smsUtils.SendSmsParams;
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .onFirstCall()
+                .callsFake(async params => {
+                    sms = params;
+                });
+
+            const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(code);
+
+            const loginCompleteResp = await router.testPostLoginRequest(firstLoginResp, "/v2/user/login/mfa", "POST", {
+                code: code,
+                trustThisDevice: true
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
+            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
+
+            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            chai.assert.isString(ttdToken);
+
+            const badTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+                {
+                    email: testUtils.defaultTestUser.userLogin.email,
+                    password: testUtils.defaultTestUser.password
+                },
+                {
+                    Cookie: "gb_ttd=asdfasdfasdfasdf"
+                }
+            );
+            chai.assert.equal(badTtdTokenLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertNotFullyLoggedIn(badTtdTokenLoginResp);
+
+            const goodTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+                {
+                    email: testUtils.defaultTestUser.userLogin.email,
+                    password: testUtils.defaultTestUser.password
+                },
+                {
+                    Cookie: `gb_ttd=${ttdToken}`
+                }
+            );
+            chai.assert.equal(goodTtdTokenLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertFullyLoggedIn(goodTtdTokenLoginResp);
+        });
+
+        it("expires trusted devices", async () => {
+            await enableSmsMfa();
+            let sms: smsUtils.SendSmsParams;
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .onFirstCall()
+                .callsFake(async params => {
+                    sms = params;
+                });
+
+            const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(code);
+
+            const loginCompleteResp = await router.testPostLoginRequest(firstLoginResp, "/v2/user/login/mfa", "POST", {
+                code: code,
+                trustThisDevice: true
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
+            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
+
+            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            chai.assert.isString(ttdToken);
+
+            // Manually adjust DB to expire token
+            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+            chai.assert.isDefined(userLogin.mfa.trustedDevices[ttdToken]);
+            userLogin.mfa.trustedDevices[ttdToken].expiresDate = new Date(Date.now() - 1000).toISOString();
+            await DbUserLogin.update(userLogin, {
+                action: "put",
+                attribute: "mfa",
+                value: userLogin.mfa
+            });
+
+            const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+                {
+                    email: testUtils.defaultTestUser.userLogin.email,
+                    password: testUtils.defaultTestUser.password
+                },
+                {
+                    Cookie: `gb_ttd=${ttdToken}`
+                });
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertNotFullyLoggedIn(secondLoginResp);
+        });
+
+        it("forgets trusted devices when MFA is disabled and re-enabled", async () => {
+            await enableSmsMfa();
+            let sms: smsUtils.SendSmsParams;
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .onFirstCall()
+                .callsFake(async params => {
+                    sms = params;
+                });
+
+            const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(code);
+
+            const loginCompleteResp = await router.testPostLoginRequest(firstLoginResp, "/v2/user/login/mfa", "POST", {
+                code: code,
+                trustThisDevice: true
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
+            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
+
+            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            chai.assert.isString(ttdToken);
+
+            const disableMfaResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/user/mfa", "DELETE");
+            chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+
+            await enableSmsMfa();
+
+            const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+                {
+                    email: testUtils.defaultTestUser.userLogin.email,
+                    password: testUtils.defaultTestUser.password
+                },
+                {
+                    Cookie: `gb_ttd=${ttdToken}`
+                });
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertNotFullyLoggedIn(secondLoginResp);
         });
     });
 });

@@ -1,5 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import * as uuid from "uuid/v4";
 import {createdDateNow} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
@@ -9,7 +10,12 @@ import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./failedLoginManagement";
 import * as dynameh from "dynameh";
+import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import log = require("loglevel");
+
+const maxFailedLoginAttempts = 10;
+const failedLoginTimoutMinutes = 60;
+const trustedDeviceExpirationDays = 14;
 
 export function installLoginUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/login")
@@ -28,10 +34,11 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const userBadge = await loginUser({
+            const cookies = await loginUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
-                sourceIp: evt.requestContext.identity.sourceIp
+                sourceIp: evt.requestContext.identity.sourceIp,
+                trustedDeviceToken: evt.cookies["gb_ttd"]
             });
 
             return {
@@ -40,7 +47,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await DbUserLogin.getBadgeCookies(userBadge)
+                cookies: cookies
             };
         });
 
@@ -110,7 +117,7 @@ export function installLoginAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const userBadge = await completeMfaLogin(auth, {
+            const cookies = await completeMfaLogin(auth, {
                 code: evt.body.code,
                 trustThisDevice: evt.body.trustThisDevice,
                 sourceIp: evt.requestContext.identity.sourceIp
@@ -121,12 +128,12 @@ export function installLoginAuthedRest(router: cassava.Router): void {
                 headers: {
                     Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
                 },
-                cookies: await DbUserLogin.getBadgeCookies(userBadge)
+                cookies: cookies
             };
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string }): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<{ [key: string]: RouterResponseCookie }> {
     const userLogin = await DbUserLogin.get(params.email);
 
     if (!userLogin) {
@@ -152,17 +159,32 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
-    if (userLogin.mfa && userLogin.mfa.smsDevice) {
-        log.info("Logged in user", params.email);
+    if (userLogin.mfa) {
+        if (params.trustedDeviceToken) {
+            if (userLogin.mfa.trustedDevices[params.trustedDeviceToken] && userLogin.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
+                log.info("User", params.email, "has a trusted device");
+                const userBadge = await userLoginSuccess(userLogin);
+                return await DbUserLogin.getBadgeCookies(userBadge);
+            } else {
+                log.info("User", params.email, "trusted device token is not trusted");
+                log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", userLogin.mfa.trustedDevices);
+            }
+        }
+        if (userLogin.mfa.smsDevice) {
+            log.info("Partially logged in user", params.email, "sending SMS code");
 
-        await sendSmsMfaChallenge(userLogin);
-        return DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+            await sendSmsMfaChallenge(userLogin);
+            const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+            return await DbUserLogin.getBadgeCookies(badge);
+        }
+        throw new Error("DbUserLogin object in inconsistent state.  `mfa` is set but no mfa devices are registered.");
     }
 
-    return userLoginSuccess(userLogin);
+    const userBadge = await userLoginSuccess(userLogin);
+    return await DbUserLogin.getBadgeCookies(userBadge);
 }
 
-async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<{ [key: string]: RouterResponseCookie }> {
     const userLogin = await DbUserLogin.getByAuth(auth);
 
     if (userLogin.frozen) {
@@ -178,39 +200,69 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
-    // TODO trustThisDevice support
-
+    const userUpdates: dynameh.UpdateExpressionAction[] = [];
+    const additionalCookies: { [key: string]: RouterResponseCookie } = {};
     if (userLogin.mfa.smsAuthState
         && userLogin.mfa.smsAuthState.action === "auth"
-        && userLogin.mfa.smsAuthState.dateExpires >= createdDateNow()
+        && userLogin.mfa.smsAuthState.expiresDate >= createdDateNow()
         && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
     ) {
-        return userLoginSuccess(userLogin);
-    }
-
-    if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
-        await DbUserLogin.update(userLogin, {
+        // no-op
+    } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
+        userUpdates.push({
             action: "set_delete",
             attribute: "mfa.backupCodes",
             values: new Set([params.code.toUpperCase()])
         });
-        return userLoginSuccess(userLogin);
+    } else {
+        log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
+        await userLoginFailure(userLogin, params.sourceIp);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
-    log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-    await userLoginFailure(userLogin, params.sourceIp);
-    throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    if (params.trustThisDevice) {
+        const trustedDeviceToken = uuid().replace(/-/g, "");
+        const trustedDevice: DbUserLogin.TrustedDevice = {
+            createdDate: createdDateNow(),
+            expiresDate: new Date(Date.now() + trustedDeviceExpirationDays * 24 * 60 * 60 * 1000).toISOString()
+        };
+        userUpdates.push({
+            action: "put",
+            attribute: `mfa.trustedDevices.${trustedDeviceToken}`,
+            value: trustedDevice
+        });
+        additionalCookies["gb_ttd"] = {
+            value: trustedDeviceToken,
+            options: {
+                httpOnly: true,
+                maxAge: trustedDeviceExpirationDays * 24 * 60 * 60, // 14 days
+                path: "/",
+                secure: true
+            }
+        };
+    }
+
+    const userBadge = await userLoginSuccess(userLogin, userUpdates);
+    return {
+        ...await DbUserLogin.getBadgeCookies(userBadge),
+        ...additionalCookies
+    };
 }
 
-async function userLoginSuccess(userLogin: DbUserLogin): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
     log.info("Logged in user", userLogin.email);
 
-    const userLoginUpdates: dynameh.UpdateExpressionAction[] = [{
-        action: "put",
-        attribute: "lastLoginDate",
-        value: createdDateNow()
-    }];
+    // Store last login date.
+    const userLoginUpdates: dynameh.UpdateExpressionAction[] = [
+        {
+            action: "put",
+            attribute: "lastLoginDate",
+            value: createdDateNow()
+        },
+        ...additionalUpdates
+    ];
 
+    // Clear failed login attempts.
     if ((userLogin.failedLoginAttempts && userLogin.failedLoginAttempts.size > 0) || userLogin.lockedUntilDate) {
         userLoginUpdates.push(
             {
@@ -223,11 +275,26 @@ async function userLoginSuccess(userLogin: DbUserLogin): Promise<giftbitRoutes.j
             }
         );
     }
+
+    // Remove SMS code.
     if (userLogin.mfa && userLogin.mfa.smsAuthState) {
         userLoginUpdates.push({
             action: "remove",
             attribute: "mfa.smsAuthState"
         });
+    }
+
+    // Clear expired trusted devices.
+    if (userLogin.mfa && userLogin.mfa.trustedDevices) {
+        const now = createdDateNow();
+        for (const trustedDeviceToken in userLogin.mfa.trustedDevices) {
+            if (userLogin.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && userLogin.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
+                userLoginUpdates.push({
+                    action: "remove",
+                    attribute: `mfa.trustedDevices.${trustedDeviceToken}`
+                });
+            }
+        }
     }
 
     await DbUserLogin.update(userLogin, ...userLoginUpdates);
@@ -241,10 +308,7 @@ async function userLoginSuccess(userLogin: DbUserLogin): Promise<giftbitRoutes.j
     return DbUserLogin.getBadge(teamMember, liveMode, true);
 }
 
-const maxFailedLoginAttempts = 10;
-const failedLoginTimoutMinutes = 60;
-
-export async function userLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {
+async function userLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {
     const failedAttempt = `${createdDateNow()}, ${sourceIp}`;
     if (!userLogin.failedLoginAttempts) {
         userLogin.failedLoginAttempts = new Set();

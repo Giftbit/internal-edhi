@@ -12,9 +12,10 @@ export interface ParsedProxyResponse<T> {
 
 export class TestRouter extends cassava.Router {
 
-    async testUnauthedRequest<T>(url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
+    async testUnauthedRequest<T>(url: string, method: string, body?: any, headers?: { [key: string]: string }): Promise<ParsedProxyResponse<T>> {
         const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
-            body: body && JSON.stringify(body) || undefined
+            body: body && JSON.stringify(body) || undefined,
+            headers: headers
         }));
 
         return {

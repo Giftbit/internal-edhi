@@ -441,8 +441,8 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         const roles = (params.userPrivilegeType && getRolesForUserPrivilege(params.userPrivilegeType)) || params.roles;
         const scopes = params.scopes || [];
 
-        const dateExpires = new Date();
-        dateExpires.setDate(dateExpires.getDate() + 5);
+        const expiresDate = new Date();
+        expiresDate.setDate(expiresDate.getDate() + 5);
         teamMember = {
             userId: accountUserId,
             teamMemberId: userLogin.userId,
@@ -451,7 +451,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             invitation: {
                 email: params.email,
                 createdDate,
-                dateExpires: dateExpires.toISOString()
+                expiresDate: expiresDate.toISOString()
             },
             roles,
             scopes,

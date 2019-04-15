@@ -5,7 +5,7 @@ export interface Invitation {
     teamMemberId: string;
     email: string;
     createdDate: string;
-    dateExpires: string;
+    expiresDate: string;
 }
 
 export namespace Invitation {
@@ -18,7 +18,7 @@ export namespace Invitation {
             teamMemberId: teamMember.teamMemberId,
             email: teamMember.invitation.email,
             createdDate: teamMember.invitation.createdDate,
-            dateExpires: teamMember.invitation.dateExpires
+            expiresDate: teamMember.invitation.expiresDate
         };
     }
 }

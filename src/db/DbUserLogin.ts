@@ -67,6 +67,8 @@ export namespace DbUserLogin {
         smsAuthState?: SmsAuthState;
 
         backupCodes?: Set<string>;
+
+        trustedDevices: { [key: string]: TrustedDevice };
     }
 
     export interface SmsAuthState {
@@ -74,7 +76,12 @@ export namespace DbUserLogin {
         code: string;
         action?: "enable" | "auth";
         createdDate: string;
-        dateExpires: string;
+        expiresDate: string;
+    }
+
+    export interface TrustedDevice {
+        createdDate: string;
+        expiresDate: string;
     }
 
     export function fromDbObject(o: DbObject): DbUserLogin {

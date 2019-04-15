@@ -108,7 +108,7 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
         code,
         device: params.device,
         createdDate: createdDateNow(),
-        dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
+        expiresDate: new Date(Date.now() + 3 * 60 * 1000).toISOString()
     };
 
     if (userLogin.mfa) {
@@ -118,12 +118,14 @@ async function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, pa
             value: smsAuthState
         });
     } else {
+        const mfa: DbUserLogin.Mfa = {
+            smsAuthState,
+            trustedDevices: {}
+        };
         await DbUserLogin.update(userLogin, {
             attribute: "mfa",
             action: "put",
-            value: {
-                smsAuthState
-            }
+            value: mfa
         });
     }
 
@@ -146,7 +148,7 @@ async function completeEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBad
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Not in the process of enabling MFA.");
     }
 
-    if (userLogin.mfa.smsAuthState.dateExpires < createdDateNow()) {
+    if (userLogin.mfa.smsAuthState.expiresDate < createdDateNow()) {
         log.info("MFA not enabled for", auth.teamMemberId, "code expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
     }
@@ -209,7 +211,7 @@ export async function sendSmsMfaChallenge(userLogin: DbUserLogin): Promise<void>
         code,
         device: userLogin.mfa.smsDevice,
         createdDate: createdDateNow(),
-        dateExpires: new Date(Date.now() + 3 * 60 * 1000).toISOString()
+        expiresDate: new Date(Date.now() + 3 * 60 * 1000).toISOString()
     };
 
     await DbUserLogin.update(userLogin, {

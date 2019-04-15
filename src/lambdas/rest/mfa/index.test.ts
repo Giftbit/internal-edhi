@@ -192,7 +192,7 @@ describe("/v2/user/mfa", () => {
             const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
                 code: code
             });
-            chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK, completeResp.bodyRaw);
+            chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, completeResp.bodyRaw);
         });
 
         it("cannot jump straight to the complete step", async () => {
