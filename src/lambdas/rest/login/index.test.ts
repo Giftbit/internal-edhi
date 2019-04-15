@@ -180,7 +180,7 @@ describe("/v2/user/login", () => {
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
     });
 
-    describe.only("SMS MFA", () => {
+    describe("SMS MFA", () => {
         async function enableSmsMfa(): Promise<void> {
             const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
             const mfaSettings: DbUserLogin.Mfa = {

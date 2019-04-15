@@ -42,6 +42,7 @@
         "lightrailV1:stripeConnect",
         "lightrailV1:token",
         "lightrailV1:userImage:create",
+        "lightrailV2:account",
         "lightrailV2:currencies",
         "lightrailV2:user"
       ]
@@ -172,6 +173,14 @@
         "lightrailV2:values:attach:self",
         "lightrailV2:values:list:byCode",
         "lightrailV2:values:list:self"
+      ]
+    },
+    {
+      "name": "self",
+      "description": "Permission to manage one's self.",
+      "scopes": [
+        "lightrailV2:account:create",
+        "lightrailV2:user"
       ]
     }
   ]

@@ -22,6 +22,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:read");
             auth.requireIds("userId");
             const account = await DbAccountDetails.get(auth.userId);
             return {
@@ -33,6 +34,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("PATCH")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:update");
 
             evt.validateBody({
                 properties: {
@@ -56,6 +58,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:create");
 
             evt.validateBody({
                 properties: {
@@ -81,6 +84,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("teamMemberId");
             const userAccounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
             return {
@@ -92,6 +96,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("userId", "teamMemberId");
 
             evt.validateBody({
@@ -128,6 +133,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:list");
             auth.requireIds("userId");
             const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
             return {
@@ -139,6 +145,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:read");
             auth.requireIds("userId");
             const teamMember = await DbTeamMember.get(auth.userId, evt.pathParameters.id);
             if (!teamMember || teamMember.invitation) {
@@ -153,6 +160,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("PATCH")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:update");
 
             evt.validateBody({
                 properties: {
@@ -185,6 +193,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("DELETE")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:delete");
             await removeTeamMember(auth, evt.pathParameters.id);
             return {
                 body: {}
@@ -195,6 +204,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:create");
 
             evt.validateBody({
                 properties: {
@@ -238,6 +248,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:list");
             const invites = await listInvites(auth);
             return {
                 body: invites
@@ -248,6 +259,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:read");
             const invite = await getInvite(auth, evt.pathParameters.id);
             if (!invite) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find invite with id '${evt.pathParameters.id}'.`, "InviteNotFound");
@@ -261,6 +273,7 @@ export function installAccountRest(router: cassava.Router): void {
         .method("DELETE")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:users:delete");
             await cancelInvite(auth, evt.pathParameters.id);
             return {
                 body: {}

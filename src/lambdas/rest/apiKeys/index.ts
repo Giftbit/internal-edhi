@@ -11,10 +11,11 @@ import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
-    router.route("/v2/user/apiKeys")
+    router.route("/v2/account/apiKeys")
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:apiKeys:list");
             auth.requireIds("userId");
 
             const apiKeys = await DbApiKey.getAllForAccount(auth.userId);
@@ -23,10 +24,11 @@ export function installApiKeysRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/user/apiKeys")
+    router.route("/v2/account/apiKeys")
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:apiKeys:create");
 
             evt.validateBody({
                 properties: {
@@ -44,10 +46,11 @@ export function installApiKeysRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/user/apiKeys/{id}")
+    router.route("/v2/account/apiKeys/{id}")
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:apiKeys:read");
             auth.requireIds("userId");
 
             const apiKey = await DbApiKey.getByAccount(auth.userId, evt.pathParameters.id);
@@ -59,10 +62,11 @@ export function installApiKeysRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/user/apiKeys/{id}")
+    router.route("/v2/account/apiKeys/{id}")
         .method("DELETE")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:account:apiKeys:delete");
             await deleteApiKey(auth, evt.pathParameters.id);
             return {
                 body: {}

@@ -14,6 +14,7 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:update");
             auth.requireIds("teamMemberId");
 
             evt.validateBody({

@@ -13,7 +13,7 @@ import chaiExclude from "chai-exclude";
 
 chai.use(chaiExclude);
 
-describe("/v2/user/apiKeys", () => {
+describe("/v2/account/apiKeys", () => {
 
     const router = new TestRouter();
     const sinonSandbox = sinon.createSandbox();
@@ -31,12 +31,12 @@ describe("/v2/user/apiKeys", () => {
     });
 
     it("can create, list, get and delete API keys", async () => {
-        const listKeysInitialResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysInitialResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysInitialResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(listKeysInitialResp.body, 0);
 
         const name = generateId();
-        const createKeyResp = await router.testApiRequest<ApiKey>("/v2/user/apiKeys", "POST", {
+        const createKeyResp = await router.testApiRequest<ApiKey>("/v2/account/apiKeys", "POST", {
             name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
@@ -53,12 +53,12 @@ describe("/v2/user/apiKeys", () => {
         }));
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK);
 
-        const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "GET");
+        const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqualExcluding(getKeyResp.body, createKeyResp.body, ["token"]);
         chai.assert.isUndefined(getKeyResp.body.token);
 
-        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
@@ -71,25 +71,25 @@ describe("/v2/user/apiKeys", () => {
                     })
                 })
             } as any);
-        const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
+        const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isTrue(sinonDeleteStub.called);
 
-        const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "GET");
+        const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyPostDeleteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
 
-        const listKeysPostDeleteResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysPostDeleteResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysPostDeleteResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(listKeysPostDeleteResp.body, 0);
     });
 
     it("can list and delete API keys created by other users", async () => {
-        const listKeysInitialResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysInitialResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysInitialResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(listKeysInitialResp.body, 0);
 
         const name = generateId();
-        const createKeyResp = await router.testTeamMateRequest<ApiKey>("/v2/user/apiKeys", "POST", {
+        const createKeyResp = await router.testTeamMateRequest<ApiKey>("/v2/account/apiKeys", "POST", {
             name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
@@ -99,12 +99,12 @@ describe("/v2/user/apiKeys", () => {
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.dateCreated);
 
-        const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "GET");
+        const getKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqualExcluding(getKeyResp.body, createKeyResp.body, ["token"]);
         chai.assert.isUndefined(getKeyResp.body.token);
 
-        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
@@ -117,7 +117,7 @@ describe("/v2/user/apiKeys", () => {
                     })
                 })
             } as any);
-        const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/user/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
+        const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isTrue(sinonDeleteStub.called);
     });

@@ -357,7 +357,7 @@ describe("/v2/account", () => {
         chai.assert.equal(getTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
 
-        const createTeamMateApiKey = await router.testTeamMateRequest<ApiKey>("/v2/user/apiKeys", "POST", {
+        const createTeamMateApiKey = await router.testTeamMateRequest<ApiKey>("/v2/account/apiKeys", "POST", {
             name: generateId()
         });
         chai.assert.equal(createTeamMateApiKey.statusCode, cassava.httpStatusCode.success.CREATED);
@@ -390,7 +390,7 @@ describe("/v2/account", () => {
         chai.assert.equal(getUpdatedTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getUpdatedTeamMateResp.body, patchTeamMemberResp.body);
 
-        const getTeamMateApiKeysResp = await router.testTeamMateRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const getTeamMateApiKeysResp = await router.testTeamMateRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(getTeamMateApiKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getTeamMateApiKeysResp.body, []);
     });
@@ -436,12 +436,12 @@ describe("/v2/account", () => {
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
         // New account creates an API key.
-        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(loginResp, "/v2/user/apiKeys", "POST", {
+        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(loginResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
         chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
-        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqualExcludingEvery(listKeysResp.body, [createApiKeyResp.body], ["token"]);
 
@@ -457,7 +457,7 @@ describe("/v2/account", () => {
         chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
         chai.assert.isTrue(sinonDeleteStub.called);
 
-        const listEmptyKeysResp = await router.testApiRequest<ApiKey[]>("/v2/user/apiKeys", "GET");
+        const listEmptyKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
         chai.assert.equal(listEmptyKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listEmptyKeysResp.body, []);
     });

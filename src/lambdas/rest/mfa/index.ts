@@ -11,6 +11,7 @@ export function installMfaRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:mfa:read");
             let trusted: boolean;
             if (auth.hasScope("lightrailV2:user:mfa:read")) {
                 trusted = true;
@@ -72,7 +73,7 @@ export function installMfaRest(router: cassava.Router): void {
         .method("DELETE")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:user:mfa:update");
+            auth.requireScopes("lightrailV2:user:mfa:delete");
             await disableMfa(auth);
             return {
                 body: {}
@@ -83,6 +84,7 @@ export function installMfaRest(router: cassava.Router): void {
         .method("GET")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:mfa:read");
 
             const userLogin = await DbUserLogin.getByAuth(auth);
             if (!userLogin) {
