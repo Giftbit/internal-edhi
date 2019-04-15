@@ -77,6 +77,19 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
 
 export function installLoginAuthedRest(router: cassava.Router): void {
     router.route("/v2/user/login/mfa")
+        .method("GET")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:authenticate");
+
+            const userLogin = await DbUserLogin.getByAuth(auth);
+            await sendSmsMfaChallenge(userLogin);
+            return {
+                body: {}
+            };
+        });
+
+    router.route("/v2/user/login/mfa")
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
