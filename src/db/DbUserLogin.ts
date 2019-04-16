@@ -61,10 +61,19 @@ export namespace DbUserLogin {
     export interface Mfa {
         /**
          * SMS device (phone number) to use as a factor in authentication.
+         * When this is set SMS MFA is enabled.
          */
         smsDevice?: string;
 
         smsAuthState?: SmsAuthState;
+
+        /**
+         * Encoded secret used to generate TOTP codes.
+         * When this is set TOTP MFA is enabled.
+         */
+        totpSecret?: string;
+
+        totpAuthState?: TotpAuthState;
 
         backupCodes?: Set<string>;
 
@@ -74,7 +83,15 @@ export namespace DbUserLogin {
     export interface SmsAuthState {
         device: string;
         code: string;
-        action?: "enable" | "auth";
+        action: "enable" | "auth";
+        createdDate: string;
+        expiresDate: string;
+    }
+
+    export interface TotpAuthState {
+        secret: string;
+        action: "enable" | "auth";
+        lastCodes: string[];
         createdDate: string;
         expiresDate: string;
     }

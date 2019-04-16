@@ -33,12 +33,12 @@ describe("/v2/user/mfa", () => {
         chai.assert.equal(getMfaResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
     });
 
-    describe("SMS MFA", () => {
-        it("requires a phone number to enable", async () => {
-            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {});
-            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
-        });
+    it("requires a method to be defined to enable", async () => {
+        const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {});
+        chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
 
+    describe("SMS MFA", () => {
         it("can be enabled with the correct code", async () => {
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -200,6 +200,15 @@ describe("/v2/user/mfa", () => {
                 code: "ABCDEF"
             });
             chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+        });
+    });
+
+    describe("TOTP MFA", () => {
+        it("can be enabled by confirming 2 consecutive codes", async () => {
+            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "totp"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
         });
     });
 

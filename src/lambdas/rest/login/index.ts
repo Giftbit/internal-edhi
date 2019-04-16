@@ -8,7 +8,7 @@ import {DbTeamMember} from "../../../db/DbTeamMember";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
-import {sendFailedLoginTimeoutEmail} from "./failedLoginManagement";
+import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import * as dynameh from "dynameh";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import log = require("loglevel");
@@ -91,7 +91,9 @@ export function installLoginAuthedRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:authenticate");
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            await sendSmsMfaChallenge(userLogin);
+            if (userLogin.mfa && userLogin.mfa.smsDevice) {
+                await sendSmsMfaChallenge(userLogin);
+            }
             return {
                 body: {}
             };
@@ -165,10 +167,9 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
                 log.info("User", params.email, "has a trusted device");
                 const userBadge = await userLoginSuccess(userLogin);
                 return await DbUserLogin.getBadgeCookies(userBadge);
-            } else {
-                log.info("User", params.email, "trusted device token is not trusted");
-                log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", userLogin.mfa.trustedDevices);
             }
+            log.info("User", params.email, "trusted device token is not trusted");
+            log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", userLogin.mfa.trustedDevices);
         }
         if (userLogin.mfa.smsDevice) {
             log.info("Partially logged in user", params.email, "sending SMS code");
@@ -177,7 +178,11 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
             const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
             return await DbUserLogin.getBadgeCookies(badge);
         }
-        throw new Error("DbUserLogin object in inconsistent state.  `mfa` is set but no mfa devices are registered.");
+        if (userLogin.mfa.totpSecret) {
+            log.info("Partially logged in user", params.email, "awaiting TOTP code");
+            const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+            return await DbUserLogin.getBadgeCookies(badge);
+        }
     }
 
     const userBadge = await userLoginSuccess(userLogin);
@@ -207,7 +212,9 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         && userLogin.mfa.smsAuthState.expiresDate >= createdDateNow()
         && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
     ) {
-        // no-op
+        // Success.  No action.
+    } else if (userLogin.mfa.totpSecret) {
+        // TODO verify code matches
     } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
         userUpdates.push({
             action: "set_delete",
