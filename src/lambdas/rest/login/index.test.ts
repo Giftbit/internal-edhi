@@ -492,7 +492,7 @@ describe("/v2/user/login", () => {
             await assertFullyLoggedIn(goodTtdTokenLoginResp);
         });
 
-        it("expires trusted devices", async () => {
+        it("expires trusted devices even if they have the correct token", async () => {
             await enableSmsMfa();
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
