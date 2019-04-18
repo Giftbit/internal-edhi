@@ -313,7 +313,7 @@ describe.only("/v2/user/mfa", () => {
 
             // Manually adjust DB to time it out.
             const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            userLogin.mfa.totpEnableState.expiresDate = new Date(Date.now() - 1000).toISOString();
+            userLogin.mfa.totpAuthState.expiresDate = new Date(Date.now() - 1000).toISOString();
             await DbUserLogin.update(userLogin, {
                 action: "put",
                 attribute: "mfa",

@@ -73,6 +73,8 @@ export namespace DbUserLogin {
          */
         totpSecret?: string;
 
+        // TODO but where do I store used codes to prevent replay attack?
+
         totpAuthState?: TotpAuthState;
 
         backupCodes?: Set<string>;
