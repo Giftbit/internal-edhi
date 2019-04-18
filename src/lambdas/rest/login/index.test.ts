@@ -10,8 +10,9 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
+import {generateOtpSecret, generateSkewedOtpCode} from "../../../utils/otpUtils";
 
-describe("/v2/user/login", () => {
+describe.only("/v2/user/login", () => {
 
     const router = new TestRouter();
     const sinonSandbox = sinon.createSandbox();
@@ -45,7 +46,26 @@ describe("/v2/user/login", () => {
         });
     }
 
+    async function enableTotpMfa(): Promise<string> {
+        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+        const secret = generateOtpSecret();
+        const mfaSettings: DbUserLogin.Mfa = {
+            totpSecret: secret,
+            trustedDevices: {}
+        };
+        await DbUserLogin.update(userLogin, {
+            action: "put",
+            attribute: "mfa",
+            value: mfaSettings
+        });
+        return secret;
+    }
+
     async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
+        chai.assert.isString(loginResp.headers["Location"]);
+        chai.assert.isString(loginResp.headers["Set-Cookie"]);
+        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
+        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
         const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, "prove we're logged in");
     }
@@ -207,7 +227,7 @@ describe("/v2/user/login", () => {
     });
 
     describe("SMS MFA", () => {
-        it("gives a token that can only complete authentication after login", async () => {
+        it("starts login with an auth token that can only complete authentication", async () => {
             await enableSmsMfa();
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
@@ -434,6 +454,110 @@ describe("/v2/user/login", () => {
                 code: backupCodesResp.body[0]
             });
             chai.assert.equal(login2CompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        });
+    });
+
+    describe("TOTP MFA", () => {
+        it("starts login with an auth token that can only complete authentication", async () => {
+            await enableTotpMfa();
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
+            chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
+
+            await assertNotFullyLoggedIn(loginResp);
+
+            const changePasswordResp = await router.testPostLoginRequest(loginResp, "/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: generateId()
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, "token does not have permission to change password");
+        });
+
+        it("can complete login with the correct TOTP code", async () => {
+            const secret = await enableTotpMfa();
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const wrongCodeLoginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: "123456"
+            });
+            chai.assert.equal(wrongCodeLoginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+
+            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: generateSkewedOtpCode(secret, -2000)
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertFullyLoggedIn(loginCompleteResp);
+        });
+
+        it("can complete login with a 30-second-old code", async () => {
+            const secret = await enableTotpMfa();
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: generateSkewedOtpCode(secret, -32000)
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertFullyLoggedIn(loginCompleteResp);
+        });
+
+        it("cannot complete with a 60-second-old code", async () => {
+            const secret = await enableTotpMfa();
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: generateSkewedOtpCode(secret, -60001)
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        });
+
+        it("does not allow reusing a code even if it was valid", async () => {
+            const secret = await enableTotpMfa();
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const code = generateSkewedOtpCode(secret, -2000);
+            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: code
+            });
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            await assertFullyLoggedIn(loginCompleteResp);
+
+            const loginAgainResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.userLogin.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const loginAgainCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+                code: code
+            });
+            chai.assert.equal(loginAgainCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+            await assertNotFullyLoggedIn(loginCompleteResp);
         });
     });
 

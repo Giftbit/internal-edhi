@@ -11,6 +11,7 @@ import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import * as dynameh from "dynameh";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
+import {validateOtpCode} from "../../../utils/otpUtils";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -213,8 +214,9 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
     ) {
         // Success.  No action.
-    } else if (userLogin.mfa.totpSecret) {
-        // TODO verify code matches
+    } else if (userLogin.mfa.totpSecret && validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
+        // Success.  No action.
+        // TODO prevent code from being used again
     } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
         userUpdates.push({
             action: "set_delete",

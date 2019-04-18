@@ -10,7 +10,7 @@ import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {generateSkewedOtpCode} from "../../../utils/otpUtils";
 
-describe("/v2/user/mfa", () => {
+describe.only("/v2/user/mfa", () => {
 
     const router = new TestRouter();
     const sinonSandbox = sinon.createSandbox();
@@ -313,7 +313,7 @@ describe("/v2/user/mfa", () => {
 
             // Manually adjust DB to time it out.
             const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            userLogin.mfa.totpAuthState.expiresDate = new Date(Date.now() - 1000).toISOString();
+            userLogin.mfa.totpEnableState.expiresDate = new Date(Date.now() - 1000).toISOString();
             await DbUserLogin.update(userLogin, {
                 action: "put",
                 attribute: "mfa",
