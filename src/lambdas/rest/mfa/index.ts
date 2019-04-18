@@ -4,7 +4,7 @@ import {DbUserLogin} from "../../../db/DbUserLogin";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {createdDateNow} from "../../../db/dynamodb";
 import {sendSms} from "../../../utils/smsUtils";
-import otplib = require("otplib");
+import {generateOtpSecret, validateOtpCode} from "../../../utils/otpUtils";
 import log = require("loglevel");
 
 export function installMfaRest(router: cassava.Router): void {
@@ -43,17 +43,8 @@ export function installMfaRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            if (evt.body.device === "totp") {
-                return {
-                    body: await startEnableTotpMfa(auth),
-                    headers: {
-                        "Content-Type": "image-png"
-                    }
-                };
-            }
-
             return {
-                body: await startEnableSmsMfa(auth, evt.body)
+                body: await startEnableMfa(auth, evt.body)
             };
         });
 
@@ -110,8 +101,16 @@ export function installMfaRest(router: cassava.Router): void {
         });
 }
 
+function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { device: string }): Promise<{ message?: string, secret?: string }> {
+    if (params.device === "totp") {
+        return startEnableTotpMfa(auth);
+    } else {
+        return startEnableSmsMfa(auth, params);
+    }
+}
+
 async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { device: string }): Promise<{ message: string }> {
-    log.info("Beginning MFA enable for", auth.teamMemberId);
+    log.info("Beginning SMS MFA enable for", auth.teamMemberId);
 
     const userLogin = await DbUserLogin.getByAuth(auth);
     const code = generateCode();
@@ -152,10 +151,10 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 }
 
 async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ secret: string }> {
-    log.info("Beginning TOTP enable for", auth.teamMemberId);
+    log.info("Beginning TOTP MFA enable for", auth.teamMemberId);
 
     const userLogin = await DbUserLogin.getByAuth(auth);
-    const secret = otplib.authenticator.generateSecret();
+    const secret = generateOtpSecret();
     const totpAuthState: DbUserLogin.TotpAuthState = {
         action: "enable",
         secret: secret, // TODO encrypt secret?
@@ -185,10 +184,6 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     return {
         secret
     };
-
-    // to complete:
-    // require two successful secrets
-    // cannot reuse codes in window
 }
 
 async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ complete: boolean, message: string }> {
@@ -207,12 +202,12 @@ async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
 async function completeEnableSmsMfa(userLogin: DbUserLogin, params: { code: string }): Promise<{ complete: boolean, message: string }> {
     if (userLogin.mfa.smsAuthState.expiresDate < createdDateNow()) {
-        log.info("SMS MFA not enabled for", userLogin.email, "code expired");
+        log.info("SMS MFA not enabled for", userLogin.userId, "code expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
     }
 
     if (userLogin.mfa.smsAuthState.code !== params.code.toUpperCase()) {
-        log.info("SMS MFA not enabled for", userLogin.email, "code", userLogin.mfa.smsAuthState.code, "does not match passed in", params.code);
+        log.info("SMS MFA not enabled for", userLogin.userId, "code", userLogin.mfa.smsAuthState.code, "does not match passed in", params.code);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
 
@@ -224,7 +219,7 @@ async function completeEnableSmsMfa(userLogin: DbUserLogin, params: { code: stri
         attribute: "mfa.smsDevice",
         value: userLogin.mfa.smsAuthState.device
     });
-    log.info("Code matches, SMS MFA enabled for", userLogin.email, userLogin.mfa.smsAuthState.device);
+    log.info("Code matches, SMS MFA enabled for", userLogin.userId, userLogin.mfa.smsAuthState.device);
 
     return {
         complete: true,
@@ -234,39 +229,36 @@ async function completeEnableSmsMfa(userLogin: DbUserLogin, params: { code: stri
 
 async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: string }): Promise<{ complete: boolean, message: string }> {
     if (userLogin.mfa.totpAuthState.expiresDate < createdDateNow()) {
-        log.info("TOTP MFA not enabled for", userLogin.email, "the enable process has expired");
+        log.info("TOTP MFA not enabled for", userLogin.userId, "the enable process has expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the process to enable MFA has expired.  Please start again.");
     }
 
     if (userLogin.mfa.totpAuthState.lastCodes.indexOf(params.code) !== -1) {
-        log.info("TOTP MFA not enabled for", userLogin.email, "code already seen");
-        return {
-            complete: false,
-            message: "You have already entered this code.  Please enter the next code."
-        };
+        log.info("TOTP MFA not enabled for", userLogin.userId, "code already seen");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "You have already entered this code.  Please enter the next code.");
     }
 
-    if (!otplib.authenticator.check(params.code, userLogin.mfa.totpAuthState.secret)) {
-        log.info("TOTP MFA not enabled for", userLogin.email, "code is invalid");
+    if (!validateOtpCode(userLogin.mfa.totpAuthState.secret, params.code)) {
+        log.info("TOTP MFA not enabled for", userLogin.userId, "code is invalid");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
 
     if (userLogin.mfa.totpAuthState.lastCodes.length > 0) {
-        log.info("Code matches, TOTP MFA enabled for", userLogin.email);
+        log.info("Code matches, TOTP MFA enabled for", userLogin.userId);
         await DbUserLogin.update(userLogin, {
             action: "remove",
-            attribute: "mfa.smsAuthState"
+            attribute: "mfa.totpAuthState"
         }, {
             action: "put",
-            attribute: "mfa.smsDevice",
-            value: userLogin.mfa.smsAuthState.device
+            attribute: "mfa.totpSecret",
+            value: userLogin.mfa.totpAuthState.secret
         });
         return {
             complete: true,
             message: "Success."
         };
     } else {
-        log.info("Code matches, waiting for the next code for", userLogin.email);
+        log.info("Code matches, waiting for the next code from", userLogin.userId);
         await DbUserLogin.update(userLogin, {
             action: "list_append",
             attribute: "mfa.totpAuthState.lastCodes",
@@ -282,16 +274,12 @@ async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: str
 async function getMfaStatus(auth: giftbitRoutes.jwtauth.AuthorizationBadge, trusted: boolean): Promise<MfaStatus> {
     const userLogin = await DbUserLogin.getByAuth(auth);
 
-    if (!userLogin.mfa) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "MFA is disabled.");
-    }
-
-    if (userLogin.mfa.smsDevice) {
+    if (userLogin.mfa && userLogin.mfa.smsDevice) {
         return {
             device: trusted ? userLogin.mfa.smsDevice : userLogin.mfa.smsDevice.replace(/./g, (match, offset, s) => offset < s.length - 4 ? "•" : match)
         };
     }
-    if (userLogin.mfa.totpSecret) {
+    if (userLogin.mfa && userLogin.mfa.totpSecret) {
         return {
             device: "totp"
         };
