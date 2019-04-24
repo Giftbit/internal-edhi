@@ -73,9 +73,11 @@ export namespace DbUserLogin {
          */
         totpSecret?: string;
 
+        //totpUsedCodes?: Set<string>;
+
         // TODO but where do I store used codes to prevent replay attack?
 
-        totpAuthState?: TotpAuthState;
+        totpEnable?: TotpEnable;
 
         backupCodes?: Set<string>;
 
@@ -90,9 +92,8 @@ export namespace DbUserLogin {
         expiresDate: string;
     }
 
-    export interface TotpAuthState {
+    export interface TotpEnable {
         secret: string;
-        action: "enable" | "auth";
         lastCodes: string[];
         createdDate: string;
         expiresDate: string;
@@ -143,6 +144,15 @@ export namespace DbUserLogin {
             attribute: "pk",
             operator: "attribute_exists"
         });
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export async function conditionalUpdate(userLogin: DbUserLogin, actions: dynameh.UpdateExpressionAction[], conditions: dynameh.Condition[]): Promise<void> {
+        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUserLogin.getKeys(userLogin), ...actions);
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_exists"
+        }, ...conditions);
         await dynamodb.updateItem(req).promise();
     }
 

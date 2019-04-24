@@ -106,7 +106,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     };
     const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
     objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
-        attribute: "email",
+        attribute: "pk",
         operator: "attribute_not_exists"
     });
 
@@ -116,7 +116,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     };
     const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
     objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
-        attribute: "userId",
+        attribute: "pk",
         operator: "attribute_not_exists"
     });
 
@@ -126,7 +126,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     };
     const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
-        attribute: "userId",
+        attribute: "pk",
         operator: "attribute_not_exists"
     });
 
@@ -141,7 +141,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     };
     const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
     objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
-        attribute: "userId",
+        attribute: "pk",
         operator: "attribute_not_exists"
     });
 

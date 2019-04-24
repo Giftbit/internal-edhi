@@ -155,8 +155,7 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
 
     const userLogin = await DbUserLogin.getByAuth(auth);
     const secret = generateOtpSecret();
-    const totpAuthState: DbUserLogin.TotpAuthState = {
-        action: "enable",
+    const totpEnable: DbUserLogin.TotpEnable = {
         secret: secret, // TODO encrypt secret?
         lastCodes: [],
         createdDate: createdDateNow(),
@@ -165,13 +164,13 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
 
     if (userLogin.mfa) {
         await DbUserLogin.update(userLogin, {
-            attribute: "mfa.totpAuthState",
+            attribute: "mfa.totpEnable",
             action: "put",
-            value: totpAuthState
+            value: totpEnable
         });
     } else {
         const mfa: DbUserLogin.Mfa = {
-            totpAuthState,
+            totpEnable,
             trustedDevices: {}
         };
         await DbUserLogin.update(userLogin, {
@@ -193,7 +192,7 @@ async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     if (userLogin.mfa && userLogin.mfa.smsAuthState && userLogin.mfa.smsAuthState.action === "enable") {
         return await completeEnableSmsMfa(userLogin, params);
     }
-    if (userLogin.mfa && userLogin.mfa.totpAuthState && userLogin.mfa.totpAuthState.action === "enable") {
+    if (userLogin.mfa && userLogin.mfa.totpEnable) {
         return await completeEnableTotpMfa(userLogin, params);
     }
     log.info("MFA not enabled for", auth.teamMemberId, "not in the process");
@@ -228,30 +227,30 @@ async function completeEnableSmsMfa(userLogin: DbUserLogin, params: { code: stri
 }
 
 async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: string }): Promise<{ complete: boolean, message: string }> {
-    if (userLogin.mfa.totpAuthState.expiresDate < createdDateNow()) {
+    if (userLogin.mfa.totpEnable.expiresDate < createdDateNow()) {
         log.info("TOTP MFA not enabled for", userLogin.userId, "the enable process has expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the process to enable MFA has expired.  Please start again.");
     }
 
-    if (userLogin.mfa.totpAuthState.lastCodes.indexOf(params.code) !== -1) {
+    if (userLogin.mfa.totpEnable.lastCodes.indexOf(params.code) !== -1) {
         log.info("TOTP MFA not enabled for", userLogin.userId, "code already seen");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "You have already entered this code.  Please enter the next code.");
     }
 
-    if (!validateOtpCode(userLogin.mfa.totpAuthState.secret, params.code)) {
+    if (!validateOtpCode(userLogin.mfa.totpEnable.secret, params.code)) {
         log.info("TOTP MFA not enabled for", userLogin.userId, "code is invalid");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
 
-    if (userLogin.mfa.totpAuthState.lastCodes.length > 0) {
+    if (userLogin.mfa.totpEnable.lastCodes.length > 0) {
         log.info("Code matches, TOTP MFA enabled for", userLogin.userId);
         await DbUserLogin.update(userLogin, {
             action: "remove",
-            attribute: "mfa.totpAuthState"
+            attribute: "mfa.totpEnable"
         }, {
             action: "put",
             attribute: "mfa.totpSecret",
-            value: userLogin.mfa.totpAuthState.secret
+            value: userLogin.mfa.totpEnable.secret
         });
         return {
             complete: true,
@@ -261,7 +260,7 @@ async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: str
         log.info("Code matches, waiting for the next code from", userLogin.userId);
         await DbUserLogin.update(userLogin, {
             action: "list_append",
-            attribute: "mfa.totpAuthState.lastCodes",
+            attribute: "mfa.totpEnable.lastCodes",
             values: [params.code]
         });
         return {
