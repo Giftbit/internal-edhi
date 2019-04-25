@@ -27,15 +27,25 @@ export class TestRouter extends cassava.Router {
     }
 
     async testPostLoginRequest<T>(loginResp: ParsedProxyResponse<any>, url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
-        const sessionCookie = /gb_jwt_session=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];
-        const signatureCookie = /gb_jwt_signature=([^ ;]+)/.exec(loginResp.headers["Set-Cookie"])[1];
-        if (!sessionCookie || !signatureCookie) {
-            throw new Error("Did not find necessary cookies in login response.");
+        let cookie: string = "";
+        const setCookies = loginResp.headers["Set-Cookie"].split(";");
+        for (const setCookie of setCookies) {
+            const keyValueMatcher = /([^=$]+)+=([^ ;]+)/.exec(setCookie);
+            if (keyValueMatcher) {
+                const key = keyValueMatcher[1];
+                if (!/^(expires|max-age|secure|httponly|samesite)$/i.exec(key)) {
+                    const value = keyValueMatcher[2];
+                    if (cookie) {
+                        cookie += "; ";
+                    }
+                    cookie += `${key}=${value}`;
+                }
+            }
         }
 
         const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
             headers: {
-                Cookie: `gb_jwt_session=${sessionCookie}; gb_jwt_signature=${signatureCookie}`,
+                Cookie: cookie,
                 "X-Requested-With": "XMLHttpRequest"
             },
             body: body && JSON.stringify(body) || undefined

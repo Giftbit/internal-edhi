@@ -93,7 +93,7 @@ export function installMfaRest(router: cassava.Router): void {
             if (!userLogin.mfa) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "MFA is not enabled.");
             }
-            const backupCodes = await getBackupCodes(userLogin);
+            const backupCodes = await getOrCreateBackupCodes(userLogin);
 
             return {
                 body: backupCodes
@@ -251,6 +251,10 @@ async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: str
             action: "put",
             attribute: "mfa.totpSecret",
             value: userLogin.mfa.totpEnable.secret
+        }, {
+            action: "put",
+            attribute: "mfa.totpUsedCodes",
+            value: {}
         });
         return {
             complete: true,
@@ -328,20 +332,24 @@ function generateCode(length: number = 6): string {
     return Array(length).fill(null).map(() => alphabet[(Math.random() * alphabet.length) | 0]).join("");
 }
 
-async function getBackupCodes(userLogin: DbUserLogin): Promise<string[]> {
+async function getOrCreateBackupCodes(userLogin: DbUserLogin): Promise<string[]> {
     if (!userLogin.mfa) {
         throw new Error("MFA is not enabled");
     }
 
     if (!userLogin.mfa.backupCodes) {
-        const backupCodes: string[] = Array(10).fill(null).map(() => generateCode());
+        const backupCodes: { [code: string]: DbUserLogin.BackupCode } = {};
+        const createdDate = createdDateNow();
+        for (let i = 0; i < 10; i++) {
+            backupCodes[generateCode()] = {createdDate};
+        }
         await DbUserLogin.update(userLogin, {
             action: "put",
             attribute: "mfa.backupCodes",
-            value: new Set(backupCodes)
+            value: backupCodes
         });
-        return backupCodes;
+        return Object.keys(backupCodes);
     }
 
-    return Array.from(userLogin.mfa.backupCodes);
+    return Object.keys(userLogin.mfa.backupCodes);
 }

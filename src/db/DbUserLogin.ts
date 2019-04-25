@@ -73,13 +73,18 @@ export namespace DbUserLogin {
          */
         totpSecret?: string;
 
-        //totpUsedCodes?: Set<string>;
-
-        // TODO but where do I store used codes to prevent replay attack?
+        /**
+         * A map of a code to details about when it was used.
+         * This is used to prevent replaying of codes for login.
+         */
+        totpUsedCodes?: { [code: string]: TotpUsedCode };
 
         totpEnable?: TotpEnable;
 
-        backupCodes?: Set<string>;
+        /**
+         * One time use codes.
+         */
+        backupCodes?: { [code: string]: BackupCode };
 
         trustedDevices: { [key: string]: TrustedDevice };
     }
@@ -97,6 +102,14 @@ export namespace DbUserLogin {
         lastCodes: string[];
         createdDate: string;
         expiresDate: string;
+    }
+
+    export interface TotpUsedCode {
+        createdDate: string;
+    }
+
+    export interface BackupCode {
+        createdDate: string;
     }
 
     export interface TrustedDevice {

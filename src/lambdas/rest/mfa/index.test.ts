@@ -10,7 +10,7 @@ import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {generateSkewedOtpCode} from "../../../utils/otpUtils";
 
-describe.only("/v2/user/mfa", () => {
+describe("/v2/user/mfa", () => {
 
     const router = new TestRouter();
     const sinonSandbox = sinon.createSandbox();

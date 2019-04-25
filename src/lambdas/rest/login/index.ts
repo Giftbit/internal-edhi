@@ -17,6 +17,7 @@ import log = require("loglevel");
 const maxFailedLoginAttempts = 10;
 const failedLoginTimoutMinutes = 60;
 const trustedDeviceExpirationDays = 14;
+const totpUsedCodeTimeoutMillis = 3 * 60 * 1000;
 
 export function installLoginUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/login")
@@ -207,21 +208,70 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     }
 
     const userUpdates: dynameh.UpdateExpressionAction[] = [];
+    const userUpdateConditions: dynameh.Condition[] = [];
     const additionalCookies: { [key: string]: RouterResponseCookie } = {};
     if (userLogin.mfa.smsAuthState
         && userLogin.mfa.smsAuthState.action === "auth"
         && userLogin.mfa.smsAuthState.expiresDate >= createdDateNow()
         && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
     ) {
-        // Success.  No action.
-    } else if (userLogin.mfa.totpSecret && validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
-        // Success.  No action.
-        // TODO prevent code from being used again
-    } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes.has(params.code.toUpperCase())) {
+        // SMS
         userUpdates.push({
-            action: "set_delete",
-            attribute: "mfa.backupCodes",
-            values: new Set([params.code.toUpperCase()])
+            action: "remove",
+            attribute: "mfa.smsAuthState"
+        });
+
+        // With this condition login will fail unless this code has not been used yet.
+        // This prevents racing a quick replay of the login.
+        userUpdateConditions.push({
+            operator: "attribute_exists",
+            attribute: "mfa.smsAuthState"
+        });
+    } else if (userLogin.mfa.totpSecret && validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
+        // TOTP
+        if (userLogin.mfa.totpUsedCodes[params.code]) {
+            // This code has been used recently.  Login completion is not successful but this is not a serious failure.
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        }
+
+        const totpUsedCode: DbUserLogin.TotpUsedCode = {
+            createdDate: createdDateNow()
+        };
+        userUpdates.push({
+            action: "put",
+            attribute: `mfa.totpUsedCodes.${params.code}`,
+            value: totpUsedCode
+        });
+
+        // With this condition login will fail unless this code has not been used recently.
+        // This prevents racing a quick replay of the login.
+        userUpdateConditions.push({
+            operator: "attribute_not_exists",
+            attribute: `mfa.totpUsedCodes.${params.code}`
+        });
+
+        // Remove previously used codes that have expired.
+        const usedCodeExpiration = new Date(Date.now() + totpUsedCodeTimeoutMillis).toISOString();
+        for (const usedCode in userLogin.mfa.totpUsedCodes) {
+            if (userLogin.mfa.totpUsedCodes.hasOwnProperty(usedCode) && userLogin.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
+                userUpdates.push({
+                    action: "remove",
+                    attribute: `mfa.totpUsedCodes.${usedCode}`
+                });
+            }
+        }
+    } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes[params.code.toUpperCase()]) {
+        // Backup code
+        userUpdates.push({
+            action: "remove",
+            attribute: `mfa.backupCodes.${params.code.toUpperCase()}`
+        });
+
+        // With this condition login will fail unless this backup code is not yet deleted.
+        // This prevents racing a quick replay of the login.
+        userUpdateConditions.push({
+            operator: "attribute_exists",
+            attribute: `mfa.backupCodes.${params.code.toUpperCase()}`
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
@@ -251,14 +301,14 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         };
     }
 
-    const userBadge = await userLoginSuccess(userLogin, userUpdates);
+    const userBadge = await userLoginSuccess(userLogin, userUpdates, userUpdateConditions);
     return {
         ...await DbUserLogin.getBadgeCookies(userBadge),
         ...additionalCookies
     };
 }
 
-async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
     log.info("Logged in user", userLogin.email);
 
     // Store last login date.
@@ -271,8 +321,8 @@ async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynam
         ...additionalUpdates
     ];
 
-    // Clear failed login attempts.
     if ((userLogin.failedLoginAttempts && userLogin.failedLoginAttempts.size > 0) || userLogin.lockedUntilDate) {
+        // Clear failed login attempts.
         userLoginUpdates.push(
             {
                 action: "remove",
@@ -285,16 +335,8 @@ async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynam
         );
     }
 
-    // Remove SMS code.
-    if (userLogin.mfa && userLogin.mfa.smsAuthState) {
-        userLoginUpdates.push({
-            action: "remove",
-            attribute: "mfa.smsAuthState"
-        });
-    }
-
-    // Clear expired trusted devices.
     if (userLogin.mfa && userLogin.mfa.trustedDevices) {
+        // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in userLogin.mfa.trustedDevices) {
             if (userLogin.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && userLogin.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
@@ -306,7 +348,7 @@ async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynam
         }
     }
 
-    await DbUserLogin.update(userLogin, ...userLoginUpdates);
+    await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
 
     const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
     if (!teamMember) {
