@@ -58,7 +58,7 @@ export namespace DbTeamMember {
             sk: "TeamMember/" + teamMember.teamMemberId,
             pk2: "User/" + teamMember.teamMemberId,
             sk2: "TeamMember/" + teamMember.userId,
-        }
+        };
     }
 
     export async function get(userId: string, teamMemberId: string): Promise<DbTeamMember> {

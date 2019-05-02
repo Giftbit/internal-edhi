@@ -47,7 +47,7 @@ export namespace DbApiKey {
             sk: "ApiKey/" + apiKey.tokenId,
             pk2: "User/" + apiKey.teamMemberId,
             sk2: "ApiKey/" + apiKey.tokenId,
-        }
+        };
     }
 
     /**
@@ -64,7 +64,7 @@ export namespace DbApiKey {
             sk: "DeletedApiKey/" + apiKey.tokenId,
             pk2: "User/" + apiKey.teamMemberId,
             sk2: "DeletedApiKey/" + apiKey.tokenId,
-        }
+        };
     }
 
     export async function getByAccount(userId: string, tokenId: string): Promise<DbApiKey> {

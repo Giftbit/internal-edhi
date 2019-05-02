@@ -1,6 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh,} from "../../db/dynamodb";
+import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
 import {DbTeamMember} from "../../db/DbTeamMember";
 import {DbUserLogin} from "../../db/DbUserLogin";
 import {DbUserDetails} from "../../db/DbUserDetails";

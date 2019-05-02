@@ -247,7 +247,7 @@ async function acceptInvite(token: string): Promise<string> {
         log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInviteTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
-        return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+        return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`;
     }
 
     return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`;

@@ -144,7 +144,7 @@ export namespace DbUserLogin {
         return {
             pk: "UserLogin/" + userLogin.email,
             sk: "UserLogin/" + userLogin.email
-        }
+        };
     }
 
     export async function get(email: string): Promise<DbUserLogin> {

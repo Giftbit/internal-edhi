@@ -91,7 +91,7 @@ describe("/v2/account", () => {
         chai.assert.equal(getAccountResp.body.userId, createAccountResp.body.userId);
 
         const createdAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(switchAccountResp, "/v2/account/users", "GET");
-        chai.assert.equal(createdAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK,);
+        chai.assert.equal(createdAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(createdAccountUsersResp.body, 1, "the only user in this account");
         chai.assert.isAtLeast(createdAccountUsersResp.body[0].roles.length, 1, "has at least 1 role");
     });

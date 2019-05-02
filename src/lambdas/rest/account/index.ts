@@ -252,7 +252,7 @@ export function installAccountRest(router: cassava.Router): void {
             const invites = await listInvites(auth);
             return {
                 body: invites
-            }
+            };
         });
 
     router.route("/v2/account/invites/{id}")
@@ -433,10 +433,10 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         }
     } else {
         if (params.userPrivilegeType && params.roles) {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Cannot specify both userPrivilegeType and roles.")
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Cannot specify both userPrivilegeType and roles.");
         }
         if (!params.userPrivilegeType && !(params.roles && params.roles.length) && !(params.scopes && params.scopes.length)) {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Must specify userPrivilegeType or one of roles, scopes.")
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Must specify userPrivilegeType or one of roles, scopes.");
         }
         const roles = (params.userPrivilegeType && getRolesForUserPrivilege(params.userPrivilegeType)) || params.roles;
         const scopes = params.scopes || [];
@@ -565,7 +565,7 @@ export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadg
 
     const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
     if (!teamMember) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound")
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
     if (!teamMember.invitation) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");

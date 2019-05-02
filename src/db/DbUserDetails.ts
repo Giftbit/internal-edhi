@@ -47,7 +47,7 @@ export namespace DbUserDetails {
         return {
             pk: "User/" + userDetails.userId,
             sk: "User/" + userDetails.userId
-        }
+        };
     }
 
     export async function get(userId: string): Promise<DbUserDetails> {

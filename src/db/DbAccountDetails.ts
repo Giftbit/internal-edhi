@@ -1,4 +1,5 @@
 import * as dynameh from "dynameh";
+import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
@@ -36,12 +37,21 @@ export namespace DbAccountDetails {
         return {
             pk: "Account/" + accountDetails.userId,
             sk: "Account/" + accountDetails.userId
-        }
+        };
     }
 
     export async function get(userId: string): Promise<DbAccountDetails> {
         userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
+    }
+
+    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccountDetails> {
+        auth.requireIds("teamMemberId");
+        const account = await get(stripUserIdTestMode(auth.userId));
+        if (!account) {
+            throw new Error(`Could not find authed AccountDetails ${auth.userId}`);
+        }
+        return account;
     }
 
     export async function put(accountDetails: DbAccountDetails): Promise<void> {
