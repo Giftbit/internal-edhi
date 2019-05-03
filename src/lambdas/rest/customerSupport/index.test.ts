@@ -25,7 +25,7 @@ describe("/v2/user/contactCustomerSupport", () => {
         sinonSandbox.restore();
     });
 
-    it("can contact customer support", async () => {
+    it("sends an email to customer support", async () => {
         let emailParams: emailUtils.SendEmailParams = null;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
