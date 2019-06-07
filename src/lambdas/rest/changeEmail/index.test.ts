@@ -127,7 +127,6 @@ describe("/v2/user/changeEmail", () => {
     it("cannot change two users to the same email address", async () => {
         let changeEmailAddressEmail1: emailUtils.SendEmailParams;
         let changeEmailAddressEmail2: emailUtils.SendEmailParams;
-        let emailAddressChangedEmail1: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .onFirstCall()
             .callsFake(async (params: emailUtils.SendEmailParams) => {

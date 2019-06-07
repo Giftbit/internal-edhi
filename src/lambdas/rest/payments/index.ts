@@ -16,8 +16,13 @@ export function installPaymentsRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:payments:card:read");
             auth.requireIds("userId");
 
+            const card = await getActiveCreditCard(auth);
+            if (!card) {
+                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND);
+            }
+
             return {
-                body: await getActiveCreditCard(auth)
+                body: card
             };
         });
 
@@ -77,15 +82,15 @@ async function getActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
         return null;
     }
     if (!customer.default_source) {
-        log.info("Customer", auth.userId, "does not have a default source.");
+        log.info("Customer", customer.id, "does not have a default source.");
         return null;
     }
     if (customer.sources.total_count === 0) {
-        log.info("Customer", auth.userId, "has 0 cards on file.");
+        log.info("Customer", customer.id, "has 0 cards on file.");
         return null;
     }
     if (typeof customer.default_source !== "string") {
-        throw new Error(`Customer ${auth.userId} default_source is not a string.`);
+        throw new Error(`Customer ${customer.id} default_source is not a string.`);
     }
 
     const stripe = await getStripeClient("live");
@@ -96,6 +101,7 @@ async function getActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
 async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge, cardToken: string): Promise<PaymentCreditCard> {
     const stripe = await getStripeClient("live");
     const customer = await getOrCreateStripeCustomer(auth);
+
     const card = await stripe.customers.createSource(customer.id, {source: cardToken});
     if (card.object !== "card") {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "The Stripe token is not a credit card token.");
@@ -111,18 +117,16 @@ async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
 async function clearActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<void> {
     const stripe = await getStripeClient("live");
     const customer = await getOrCreateStripeCustomer(auth);
-    if (customer.default_source) {
-        await stripe.customers.update(stripUserIdTestMode(auth.userId), {
-            default_source: null,
-            ...await getDefaultStripeCustomerProperties(auth)
-        });
+    if (customer.default_source && typeof customer.default_source === "string") {
+        await stripe.customers.deleteSource(customer.id, customer.default_source);
     }
 }
 
 async function getStripeCustomerOrNull(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe.customers.ICustomer> {
     const stripe = await getStripeClient("live");
+    const customerId = stripUserIdTestMode(auth.userId);
     try {
-        return await stripe.customers.retrieve(stripUserIdTestMode(auth.userId));
+        return await stripe.customers.retrieve(customerId);
     } catch (err) {
         if (err.code === "resource_missing") {
             return null;
@@ -136,7 +140,12 @@ async function getOrCreateStripeCustomer(auth: giftbitRoutes.jwtauth.Authorizati
     const customerId = stripUserIdTestMode(auth.userId);
 
     try {
-        return await stripe.customers.retrieve(customerId);
+        const customer = await stripe.customers.retrieve(customerId);
+        if ((customer as any).deleted) {
+            // We don't do this in this service.  Hopefully no one else ever does.
+            throw new Error(`Stripe customer '${customer.id}' has been deleted and cannot be recreated.`);
+        }
+        return customer;
     } catch (err) {
         if (err.code === "resource_missing") {
             const customer = await stripe.customers.create({

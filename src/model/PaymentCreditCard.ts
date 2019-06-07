@@ -19,6 +19,9 @@ export interface PaymentCreditCard {
 
 export namespace PaymentCreditCard {
     export function fromStripeSource(source: Stripe.IStripeSource): PaymentCreditCard {
+        if (!source) {
+            return null;
+        }
         if (source.object === "card") {
             return {
                 addressCity: source.address_city,

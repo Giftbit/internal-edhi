@@ -3,6 +3,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as logPrefix from "loglevel-plugin-prefix";
 import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
+import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
 import {DbUserLogin} from "../../db/DbUserLogin";
 import log = require("loglevel");
 
@@ -47,6 +48,10 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     errorLogFunction: log.error
 }));
 DbUserLogin.initializeBadgeSigningSecrets(authConfigPromise);
+
+initializeLightrailStripeConfig(
+    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.StripeConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_STRIPE")
+);
 
 installAuthedRestRoutes(router);
 

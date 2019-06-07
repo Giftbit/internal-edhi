@@ -22,7 +22,7 @@ export class TestRouter extends cassava.Router {
             statusCode: resp.statusCode,
             headers: resp.headers,
             bodyRaw: resp.body,
-            body: resp.body && JSON.parse(resp.body) || undefined
+            body: (resp.body && JSON.parse(resp.body)) || resp.body
         };
     }
 
