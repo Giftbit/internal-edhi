@@ -1,10 +1,14 @@
 import * as cassava from "cassava";
+import * as chai from "chai";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import * as sinon from "sinon";
+import * as emailUtils from "../emailUtils";
 import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
 import {DbTeamMember} from "../../db/DbTeamMember";
 import {DbUserLogin} from "../../db/DbUserLogin";
 import {DbUserDetails} from "../../db/DbUserDetails";
 import {DbAccountDetails} from "../../db/DbAccountDetails";
+import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -165,6 +169,41 @@ export async function resetDb(): Promise<void> {
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.teamMate.userLogin))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.teamMate.userDetails))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(defaultTestUser.teamMate.teamMember))).promise();
+}
+
+/**
+ * Create a new user.  This takes several calls and a lot of time for a unit
+ * test.  Using the existing test users above is preferable but sometimes inappropriate.
+ * @param router The TestRouter
+ * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
+ * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
+ */
+export async function getNewUserLoginResp(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<ParsedProxyResponse<any>> {
+    let verifyEmail: emailUtils.SendEmailParams;
+    sinonSandbox.stub(emailUtils, "sendEmail")
+        .callsFake(async (params: emailUtils.SendEmailParams) => {
+            verifyEmail = params;
+            return null;
+        });
+
+    const email = `unittest-${generateId()}@example.com`;
+    const password = generateId();
+    const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+        email,
+        password
+    });
+    chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+    const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
+    const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
+    chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+    const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+        email,
+        password
+    });
+    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+    return loginResp;
 }
 
 export function generateId(length?: number): string {
