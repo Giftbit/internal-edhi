@@ -64,14 +64,8 @@ export function installPaymentsRest(router: cassava.Router): void {
     router.route("/v2/account/payments/subscriptionTier")
         .method("GET")
         .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:account:payments:card:delete");
-            auth.requireIds("userId");
-
-            // TODO
-            return {
-                body: null
-            };
+            // This can be deleted after the web app removes subscription tiers from the UI.
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.GONE, "Subscription tiers are not supported at this time.");
         });
 }
 
