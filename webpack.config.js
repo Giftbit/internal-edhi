@@ -22,6 +22,10 @@ module.exports = function (env) {
                 rules: [
                     {
                         test: /\.js$/,
+                        // Exclude a horrible Twilio file that has many duplicate declarations.
+                        // We don't use voice features so this should be ok.
+                        // Can be removed once https://github.com/twilio/twilio-node/issues/394 is fixed.
+                        exclude: /node_modules\/twilio\/lib\/twiml\/VoiceResponse\.js$/,
                         use: [
                             {
                                 loader: 'babel-loader',
