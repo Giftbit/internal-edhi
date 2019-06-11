@@ -68,7 +68,7 @@ export namespace DbUserLogin {
         smsAuthState?: SmsAuthState;
 
         /**
-         * Encoded secret used to generate TOTP codes.
+         * Encrypted secret used to generate TOTP codes.
          * When this is set TOTP MFA is enabled.
          */
         totpSecret?: string;

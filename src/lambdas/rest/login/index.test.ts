@@ -1,5 +1,6 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
+import * as crypto from "crypto";
 import * as sinon from "sinon";
 import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
@@ -10,7 +11,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
-import {generateOtpSecret, generateSkewedOtpCode} from "../../../utils/otpUtils";
+import {generateOtpSecret, generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
 
 describe("/v2/user/login", () => {
 
@@ -23,6 +24,7 @@ describe("/v2/user/login", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
     });
 
     afterEach(async () => {
@@ -49,7 +51,7 @@ describe("/v2/user/login", () => {
     // Shortcut to enable TOTP MFA.  Enabling is properly tested elsewhere.
     async function enableTotpMfa(): Promise<string> {
         const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-        const secret = generateOtpSecret();
+        const secret = await generateOtpSecret();
         const mfaSettings: DbUserLogin.Mfa = {
             totpSecret: secret,
             totpUsedCodes: {},
@@ -437,7 +439,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(wrongCodeLoginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
-                code: generateSkewedOtpCode(secret, -2000)
+                code: await generateSkewedOtpCode(secret, -2000)
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
@@ -453,7 +455,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
-                code: generateSkewedOtpCode(secret, -32000)
+                code: await generateSkewedOtpCode(secret, -32000)
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
@@ -469,7 +471,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
-                code: generateSkewedOtpCode(secret, -60001)
+                code: await generateSkewedOtpCode(secret, -60001)
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
         });
@@ -483,7 +485,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const code = generateSkewedOtpCode(secret, -2000);
+            const code = await generateSkewedOtpCode(secret, -2000);
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code
             });

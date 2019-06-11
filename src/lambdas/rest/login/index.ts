@@ -1,4 +1,5 @@
 import * as cassava from "cassava";
+import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {createdDateNow} from "../../../db/dynamodb";
@@ -9,7 +10,6 @@ import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
-import * as dynameh from "dynameh";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {validateOtpCode} from "../../../utils/otpUtils";
 import log = require("loglevel");
@@ -227,7 +227,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             operator: "attribute_exists",
             attribute: "mfa.smsAuthState"
         });
-    } else if (userLogin.mfa.totpSecret && validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
+    } else if (userLogin.mfa.totpSecret && await validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
         // TOTP
         if (userLogin.mfa.totpUsedCodes[params.code]) {
             // This code has been used recently.  Login completion is not successful but this is not a serious failure.

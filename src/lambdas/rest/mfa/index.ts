@@ -1,10 +1,10 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import * as otpUtils from "../../../utils/otpUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {createdDateNow} from "../../../db/dynamodb";
 import {sendSms} from "../../../utils/smsUtils";
-import {generateOtpSecret, validateOtpCode} from "../../../utils/otpUtils";
 import log = require("loglevel");
 
 export function installMfaRest(router: cassava.Router): void {
@@ -154,9 +154,9 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     log.info("Beginning TOTP MFA enable for", auth.teamMemberId);
 
     const userLogin = await DbUserLogin.getByAuth(auth);
-    const secret = generateOtpSecret();
+    const secret = await otpUtils.generateOtpSecret();
     const totpEnable: DbUserLogin.TotpEnable = {
-        secret: secret, // TODO encrypt secret?
+        secret: secret,
         lastCodes: [],
         createdDate: createdDateNow(),
         expiresDate: new Date(Date.now() + 5 * 60 * 1000).toISOString()
@@ -237,7 +237,7 @@ async function completeEnableTotpMfa(userLogin: DbUserLogin, params: { code: str
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "You have already entered this code.  Please enter the next code.");
     }
 
-    if (!validateOtpCode(userLogin.mfa.totpEnable.secret, params.code)) {
+    if (!(await otpUtils.validateOtpCode(userLogin.mfa.totpEnable.secret, params.code))) {
         log.info("TOTP MFA not enabled for", userLogin.userId, "code is invalid");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
