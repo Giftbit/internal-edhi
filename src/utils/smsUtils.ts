@@ -4,6 +4,11 @@ import * as twilio from "twilio";
 import log = require("loglevel");
 
 export interface TwilioCredentialsConfig {
+    live: TwilioModeCredentials;
+    test: TwilioModeCredentials;
+}
+
+export interface TwilioModeCredentials {
     accountSid: string;
     authToken: string;
     phoneNumber: string;
@@ -29,7 +34,7 @@ export async function sendSms(params: SendSmsParams): Promise<void> {
     }
 
     const twilioCredentials = await twilioCredentialsPromise;
-    const twilioClient = twilio(twilioCredentials.accountSid, twilioCredentials.authToken);
+    const twilioClient = twilio(twilioCredentials.live.accountSid, twilioCredentials.live.authToken);
 
     log.info("Sending SMS to ", params.to, ":", params.body);
 
@@ -37,7 +42,7 @@ export async function sendSms(params: SendSmsParams): Promise<void> {
         const res = await twilioClient.messages.create({
             body: params.body,
             to: sanitizePhoneNumber(params.to),
-            from: twilioCredentials.phoneNumber
+            from: twilioCredentials.live.phoneNumber
         });
         log.info("SMS sent", res.sid);
     } catch (error) {

@@ -5,6 +5,8 @@ import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
 import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
 import {DbUserLogin} from "../../db/DbUserLogin";
+import {initializeOtpEncryptionSecrets} from "../../utils/otpUtils";
+import {initializeTwilioCredentials, TwilioCredentialsConfig} from "../../utils/smsUtils";
 import log = require("loglevel");
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)
@@ -51,6 +53,14 @@ DbUserLogin.initializeBadgeSigningSecrets(authConfigPromise);
 
 initializeLightrailStripeConfig(
     giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.StripeConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_STRIPE")
+);
+
+initializeTwilioCredentials(
+    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<TwilioCredentialsConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_TWILIO")
+);
+
+initializeOtpEncryptionSecrets(
+    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<{ key: string }>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_OTP")
 );
 
 installAuthedRestRoutes(router);

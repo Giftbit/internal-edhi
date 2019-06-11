@@ -102,9 +102,11 @@ Resources:
           OBJECT_TABLE: !Ref ObjectTable
           SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
           SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
+          SECURE_CONFIG_KEY_OTP: otp.json
           SECURE_CONFIG_KEY_ROLE_DEFINITIONS: RoleDefinitions.json
           SECURE_CONFIG_KEY_SENTRY: sentry_lambda_services.json
           SECURE_CONFIG_KEY_STRIPE: stripe_connect.json
+          SECURE_CONFIG_KEY_TWILIO: twilio.json
           TOKEN_ACTION_TABLE: !Ref TokenActionTable
       Policies:
         - Version: 2012-10-17
@@ -114,9 +116,11 @@ Resources:
                 - s3:GetObject
               Resource:
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/otp.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/RoleDefinitions.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/sentry_lambda_services.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/stripe_connect.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/twilio.json"
             - Effect: Allow
               Action:
                 - kms:Decrypt
