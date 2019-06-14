@@ -4,8 +4,6 @@
     "module": "commonjs",
     "target": "es6",
     "noImplicitAny": false,
-    "sourceMap": false,
-    "checkJs": false,
-    "allowJS": false
+    "sourceMap": false
   }
 }
