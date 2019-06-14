@@ -53,12 +53,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: !If [UseProductionCapacity, 70, 4]
-            WriteCapacityUnits: !If [UseProductionCapacity, 35, 4]
-      ProvisionedThroughput:
-        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
-        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
+      BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: ShortName
           Value: ObjectTable
