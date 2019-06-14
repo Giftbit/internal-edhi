@@ -20,9 +20,6 @@ phases:
       - npm run build
   post_build:
     commands:
-      # Set the BuildDate parameter default to the current date so that EsPostDeployInvocation will be called.
-      - 'sed --in-place="" "s/Default: \"date +%s\"/Default: \"`date +%s`\"/" infrastructure/sam.yaml'
-
       # env var BUILD_ARTIFACT_BUCKET is defined in ci.yaml
       - aws cloudformation package
         --template-file infrastructure/sam.yaml
