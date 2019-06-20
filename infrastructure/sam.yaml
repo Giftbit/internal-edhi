@@ -5,11 +5,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: Edhi takes care of users
 
 Parameters:
-  Capacity:
-    Type: String
-    Description: Level of production capacity to use (high or low)
-    AllowedPattern: (high|low)
-    Default: low
   LightrailDomain:
     Type: String
     Description: The domain of the Lightrail REST API
@@ -22,9 +17,13 @@ Parameters:
     Type: String
     Description: The domain of the Lightrail web app
     AllowedPattern: (\w+\.)+\w{3}
-
-Conditions:
-  UseProductionCapacity: !Equals [!Ref Capacity, high]
+  SecureConfigBucket:
+    Type: String
+    Description: Name of the S3 bucket holding the JWT secure config
+  SecureConfigKmsArn:
+    Type: String
+    Description: Optional ARN of the KMS encrypting SecureConfigBucket
+    AllowedPattern: arn:aws:kms:[a-zA-Z_0-9\-]+:\d{12}:key/[a-zA-Z_0-9+=,.@\-_/]+
 
 Resources:
   ObjectTable:
@@ -53,12 +52,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: !If [UseProductionCapacity, 70, 4]
-            WriteCapacityUnits: !If [UseProductionCapacity, 35, 4]
-      ProvisionedThroughput:
-        ReadCapacityUnits: !If [UseProductionCapacity, 70, 8]
-        WriteCapacityUnits: !If [UseProductionCapacity, 35, 8]
+      BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: ShortName
           Value: ObjectTable
@@ -74,9 +68,7 @@ Resources:
       KeySchema:
         - AttributeName: token
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+      BillingMode: PAY_PER_REQUEST
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
@@ -138,3 +130,17 @@ Resources:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
+      Tags:
+        ShortName: RestFunction
+        Service: Edhi
+      Events:
+        RestApi:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        KeepWarmSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(4 minutes)
+            Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/ping\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
