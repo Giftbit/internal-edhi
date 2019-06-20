@@ -8,13 +8,15 @@
 STACK_NAME="dev-Edhi"
 
 # The name of an S3 bucket on your account to hold deployment artifacts.
-BUILD_ARTIFACT_BUCKET="dev-lightrailrothschild-deploymentartifactbucket-16sqvi4mh78ei"
+BUILD_ARTIFACT_BUCKET="dev-lightrailedhi-19g31u-deploymentartifactbucket-1is3vc79jtkri"
 
 # Parameter values for the sam template.  see: `aws cloudformation deploy help`
-PARAMETER_OVERRIDES=""
-#PARAMETER_OVERRIDES="--parameter-overrides"
-#PARAMETER_OVERRIDES+=" KeyOne=value"
-#PARAMETER_OVERRIDES+=" KeyTwo=value"
+PARAMETER_OVERRIDES="--parameter-overrides"
+PARAMETER_OVERRIDES+=" LightrailDomain=api.lightraildev.net"
+PARAMETER_OVERRIDES+=" LightrailEmailDomain=lightraildev.net"
+PARAMETER_OVERRIDES+=" LightrailWebappDomain=www.lightraildev.net"
+PARAMETER_OVERRIDES+=" SecureConfigBucket=dev-lightrailsecureconfig-1q7bltwyiihpq-bucket-id162gq711cc"
+PARAMETER_OVERRIDES+=" SecureConfigKmsArn=arn:aws:kms:us-west-2:757264843183:key/5240d853-a89f-4510-82ba-386bf2b977dc"
 
 USAGE="usage: $0 <command name>\nvalid command names: build delete deploy invoke upload"
 
