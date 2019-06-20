@@ -269,10 +269,10 @@ Resources:
               - lambda:UntagResource
             Resource: "*"
           # API Gateway (REST events)
-          #          - Effect: Allow
-          #            Action:
-          #              - apigateway:*
-          #            Resource: !Sub "arn:aws:apigateway:${AWS::Region}::/*"
+          - Effect: Allow
+            Action:
+              - apigateway:*
+            Resource: !Sub "arn:aws:apigateway:${AWS::Region}::/*"
           # CloudWatch event triggers
           - Effect: Allow
             Action:
