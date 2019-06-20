@@ -2,6 +2,7 @@ version: 0.1
 phases:
   install:
     commands:
+      - echo $0
       - echo Build enviromment `uname -a` `aws --version 2>&1` node/`node --version` npm/`npm --version`
       - mkdir -p  ~/.aws/
       - mkdir -p  ~/.ssh/
