@@ -130,3 +130,17 @@ Resources:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
+      Tags:
+        ShortName: RestFunction
+        Service: Edhi
+      Events:
+        RestApi:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        KeepWarmSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(4 minutes)
+            Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/ping\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
