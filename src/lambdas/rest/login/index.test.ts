@@ -455,7 +455,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
-                code: await generateSkewedOtpCode(secret, -32000)
+                code: await generateSkewedOtpCode(secret, -30000)
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
