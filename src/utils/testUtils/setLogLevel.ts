@@ -1,6 +1,6 @@
 /*
- * This file sets the log level to DEBUG when referenced.  It should only be referenced
- * from the command line by the mocha runner.
+ * This file sets the log level to the contents of ENV_VAR when referenced.
+ * It should only be referenced from the command line by the mocha runner.
  */
 
 import * as sinon from "sinon";
@@ -24,7 +24,7 @@ logPrefix.apply(log, {
     },
 });
 
-log.setLevel(log.levels.DEBUG);
+log.setLevel(process.env["LOG_LEVEL"] as any || log.levels.DEBUG);
 
 sinon.stub(giftbitRoutes.sentry, "sendErrorNotification")
     .callsFake(err => log.error("giftbitRoutes.sentry.sendErrorNotification:", err));
