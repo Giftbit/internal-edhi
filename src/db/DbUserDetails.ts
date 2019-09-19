@@ -3,10 +3,14 @@ import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
 
+/**
+ * Details about a user other than login information.  At a minimum
+ * this exists to guarantee uniqueness on the primary key of the userId.
+ */
 export interface DbUserDetails {
 
     /**
-     * The primary index.
+     * The primary key.
      */
     userId: string;
 
@@ -30,7 +34,7 @@ export namespace DbUserDetails {
         return userDetails as any;
     }
 
-    export function toDbObject(userDetails: DbUserDetails) {
+    export function toDbObject(userDetails: DbUserDetails): DbUserDetails & DbObject {
         if (!userDetails) {
             return null;
         }

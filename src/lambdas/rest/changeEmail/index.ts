@@ -89,6 +89,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
         operator: "attribute_exists"
     });
 
+    // Can't update the keys on an item in DynamoDB.  Gotta delete the old and make a new.
     const deleteOldUserLoginReq = objectDynameh.requestBuilder.buildDeleteInput(DbUserLogin.getKeys(userLogin));
     objectDynameh.requestBuilder.addCondition(deleteOldUserLoginReq, {
         attribute: "pk",

@@ -7,10 +7,14 @@ import {DbUserDetails} from "./DbUserDetails";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
 
+/**
+ * Stores login information about a user.  Users log in with their email address
+ * so that is the primary key.
+ */
 export interface DbUserLogin {
 
     /**
-     * The primary index.
+     * The primary key.
      */
     email: string;
 
@@ -19,14 +23,56 @@ export interface DbUserLogin {
      */
     userId: string;
 
+    /**
+     * Salted, hashed password.  If this is unset the user must
+     * go through password reset flow to set a password.
+     */
     password?: DbUserLogin.Password;
+
+    /**
+     * Whether the email address has been verified.  If not the user
+     * must verify their email before they can log in.
+     */
     emailVerified: boolean;
+
+    /**
+     * Frozen users cannot log in.  We don't yet have any controls for
+     * setting this but it may be useful in the future.
+     */
     frozen: boolean;
+
+    /**
+     * Accounts can be time locked on too many
+     */
     lockedUntilDate?: string;
+
+    /**
+     * Date of the last successful login.
+     */
     lastLoginDate?: string;
+
+    /**
+     * MFA settings.  Includes state on enabling MFA so the existence
+     * of this object is not enough to know that MFA is enabled.
+     */
     mfa?: DbUserLogin.Mfa;
+
+    /**
+     * The default account userId a user will log in to
+     * if none is specified.
+     */
     defaultLoginUserId: string;
+
+    /**
+     * A history of recent failed log in attempt Dates.  Too many
+     * failed logins will time lock the account.  A successful login
+     * clears the Set.
+     */
     failedLoginAttempts?: Set<string>;
+
+    /**
+     * Date the account was created.
+     */
     createdDate: string;
 }
 
@@ -65,6 +111,9 @@ export namespace DbUserLogin {
          */
         smsDevice?: string;
 
+        /**
+         * State for enabling or authenticating with SMS MFA.
+         */
         smsAuthState?: SmsAuthState;
 
         /**
@@ -79,13 +128,21 @@ export namespace DbUserLogin {
          */
         totpUsedCodes?: { [code: string]: TotpUsedCode };
 
-        totpEnable?: TotpEnable;
+        /**
+         * State for enabling TOTP.  This can be set while `totpSecret`
+         * is set to change TOTP devices without accidentally disabling MFA.
+         */
+        totpSetup?: TotpSetup;
 
         /**
-         * One time use codes.
+         * Codes that can only be used once.
          */
         backupCodes?: { [code: string]: BackupCode };
 
+        /**
+         * Codes that can be saved on a device to indicate that the device is
+         * trusted.  These codes expire.
+         */
         trustedDevices: { [key: string]: TrustedDevice };
     }
 
@@ -97,7 +154,7 @@ export namespace DbUserLogin {
         expiresDate: string;
     }
 
-    export interface TotpEnable {
+    export interface TotpSetup {
         secret: string;
         lastCodes: string[];
         createdDate: string;
@@ -127,7 +184,7 @@ export namespace DbUserLogin {
         return userLogin as any;
     }
 
-    export function toDbObject(userLogin: DbUserLogin) {
+    export function toDbObject(userLogin: DbUserLogin): DbUserLogin & DbObject {
         if (!userLogin) {
             return null;
         }

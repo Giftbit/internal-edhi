@@ -74,13 +74,13 @@ export function installRegistrationRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
             }
 
-            const location = await acceptInvite(evt.queryStringParameters.token);
+            const acceptRes = await acceptInvite(evt.queryStringParameters.token);
 
             return {
                 body: null,
                 statusCode: cassava.httpStatusCode.redirect.FOUND,
                 headers: {
-                    Location: location
+                    Location: acceptRes.redirectUrl
                 }
             };
         });
@@ -154,7 +154,10 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
             && error.CancellationReasons.length === 4
             && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
+            // The registration failed because a user with that email address already exists.
             // Silently claim success but send an email notifying of the attempted registration.
+            // We do this to not leak information on what email addresses are in use to a potential attacker;
+            // while reminding innocent users of their existing account.
             await sendEmailAddressAlreadyRegisteredEmail(params.email);
             return;
         }
@@ -186,7 +189,7 @@ async function verifyEmail(token: string): Promise<void> {
     log.info("User", tokenAction.email, "has verified their email address");
 }
 
-async function acceptInvite(token: string): Promise<string> {
+async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
     const acceptInviteTokenAction = await TokenAction.get(token);
     if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
         log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
@@ -247,8 +250,12 @@ async function acceptInvite(token: string): Promise<string> {
         log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInviteTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
-        return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`;
+        return {
+            redirectUrl: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+        };
     }
 
-    return `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`;
+    return {
+        redirectUrl: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+    };
 }

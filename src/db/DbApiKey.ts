@@ -28,7 +28,7 @@ export namespace DbApiKey {
         return apiKey as any;
     }
 
-    export function toDbObject(apiKey: DbApiKey): DbObject {
+    export function toDbObject(apiKey: DbApiKey): DbApiKey & DbObject {
         if (!apiKey) {
             return null;
         }

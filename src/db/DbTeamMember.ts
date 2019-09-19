@@ -39,7 +39,7 @@ export namespace DbTeamMember {
         return teamMember as any;
     }
 
-    export function toDbObject(teamMember: DbTeamMember) {
+    export function toDbObject(teamMember: DbTeamMember): DbTeamMember & DbObject {
         if (!teamMember) {
             return null;
         }

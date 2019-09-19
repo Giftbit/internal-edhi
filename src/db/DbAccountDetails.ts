@@ -23,7 +23,7 @@ export namespace DbAccountDetails {
         return accountDetails as any;
     }
 
-    export function toDbObject(accountDetails: DbAccountDetails) {
+    export function toDbObject(accountDetails: DbAccountDetails): DbAccountDetails & DbObject {
         if (!accountDetails) {
             return null;
         }

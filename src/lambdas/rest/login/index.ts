@@ -159,7 +159,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     }
     if (!await validatePassword(params.plaintextPassword, userLogin.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
-        await userLoginFailure(userLogin, params.sourceIp);
+        await onUserLoginFailure(userLogin, params.sourceIp);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
@@ -167,7 +167,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
         if (params.trustedDeviceToken) {
             if (userLogin.mfa.trustedDevices[params.trustedDeviceToken] && userLogin.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
                 log.info("User", params.email, "has a trusted device");
-                const userBadge = await userLoginSuccess(userLogin);
+                const userBadge = await onUserLoginSuccess(userLogin);
                 return await DbUserLogin.getBadgeCookies(userBadge);
             }
             log.info("User", params.email, "trusted device token is not trusted");
@@ -187,7 +187,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
         }
     }
 
-    const userBadge = await userLoginSuccess(userLogin);
+    const userBadge = await onUserLoginSuccess(userLogin);
     return await DbUserLogin.getBadgeCookies(userBadge);
 }
 
@@ -275,7 +275,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-        await userLoginFailure(userLogin, params.sourceIp);
+        await onUserLoginFailure(userLogin, params.sourceIp);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
@@ -301,14 +301,14 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         };
     }
 
-    const userBadge = await userLoginSuccess(userLogin, userUpdates, userUpdateConditions);
+    const userBadge = await onUserLoginSuccess(userLogin, userUpdates, userUpdateConditions);
     return {
         ...await DbUserLogin.getBadgeCookies(userBadge),
         ...additionalCookies
     };
 }
 
-async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
     log.info("Logged in user", userLogin.email);
 
     // Store last login date.
@@ -359,7 +359,7 @@ async function userLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynam
     return DbUserLogin.getBadge(teamMember, liveMode, true);
 }
 
-async function userLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {
+async function onUserLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {
     const failedAttempt = `${createdDateNow()}, ${sourceIp}`;
     if (!userLogin.failedLoginAttempts) {
         userLogin.failedLoginAttempts = new Set();

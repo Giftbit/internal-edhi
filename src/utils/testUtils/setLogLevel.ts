@@ -1,5 +1,5 @@
 /*
- * This file sets the log level to the contents of ENV_VAR when referenced.
+ * This file sets the log level to the contents of env var LOG_LEVEL when referenced.
  * It should only be referenced from the command line by the mocha runner.
  */
 

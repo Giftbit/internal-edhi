@@ -51,4 +51,25 @@ describe("/v2/user/contactCustomerSupport", () => {
         chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.teamMemberId);
         chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.email);
     });
+
+    it("can't send an email to a non @lightrail.com or @giftbit.com address", async () => {
+        let emailSent = false;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                emailSent = true;
+                return null;
+            });
+
+        const subject = "We can dance if we want to";
+        const message = "we can leave your friends behind\n" +
+            "Cause your friends don't dance and if they don't dance\n" +
+            "Well they're are no friends of mine";
+        const contactResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
+            customerSupportEmail: "manwithhat@example.com",
+            subject: subject,
+            message: message
+        });
+        chai.assert.equal(contactResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, contactResp.bodyRaw);
+        chai.assert.isFalse(emailSent);
+    });
 });

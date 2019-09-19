@@ -7,7 +7,7 @@ export async function hashPassword(plaintextPassword: string): Promise<DbUserLog
         throw new Error("password must be a string");
     }
     if (plaintextPassword.length < 8) {
-        throw new Error("password must be at least 8 chatacters");
+        throw new Error("password must be at least 8 characters");
     }
 
     // Always use the preferred password hashing method.
