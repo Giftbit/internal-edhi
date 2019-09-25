@@ -44,7 +44,7 @@ Resources:
         - AttributeName: sk
           KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: ReverseIndex
+        - IndexName: Index2
           KeySchema:
             - AttributeName: pk2
               KeyType: HASH
@@ -52,6 +52,8 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
       BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: ShortName
