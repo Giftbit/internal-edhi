@@ -3,11 +3,11 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as superagent from "superagent";
 import * as uuid from "uuid/v4";
 import {DbApiKey} from "../../../db/DbApiKey";
-import {DbTeamMember} from "../../../db/DbTeamMember";
 import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
@@ -79,7 +79,7 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
 
     log.info("Creating API key for", auth.userId, auth.teamMemberId, "with name", name);
 
-    const teamMember = await DbTeamMember.getByAuth(auth);
+    const teamMember = await DbAccountUser.getByAuth(auth);
     const apiKey: DbApiKey = {
         userId: stripUserIdTestMode(auth.userId),
         teamMemberId: stripUserIdTestMode(auth.teamMemberId),

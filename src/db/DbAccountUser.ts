@@ -6,20 +6,20 @@ import {DbObject} from "./DbObject";
 import {DbUserLogin} from "./DbUserLogin";
 import log = require("loglevel");
 
-export interface DbTeamMember {
+export interface DbAccountUser {
 
     userId: string;
     teamMemberId: string;
     userDisplayName: string;
     accountDisplayName: string;
-    invitation?: DbTeamMember.Invitation;
+    invitation?: DbAccountUser.Invitation;
     roles: string[];
     scopes: string[];
     createdDate: string;
 
 }
 
-export namespace DbTeamMember {
+export namespace DbAccountUser {
 
     export interface Invitation {
         email: string;
@@ -27,7 +27,7 @@ export namespace DbTeamMember {
         expiresDate: string;
     }
 
-    export function fromDbObject(o: DbObject): DbTeamMember {
+    export function fromDbObject(o: DbObject): DbAccountUser {
         if (!o) {
             return null;
         }
@@ -39,7 +39,7 @@ export namespace DbTeamMember {
         return teamMember as any;
     }
 
-    export function toDbObject(teamMember: DbTeamMember): DbTeamMember & DbObject {
+    export function toDbObject(teamMember: DbAccountUser): DbAccountUser & DbObject {
         if (!teamMember) {
             return null;
         }
@@ -49,7 +49,7 @@ export namespace DbTeamMember {
         };
     }
 
-    export function getKeys(teamMember: DbTeamMember): DbObject {
+    export function getKeys(teamMember: DbAccountUser): DbObject {
         if (!teamMember || !teamMember.userId || !teamMember.teamMemberId) {
             throw new Error("Not a valid TeamMember.");
         }
@@ -61,11 +61,11 @@ export namespace DbTeamMember {
         };
     }
 
-    export async function get(userId: string, teamMemberId: string): Promise<DbTeamMember> {
+    export async function get(userId: string, teamMemberId: string): Promise<DbAccountUser> {
         return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(userId), "TeamMember/" + stripUserIdTestMode(teamMemberId)));
     }
 
-    export async function update(teamMember: DbTeamMember, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+    export async function update(teamMember: DbAccountUser, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
         const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(teamMember), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
@@ -74,7 +74,7 @@ export namespace DbTeamMember {
         await dynamodb.updateItem(req).promise();
     }
 
-    export async function del(teamMember: DbTeamMember, ...conditions: dynameh.Condition[]): Promise<void> {
+    export async function del(teamMember: DbAccountUser, ...conditions: dynameh.Condition[]): Promise<void> {
         const req = objectDynameh.requestBuilder.buildDeleteInput(getKeys(teamMember));
         if (conditions && conditions.length) {
             objectDynameh.requestBuilder.addCondition(req, ...conditions);
@@ -82,7 +82,7 @@ export namespace DbTeamMember {
         await dynamodb.deleteItem(req).promise();
     }
 
-    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbTeamMember> {
+    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccountUser> {
         auth.requireIds("userId", "teamMemberId");
         return get(auth.userId, auth.teamMemberId);
     }
@@ -90,7 +90,7 @@ export namespace DbTeamMember {
     /**
      * Get all users on the given team.
      */
-    export async function getAccountTeamMembers(accountUserId: string): Promise<DbTeamMember[]> {
+    export async function getAccountTeamMembers(accountUserId: string): Promise<DbAccountUser[]> {
         const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
@@ -104,7 +104,7 @@ export namespace DbTeamMember {
     /**
      * Get invited users on the given team.
      */
-    export async function getAccountInvitedTeamMembers(accountUserId: string): Promise<DbTeamMember[]> {
+    export async function getAccountInvitedTeamMembers(accountUserId: string): Promise<DbAccountUser[]> {
         const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
@@ -118,7 +118,7 @@ export namespace DbTeamMember {
     /**
      * Get all teams for the given user.
      */
-    export async function getUserTeamMemberships(teamMemberId: string): Promise<DbTeamMember[]> {
+    export async function getUserTeamMemberships(teamMemberId: string): Promise<DbAccountUser[]> {
         const req = objectDynameh2.requestBuilder.buildQueryInput("User/" + stripUserIdTestMode(teamMemberId), "begins_with", "TeamMember/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "invitation",
@@ -132,12 +132,12 @@ export namespace DbTeamMember {
     /**
      * Get the team member the given user should login as.
      */
-    export async function getUserLoginTeamMembership(userLogin: DbUserLogin, accountUserId?: string): Promise<DbTeamMember> {
+    export async function getUserLoginTeamMembership(userLogin: DbUserLogin, accountUserId?: string): Promise<DbAccountUser> {
         if (!accountUserId) {
             accountUserId = userLogin.defaultLoginUserId;
         }
         if (accountUserId) {
-            const teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
+            const teamMember = await DbAccountUser.get(accountUserId, userLogin.userId);
             if (teamMember) {
                 if (accountUserId !== userLogin.defaultLoginUserId) {
                     await DbUserLogin.update(userLogin, {

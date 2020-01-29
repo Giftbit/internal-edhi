@@ -1,8 +1,8 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendEmail} from "../../../utils/emailUtils";
-import {DbUserDetails} from "../../../db/DbUserDetails";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {DbUser} from "../../../db/DbUser";
+import {DbAccount} from "../../../db/DbAccount";
 import log = require("loglevel");
 
 export function installCustomerSupportRest(router: cassava.Router): void {
@@ -46,8 +46,8 @@ async function sendCustomerSupportEmail(auth: giftbitRoutes.jwtauth.Authorizatio
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, `The received customer support email '${recipient}' does not belong to the known customer support email addresses.`, "InvalidCustomerSupportEmail");
     }
 
-    const userDetails = await DbUserDetails.getByAuth(auth);
-    const accountDetails = auth.userId && await DbAccountDetails.getByAuth(auth);
+    const userDetails = await DbUser.getByAuth(auth);
+    const accountDetails = auth.userId && await DbAccount.getByAuth(auth);
 
     // This email is intentionally sent as text and not HTML out of paranoia
     // about some kind of HTML-based spoofing shenanigans.

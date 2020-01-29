@@ -4,16 +4,16 @@ import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
 
-export interface DbAccountDetails {
+export interface DbAccount {
 
     userId: string;
     name: string;
 
 }
 
-export namespace DbAccountDetails {
+export namespace DbAccount {
 
-    export function fromDbObject(o: DbObject): DbAccountDetails {
+    export function fromDbObject(o: DbObject): DbAccount {
         if (!o) {
             return null;
         }
@@ -23,7 +23,7 @@ export namespace DbAccountDetails {
         return accountDetails as any;
     }
 
-    export function toDbObject(accountDetails: DbAccountDetails): DbAccountDetails & DbObject {
+    export function toDbObject(accountDetails: DbAccount): DbAccount & DbObject {
         if (!accountDetails) {
             return null;
         }
@@ -33,19 +33,19 @@ export namespace DbAccountDetails {
         };
     }
 
-    export function getKeys(accountDetails: DbAccountDetails): DbObject {
+    export function getKeys(accountDetails: DbAccount): DbObject {
         return {
             pk: "Account/" + accountDetails.userId,
             sk: "Account/" + accountDetails.userId
         };
     }
 
-    export async function get(userId: string): Promise<DbAccountDetails> {
+    export async function get(userId: string): Promise<DbAccount> {
         userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
     }
 
-    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccountDetails> {
+    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccount> {
         auth.requireIds("teamMemberId");
         const account = await get(stripUserIdTestMode(auth.userId));
         if (!account) {
@@ -54,11 +54,11 @@ export namespace DbAccountDetails {
         return account;
     }
 
-    export async function put(accountDetails: DbAccountDetails): Promise<void> {
+    export async function put(accountDetails: DbAccount): Promise<void> {
         await DbObject.put(toDbObject(accountDetails));
     }
 
-    export async function update(accountDetails: DbAccountDetails, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+    export async function update(accountDetails: DbAccount, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
         const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(accountDetails), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",

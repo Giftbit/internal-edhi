@@ -1,11 +1,11 @@
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbObject} from "./DbObject";
-import {DbTeamMember} from "./DbTeamMember";
+import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
-import {DbUserDetails} from "./DbUserDetails";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
+import {DbUser} from "./DbUser";
 
 /**
  * Stores login information about a user.  Users log in with their email address
@@ -227,7 +227,7 @@ export namespace DbUserLogin {
     }
 
     export async function getById(userId: string): Promise<DbUserLogin> {
-        const userDetails = await DbUserDetails.get(userId);
+        const userDetails = await DbUser.get(userId);
         return userDetails && get(userDetails.email);
     }
 
@@ -240,7 +240,7 @@ export namespace DbUserLogin {
         return userLogin;
     }
 
-    export function getBadge(teamMember: DbTeamMember, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(teamMember: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
         auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");

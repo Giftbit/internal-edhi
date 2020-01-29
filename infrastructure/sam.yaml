@@ -44,7 +44,7 @@ Resources:
         - AttributeName: sk
           KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: Index2
+        - IndexName: EdhiIx2
           KeySchema:
             - AttributeName: pk2
               KeyType: HASH

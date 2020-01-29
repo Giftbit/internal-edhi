@@ -10,11 +10,11 @@ import {
 } from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
-import {DbTeamMember} from "../../../db/DbTeamMember";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserDetails} from "../../../db/DbUserDetails";
+import {DbUser} from "../../../db/DbUser";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {DbAccount} from "../../../db/DbAccount";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
@@ -89,8 +89,8 @@ export function installRegistrationRest(router: cassava.Router): void {
 async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
-    const userId = DbUserDetails.generateUserId();
-    const teamMemberId = DbUserDetails.generateUserId();
+    const userId = DbUser.generateUserId();
+    const teamMemberId = DbUser.generateUserId();
     const createdDate = createdDateNow();
 
     log.info("Registering new user email=", params.email, "userId=", userId, "teamMemberId=", teamMemberId);
@@ -110,27 +110,27 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const userDetails: DbUserDetails = {
+    const userDetails: DbUser = {
         userId: teamMemberId,
         email: params.email
     };
-    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
+    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
     objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const accountDetails: DbAccountDetails = {
+    const accountDetails: DbAccount = {
         userId,
         name: "My Organization"
     };
-    const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
+    const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const teamMember: DbTeamMember = {
+    const teamMember: DbAccountUser = {
         userId,
         teamMemberId,
         userDisplayName: params.email,
@@ -139,7 +139,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         scopes: [],
         createdDate
     };
-    const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+    const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(teamMember));
     objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
@@ -221,14 +221,14 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         updates.push(updateUserReq);
     }
 
-    const teamMember = await DbTeamMember.get(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+    const teamMember = await DbAccountUser.get(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
     if (!teamMember) {
         log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {
         const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbTeamMember.getKeys(teamMember),
+            DbAccountUser.getKeys(teamMember),
             {
                 action: "remove",
                 attribute: "invitation"

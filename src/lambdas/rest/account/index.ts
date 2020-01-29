@@ -2,17 +2,17 @@ import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbTeamMember} from "../../../db/DbTeamMember";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import {Invitation} from "../../../model/Invitation";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import {DbUserDetails} from "../../../db/DbUserDetails";
+import {DbUser} from "../../../db/DbUser";
 import {deleteApiKeysForUser} from "../apiKeys";
 import {UserAccount} from "../../../model/UserAccount";
 import {AccountUser} from "../../../model/AccountUser";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
 import {getRolesForUserPrivilege, UserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
@@ -24,9 +24,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:read");
             auth.requireIds("userId");
-            const account = await DbAccountDetails.get(auth.userId);
+            const account = await DbAccount.get(auth.userId);
             return {
-                body: Account.getFromDbAccountDetails(account)
+                body: Account.getFromDbAccount(account)
             };
         });
 
@@ -50,7 +50,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             const account = await updateAccount(auth, evt.body);
             return {
-                body: Account.getFromDbAccountDetails(account)
+                body: Account.getFromDbAccount(account)
             };
         });
 
@@ -75,7 +75,7 @@ export function installAccountRest(router: cassava.Router): void {
             const account = await createAccount(auth, evt.body);
 
             return {
-                body: Account.getFromDbAccountDetails(account),
+                body: Account.getFromDbAccount(account),
                 statusCode: cassava.httpStatusCode.success.CREATED
             };
         });
@@ -86,9 +86,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("teamMemberId");
-            const userAccounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
+            const userAccounts = await DbAccountUser.getUserTeamMemberships(auth.teamMemberId);
             return {
-                body: userAccounts.map(UserAccount.fromDbTeamMember)
+                body: userAccounts.map(UserAccount.fromDbAccountUser)
             };
         });
 
@@ -115,7 +115,7 @@ export function installAccountRest(router: cassava.Router): void {
             });
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin, evt.body.userId);
+            const teamMember = await DbAccountUser.getUserLoginTeamMembership(userLogin, evt.body.userId);
             let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.userId && isTestModeUserId(evt.body.userId));
             const userBadge = DbUserLogin.getBadge(teamMember, liveMode, true);
 
@@ -135,9 +135,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:list");
             auth.requireIds("userId");
-            const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
+            const teamMembers = await DbAccountUser.getAccountTeamMembers(auth.userId);
             return {
-                body: teamMembers.map(AccountUser.fromDbTeamMember)
+                body: teamMembers.map(AccountUser.fromDbAccountUser)
             };
         });
 
@@ -147,12 +147,12 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:read");
             auth.requireIds("userId");
-            const teamMember = await DbTeamMember.get(auth.userId, evt.pathParameters.id);
+            const teamMember = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
             if (!teamMember || teamMember.invitation) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: AccountUser.fromDbTeamMember(teamMember)
+                body: AccountUser.fromDbAccountUser(teamMember)
             };
         });
 
@@ -185,7 +185,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             const teamMember = await updateTeamMember(auth, evt.pathParameters.id, evt.body);
             return {
-                body: AccountUser.fromDbTeamMember(teamMember)
+                body: AccountUser.fromDbAccountUser(teamMember)
             };
         });
 
@@ -281,13 +281,13 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccountDetails> {
+async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating Account", auth.userId);
 
-    const account = await DbAccountDetails.get(auth.userId);
+    const account = await DbAccount.get(auth.userId);
     if (!account) {
-        throw new Error(`Could not find DbAccountDetails for user '${auth.userId}'`);
+        throw new Error(`Could not find DbAccount for user '${auth.userId}'`);
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
@@ -304,16 +304,16 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         return account;
     }
 
-    await DbAccountDetails.update(account, ...updates);
+    await DbAccount.update(account, ...updates);
 
     // Update non-authoritative data.
     if (params.name) {
         log.info("Updating TeamMember.accountDisplayName for Account", auth.userId);
 
-        const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
+        const teamMembers = await DbAccountUser.getAccountTeamMembers(auth.userId);
         for (const teamMember of teamMembers) {
             try {
-                await DbTeamMember.update(teamMember, {
+                await DbAccountUser.update(teamMember, {
                     attribute: "accountDisplayName",
                     action: "put",
                     value: params.name
@@ -327,27 +327,27 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return account;
 }
 
-async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name: string }): Promise<DbAccountDetails> {
+async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name: string }): Promise<DbAccount> {
     auth.requireIds("teamMemberId");
-    const userId = DbUserDetails.generateUserId();
+    const userId = DbUser.generateUserId();
     log.info("Creating new Account", userId, "for existing user", auth.teamMemberId);
 
-    const userDetails = await DbUserDetails.getByAuth(auth);
+    const userDetails = await DbUser.getByAuth(auth);
     if (!userDetails) {
         throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
     }
 
-    const accountDetails: DbAccountDetails = {
+    const accountDetails: DbAccount = {
         userId,
         name: params.name
     };
-    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
+    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(createAccountReq, {
         operator: "attribute_not_exists",
         attribute: "pk"
     });
 
-    const teamMember: DbTeamMember = {
+    const teamMember: DbAccountUser = {
         userId,
         teamMemberId: stripUserIdTestMode(auth.teamMemberId),
         roles: getRolesForUserPrivilege("OWNER"),
@@ -356,7 +356,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         accountDisplayName: accountDetails.name,
         createdDate: createdDateNow()
     };
-    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(teamMember));
     objectDynameh.requestBuilder.addCondition(createTeamMemberReq, {
         operator: "attribute_not_exists",
         attribute: "pk"
@@ -373,7 +373,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const accountUserId = stripUserIdTestMode(auth.userId);
     log.info("Inviting User", params.email, "to Account", accountUserId);
 
-    const accountDetails = await DbAccountDetails.get(auth.userId);
+    const accountDetails = await DbAccount.get(auth.userId);
     if (!accountDetails) {
         throw new Error(`Could not find AccountDetails for authed userId '${auth.userId}'`);
     }
@@ -385,7 +385,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     if (userLogin) {
         log.info("Inviting existing User", userLogin.userId);
     } else {
-        const userId = DbUserDetails.generateUserId();
+        const userId = DbUser.generateUserId();
         userLogin = {
             email: params.email,
             userId,
@@ -401,11 +401,11 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         });
         updates.push(putUserReq);
 
-        const userDetails: DbUserDetails = {
+        const userDetails: DbUser = {
             userId,
             email: params.email
         };
-        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
+        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
         objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
             attribute: "pk",
             operator: "attribute_not_exists"
@@ -415,12 +415,12 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         log.info("Inviting new User", userLogin.userId);
     }
 
-    let teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
+    let teamMember = await DbAccountUser.get(accountUserId, userLogin.userId);
     if (teamMember) {
         log.info("Inviting existing TeamMember", teamMember.userId, teamMember.teamMemberId);
         if (teamMember.invitation) {
             const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-                DbTeamMember.getKeys(teamMember),
+                DbAccountUser.getKeys(teamMember),
                 {
                     action: "put",
                     attribute: "invitation.createdDate",
@@ -457,7 +457,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             scopes,
             createdDate
         };
-        const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+        const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(teamMember));
         objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
             attribute: "userId",
             operator: "attribute_not_exists"
@@ -471,14 +471,14 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
     await sendTeamInvitation({email: params.email, userId: accountUserId, teamMemberId: userLogin.userId});
 
-    return Invitation.fromDbTeamMember(teamMember);
+    return Invitation.fromDbAccountUser(teamMember);
 }
 
-export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbTeamMember> {
+export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
     auth.requireIds("userId");
     log.info("Updating TeamMember", teamMemberId, "in Account", auth.userId, "\n", params);
 
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    const teamMember = await DbAccountUser.get(auth.userId, teamMemberId);
     if (!teamMember) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
@@ -510,7 +510,7 @@ export async function updateTeamMember(auth: giftbitRoutes.jwtauth.Authorization
     }
 
     if (updates.length) {
-        await DbTeamMember.update(teamMember, ...updates);
+        await DbAccountUser.update(teamMember, ...updates);
     }
     return teamMember;
 }
@@ -519,7 +519,7 @@ export async function removeTeamMember(auth: giftbitRoutes.jwtauth.Authorization
     auth.requireIds("userId");
     log.info("Removing TeamMember", teamMemberId, "from Account", auth.userId);
 
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    const teamMember = await DbAccountUser.get(auth.userId, teamMemberId);
     if (!teamMember) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
@@ -531,7 +531,7 @@ export async function removeTeamMember(auth: giftbitRoutes.jwtauth.Authorization
     await deleteApiKeysForUser(auth, teamMemberId);
 
     try {
-        await DbTeamMember.del(teamMember, {
+        await DbAccountUser.del(teamMember, {
             attribute: "invitation",
             operator: "attribute_not_exists"
         });
@@ -546,24 +546,24 @@ export async function removeTeamMember(auth: giftbitRoutes.jwtauth.Authorization
 
 export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");
-    const teamMembers = await DbTeamMember.getAccountInvitedTeamMembers(auth.userId);
-    return teamMembers.map(Invitation.fromDbTeamMember);
+    const teamMembers = await DbAccountUser.getAccountInvitedTeamMembers(auth.userId);
+    return teamMembers.map(Invitation.fromDbAccountUser);
 }
 
 export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<Invitation> {
     auth.requireIds("userId");
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    const teamMember = await DbAccountUser.get(auth.userId, teamMemberId);
     if (!teamMember || !teamMember.invitation) {
         return null;
     }
-    return Invitation.fromDbTeamMember(teamMember);
+    return Invitation.fromDbAccountUser(teamMember);
 }
 
 export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
     auth.requireIds("userId");
     log.info("Cancel invitation", auth.userId, teamMemberId);
 
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
+    const teamMember = await DbAccountUser.get(auth.userId, teamMemberId);
     if (!teamMember) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
@@ -572,7 +572,7 @@ export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadg
     }
 
     try {
-        await DbTeamMember.del(teamMember, {
+        await DbAccountUser.del(teamMember, {
             attribute: "invitation",
             operator: "attribute_exists"
         });

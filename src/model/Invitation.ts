@@ -1,4 +1,4 @@
-import {DbTeamMember} from "../db/DbTeamMember";
+import {DbAccountUser} from "../db/DbAccountUser";
 
 export interface Invitation {
     userId: string;
@@ -9,7 +9,7 @@ export interface Invitation {
 }
 
 export namespace Invitation {
-    export function fromDbTeamMember(teamMember: DbTeamMember): Invitation {
+    export function fromDbAccountUser(teamMember: DbAccountUser): Invitation {
         if (!teamMember.invitation) {
             throw new Error("TeamMember does not have an invitation.");
         }

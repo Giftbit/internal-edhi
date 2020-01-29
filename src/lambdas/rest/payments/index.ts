@@ -2,9 +2,9 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {getStripeClient} from "../../../utils/stripeUtils";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
-import {DbUserDetails} from "../../../db/DbUserDetails";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
 import {PaymentCreditCard} from "../../../model/PaymentCreditCard";
+import {DbUser} from "../../../db/DbUser";
+import {DbAccount} from "../../../db/DbAccount";
 import log = require("loglevel");
 import Stripe = require("stripe");
 
@@ -157,8 +157,8 @@ async function getOrCreateStripeCustomer(auth: giftbitRoutes.jwtauth.Authorizati
 }
 
 async function getDefaultStripeCustomerProperties(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ email: string, name: string }> {
-    const user = await DbUserDetails.getByAuth(auth);
-    const account = await DbAccountDetails.getByAuth(auth);
+    const user = await DbUser.getByAuth(auth);
+    const account = await DbAccount.getByAuth(auth);
     return {
         email: user.email,
         name: account.name

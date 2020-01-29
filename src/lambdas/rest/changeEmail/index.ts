@@ -1,12 +1,12 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbTeamMember} from "../../../db/DbTeamMember";
 import {sendChangeEmailAddressEmail} from "./sendChangeEmailAddressEmail";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserDetails} from "../../../db/DbUserDetails";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
+import {DbUser} from "../../../db/DbUser";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -69,7 +69,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
 
     log.info("Changing email address for", tokenAction.teamMemberId, "to", tokenAction.email);
 
-    const userDetails = await DbUserDetails.get(tokenAction.teamMemberId);
+    const userDetails = await DbUser.get(tokenAction.teamMemberId);
     if (!userDetails) {
         throw new Error(`Could not find UserDetails for '${tokenAction.teamMemberId}'.`);
     }
@@ -79,7 +79,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
         throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.teamMemberId}' so the DB is inconsistent.`);
     }
 
-    const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUserDetails.getKeys(userDetails), {
+    const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(userDetails), {
         attribute: "email",
         action: "put",
         value: tokenAction.email
@@ -130,10 +130,10 @@ export async function completeChangeEmail(token: string): Promise<void> {
     await sendEmailAddressChangedEmail(userLogin.email);
     await TokenAction.del(tokenAction);
 
-    const teamMemberships = await DbTeamMember.getUserTeamMemberships(tokenAction.teamMemberId);
+    const teamMemberships = await DbAccountUser.getUserTeamMemberships(tokenAction.teamMemberId);
     for (const teamMember of teamMemberships) {
         try {
-            await DbTeamMember.update(teamMember, {
+            await DbAccountUser.update(teamMember, {
                 attribute: "userDisplayName",
                 action: "put",
                 value: tokenAction.email
