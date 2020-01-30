@@ -1,7 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as superagent from "superagent";
-import * as uuid from "uuid/v4";
 import {DbApiKey} from "../../../db/DbApiKey";
 import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
@@ -84,7 +83,7 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
         userId: stripUserIdTestMode(auth.userId),
         teamMemberId: stripUserIdTestMode(auth.teamMemberId),
         name: name,
-        tokenId: uuid().replace(/-/g, ""),
+        tokenId: DbApiKey.generateTokenId(),
         tokenVersion: 3,
         roles: teamMember.roles,
         scopes: teamMember.scopes,

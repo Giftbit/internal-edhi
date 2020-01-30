@@ -1,3 +1,4 @@
+import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
@@ -25,6 +26,8 @@ export namespace DbApiKey {
         const apiKey = {...o};
         delete apiKey.pk;
         delete apiKey.sk;
+        delete apiKey.pk2;
+        delete apiKey.sk2;
         return apiKey as any;
     }
 
@@ -117,5 +120,9 @@ export namespace DbApiKey {
         const resp = await dynamodb.query(req).promise();
         const objects = objectDynameh2.responseUnwrapper.unwrapQueryOutput(resp);
         return objects.map(fromDbObject);
+    }
+
+    export function generateTokenId(): string {
+        return "tok-" + uuid().replace(/-/g, "");
     }
 }

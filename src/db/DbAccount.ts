@@ -54,12 +54,12 @@ export namespace DbAccount {
         return account;
     }
 
-    export async function put(accountDetails: DbAccount): Promise<void> {
-        await DbObject.put(toDbObject(accountDetails));
+    export async function put(account: DbAccount): Promise<void> {
+        await DbObject.put(toDbObject(account));
     }
 
-    export async function update(accountDetails: DbAccount, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(accountDetails), ...actions);
+    export async function update(account: DbAccount, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(account), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
