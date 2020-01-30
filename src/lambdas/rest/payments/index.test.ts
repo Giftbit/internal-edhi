@@ -25,9 +25,7 @@ describe("/v2/account/payments/cards", () => {
         sinonSandbox.restore();
     });
 
-    it("can set, get and delete the card (requires Stripe)", async function () {
-        this.timeout(20000);
-
+    it("can set, get and delete the card", async () => {
         // Use a new user to test the code path creating a Stripe customer.
         const userLogin = await testUtils.getNewUserLoginResp(router, sinonSandbox);
 
@@ -51,5 +49,5 @@ describe("/v2/account/payments/cards", () => {
 
         const getDeletedCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "GET");
         chai.assert.equal(getDeletedCardResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
-    });
+    }).timeout(20000);
 });
