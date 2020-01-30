@@ -67,16 +67,16 @@ export async function completeChangeEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error confirming the change of email address.  Maybe the email link timed out.");
     }
 
-    log.info("Changing email address for", tokenAction.teamMemberId, "to", tokenAction.email);
+    log.info("Changing email address for", tokenAction.userId, "to", tokenAction.email);
 
-    const userDetails = await DbUser.get(tokenAction.teamMemberId);
+    const userDetails = await DbUser.get(tokenAction.userId);
     if (!userDetails) {
-        throw new Error(`Could not find UserDetails for '${tokenAction.teamMemberId}'.`);
+        throw new Error(`Could not find UserDetails for '${tokenAction.userId}'.`);
     }
 
     const userLogin = await DbUserLogin.get(userDetails.email);
     if (!userLogin) {
-        throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.teamMemberId}' so the DB is inconsistent.`);
+        throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.userId}' so the DB is inconsistent.`);
     }
 
     const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(userDetails), {
@@ -122,7 +122,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
         throw error;
     }
 
-    log.info("Changed (authoritative data) email address for", tokenAction.teamMemberId, "to", tokenAction.email);
+    log.info("Changed (authoritative data) email address for", tokenAction.userId, "to", tokenAction.email);
 
     // At this point there's no going back.  If we die here some data in the DB will be inconsistent.
     // Such is life in a de-normalized DB.  The good news is nothing below is considered authoritative.
@@ -130,7 +130,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
     await sendEmailAddressChangedEmail(userLogin.email);
     await TokenAction.del(tokenAction);
 
-    const teamMemberships = await DbAccountUser.getUserTeamMemberships(tokenAction.teamMemberId);
+    const teamMemberships = await DbAccountUser.getAllForUser(tokenAction.userId);
     for (const teamMember of teamMemberships) {
         try {
             await DbAccountUser.update(teamMember, {
@@ -139,7 +139,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
                 value: tokenAction.email
             });
         } catch (error) {
-            log.error("Unable to change displayName for team member", teamMember.userId, teamMember.teamMemberId, "\n", error);
+            log.error("Unable to change displayName for team member", teamMember.accountId, teamMember.userId, "\n", error);
         }
     }
 }

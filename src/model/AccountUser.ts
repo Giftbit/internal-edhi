@@ -11,8 +11,8 @@ export interface AccountUser {
 export namespace AccountUser {
     export function fromDbAccountUser(teamMember: DbAccountUser): AccountUser {
         return {
-            userId: teamMember.userId,
-            teamMemberId: teamMember.teamMemberId,
+            userId: teamMember.accountId,
+            teamMemberId: teamMember.userId,
             displayName: teamMember.accountDisplayName,
             roles: teamMember.roles,
             scopes: teamMember.scopes

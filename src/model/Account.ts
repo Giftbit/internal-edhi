@@ -9,7 +9,7 @@ export namespace Account {
 
     export function getFromDbAccount(account: DbAccount): Account {
         return {
-            userId: account.userId,
+            userId: account.accountId,
             name: account.name
         };
     }

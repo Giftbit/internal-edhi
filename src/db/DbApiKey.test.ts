@@ -11,8 +11,8 @@ describe("DbApiKey", () => {
 
     it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbApiKey = {
+            accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
-            teamMemberId: testUtils.generateId(),
             name: "Test Key",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -26,8 +26,8 @@ describe("DbApiKey", () => {
 
     it("can put and get an ApiKey by Account", async () => {
         const apiKey: DbApiKey = {
+            accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
-            teamMemberId: testUtils.generateId(),
             name: "Test Key",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -37,14 +37,14 @@ describe("DbApiKey", () => {
         };
         await DbApiKey.put(apiKey);
 
-        const apiKeyByAccount = await DbApiKey.getByAccount(apiKey.userId, apiKey.tokenId);
+        const apiKeyByAccount = await DbApiKey.getByAccount(apiKey.accountId, apiKey.tokenId);
         chai.assert.deepEqual(apiKeyByAccount, apiKey);
     });
 
     it("can put and get an ApiKey by User", async () => {
         const apiKey: DbApiKey = {
+            accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
-            teamMemberId: testUtils.generateId(),
             name: "Test Key",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -54,7 +54,7 @@ describe("DbApiKey", () => {
         };
         await DbApiKey.put(apiKey);
 
-        const apiKeyByUser = await DbApiKey.getByUser(apiKey.teamMemberId, apiKey.tokenId);
+        const apiKeyByUser = await DbApiKey.getByUser(apiKey.userId, apiKey.tokenId);
         chai.assert.deepEqual(apiKeyByUser, apiKey);
     });
 
@@ -66,8 +66,8 @@ describe("DbApiKey", () => {
         const userId3 = testUtils.generateId();
 
         const account1User1Key: DbApiKey = {
-            userId: accountId1,
-            teamMemberId: userId1,
+            accountId: accountId1,
+            userId: userId1,
             name: "account1, user1",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -78,8 +78,8 @@ describe("DbApiKey", () => {
         await DbApiKey.put(account1User1Key);
 
         const account1User1Key2: DbApiKey = {
-            userId: accountId1,
-            teamMemberId: userId1,
+            accountId: accountId1,
+            userId: userId1,
             name: "account1, user1",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -90,8 +90,8 @@ describe("DbApiKey", () => {
         await DbApiKey.put(account1User1Key2);
 
         const account1User2Key: DbApiKey = {
-            userId: accountId1,
-            teamMemberId: userId2,
+            accountId: accountId1,
+            userId: userId2,
             name: "account1, user2",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -102,8 +102,8 @@ describe("DbApiKey", () => {
         await DbApiKey.put(account1User2Key);
 
         const account2User2Key: DbApiKey = {
-            userId: accountId2,
-            teamMemberId: userId2,
+            accountId: accountId2,
+            userId: userId2,
             name: "account2, user2",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
@@ -114,8 +114,8 @@ describe("DbApiKey", () => {
         await DbApiKey.put(account2User2Key);
 
         const account2User3Key: DbApiKey = {
-            userId: accountId2,
-            teamMemberId: userId3,
+            accountId: accountId2,
+            userId: userId3,
             name: "account2, user3",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,

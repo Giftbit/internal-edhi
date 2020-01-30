@@ -56,7 +56,7 @@ export namespace defaultTestUser {
         },
         emailVerified: true,
         frozen: false,
-        defaultLoginUserId: userId + "-TEST",
+        defaultLoginAccountId: userId + "-TEST",
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userDetails: DbUser = {
@@ -64,12 +64,12 @@ export namespace defaultTestUser {
         email: email
     };
     export const accountDetails: DbAccount = {
-        userId: userId,
+        accountId: userId,
         name: "Test Account"
     };
     export const teamMember: DbAccountUser = {
-        userId: userId,
-        teamMemberId: teamMemberId,
+        accountId: userId,
+        userId: teamMemberId,
         userDisplayName: email,
         accountDisplayName: accountDetails.name,
         roles: auth.roles,
@@ -115,7 +115,7 @@ export namespace defaultTestUser {
             },
             emailVerified: true,
             frozen: false,
-            defaultLoginUserId: userId + "-TEST",
+            defaultLoginAccountId: userId + "-TEST",
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userDetails: DbUser = {
@@ -123,8 +123,8 @@ export namespace defaultTestUser {
             email: email
         };
         export const teamMember: DbAccountUser = {
-            userId: userId,
-            teamMemberId: teamMemberId,
+            accountId: userId,
+            userId: teamMemberId,
             userDisplayName: email,
             accountDisplayName: "Test Account",
             roles: auth.roles,

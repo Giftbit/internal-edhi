@@ -61,7 +61,7 @@ export interface DbUserLogin {
      * The default account userId a user will log in to
      * if none is specified.
      */
-    defaultLoginUserId: string;
+    defaultLoginAccountId: string;
 
     /**
      * A history of recent failed log in attempt Dates.  Too many
@@ -240,12 +240,12 @@ export namespace DbUserLogin {
         return userLogin;
     }
 
-    export function getBadge(teamMember: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(accountUser: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-        auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
-        auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");
-        auth.roles = teamMember.roles;
-        auth.scopes = teamMember.scopes;
+        auth.userId = accountUser.accountId + (liveMode ? "" : "-TEST");
+        auth.teamMemberId = accountUser.userId + (liveMode ? "" : "-TEST");
+        auth.roles = accountUser.roles;
+        auth.scopes = accountUser.scopes;
         auth.issuer = "EDHI";
         auth.audience = shortLived ? "WEBAPP" : "API";
         auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60 * 1000) : null;

@@ -6,7 +6,7 @@ import {dynamodb, objectDynameh} from "./dynamodb";
 
 export interface DbAccount {
 
-    userId: string;
+    accountId: string;
     name: string;
 
 }
@@ -35,18 +35,18 @@ export namespace DbAccount {
 
     export function getKeys(accountDetails: DbAccount): DbObject {
         return {
-            pk: "Account/" + accountDetails.userId,
-            sk: "Account/" + accountDetails.userId
+            pk: "Account/" + accountDetails.accountId,
+            sk: "Account/" + accountDetails.accountId
         };
     }
 
-    export async function get(userId: string): Promise<DbAccount> {
-        userId = stripUserIdTestMode(userId);
-        return fromDbObject(await DbObject.get("Account/" + userId, "Account/" + userId));
+    export async function get(accountId: string): Promise<DbAccount> {
+        accountId = stripUserIdTestMode(accountId);
+        return fromDbObject(await DbObject.get("Account/" + accountId, "Account/" + accountId));
     }
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccount> {
-        auth.requireIds("teamMemberId");
+        auth.requireIds("userId");
         const account = await get(stripUserIdTestMode(auth.userId));
         if (!account) {
             throw new Error(`Could not find authed AccountDetails ${auth.userId}`);

@@ -6,8 +6,8 @@ import {createdDateNow} from "./dynamodb";
 describe("DbAccountUser", () => {
     it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbAccountUser = {
+            accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
-            teamMemberId: testUtils.generateId(),
             accountDisplayName: "asdf",
             userDisplayName: "jkl;",
             roles: [],

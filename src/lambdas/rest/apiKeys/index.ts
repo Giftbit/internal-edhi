@@ -80,8 +80,8 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
 
     const teamMember = await DbAccountUser.getByAuth(auth);
     const apiKey: DbApiKey = {
-        userId: stripUserIdTestMode(auth.userId),
-        teamMemberId: stripUserIdTestMode(auth.teamMemberId),
+        accountId: stripUserIdTestMode(auth.userId),
+        userId: stripUserIdTestMode(auth.teamMemberId),
         name: name,
         tokenId: DbApiKey.generateTokenId(),
         tokenVersion: 3,
@@ -128,11 +128,11 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
  * Revokes the API key in the external credentials service.
  */
 async function revokeApiKey(apiKey: DbApiKey): Promise<void> {
-    log.info("Revoking API key", apiKey.userId, apiKey.teamMemberId, apiKey.tokenId);
+    log.info("Revoking API key", apiKey.accountId, apiKey.userId, apiKey.tokenId);
 
     const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-    auth.userId = apiKey.userId;
-    auth.teamMemberId = apiKey.teamMemberId;
+    auth.userId = apiKey.accountId;
+    auth.teamMemberId = apiKey.userId;
     auth.uniqueIdentifier = apiKey.tokenId;
     auth.roles = apiKey.roles;
     auth.scopes = apiKey.scopes;

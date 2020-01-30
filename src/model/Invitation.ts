@@ -14,8 +14,8 @@ export namespace Invitation {
             throw new Error("TeamMember does not have an invitation.");
         }
         return {
-            userId: teamMember.userId,
-            teamMemberId: teamMember.teamMemberId,
+            userId: teamMember.accountId,
+            teamMemberId: teamMember.userId,
             email: teamMember.invitation.email,
             createdDate: teamMember.invitation.createdDate,
             expiresDate: teamMember.invitation.expiresDate

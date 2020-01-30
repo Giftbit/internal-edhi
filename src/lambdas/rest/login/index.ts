@@ -350,12 +350,12 @@ async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dyn
 
     await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
 
-    const teamMember = await DbAccountUser.getUserLoginTeamMembership(userLogin);
+    const teamMember = await DbAccountUser.getUserLoginAccount(userLogin);
     if (!teamMember) {
         return DbUserLogin.getOrphanBadge(userLogin);
     }
 
-    const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
+    const liveMode = isTestModeUserId(userLogin.defaultLoginAccountId);
     return DbUserLogin.getBadge(teamMember, liveMode, true);
 }
 

@@ -9,8 +9,8 @@ export interface UserAccount {
 export namespace UserAccount {
     export function fromDbAccountUser(teamMember: DbAccountUser): UserAccount {
         return {
-            userId: teamMember.userId,
-            teamMemberId: teamMember.teamMemberId,
+            userId: teamMember.accountId,
+            teamMemberId: teamMember.userId,
             displayName: teamMember.accountDisplayName
         };
     }

@@ -101,7 +101,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
-        defaultLoginUserId: userId,
+        defaultLoginAccountId: userId,
         createdDate
     };
     const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
@@ -121,7 +121,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     });
 
     const accountDetails: DbAccount = {
-        userId,
+        accountId: userId,
         name: "My Organization"
     };
     const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
@@ -131,8 +131,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     });
 
     const teamMember: DbAccountUser = {
-        userId,
-        teamMemberId,
+        accountId: userId,
+        userId: teamMemberId,
         userDisplayName: params.email,
         accountDisplayName: accountDetails.name,
         roles: getRolesForUserPrivilege("OWNER"),
@@ -200,9 +200,9 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
     ];
 
-    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.teamMemberId);
+    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.userId);
     if (!userLogin) {
-        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.teamMemberId}`);
+        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.userId}`);
     }
     if (!userLogin.emailVerified) {
         // Accepting the invite verifies the email address.
@@ -221,9 +221,9 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         updates.push(updateUserReq);
     }
 
-    const teamMember = await DbAccountUser.get(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+    const teamMember = await DbAccountUser.get(acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
     if (!teamMember) {
-        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {

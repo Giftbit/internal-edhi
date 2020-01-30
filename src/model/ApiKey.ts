@@ -20,8 +20,8 @@ export namespace ApiKey {
 
     export function fromDbApiKey(apiKey: DbApiKey): ApiKey {
         return {
-            userId: apiKey.userId,
-            teamMemberId: apiKey.teamMemberId,
+            userId: apiKey.accountId,
+            teamMemberId: apiKey.userId,
             name: apiKey.name,
             tokenId: apiKey.tokenId,
             roles: apiKey.roles,
