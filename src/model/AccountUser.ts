@@ -1,8 +1,8 @@
 import {DbAccountUser} from "../db/DbAccountUser";
 
 export interface AccountUser {
+    accountId: string;
     userId: string;
-    teamMemberId: string;
     displayName: string;
     roles: string[];
     scopes: string[];
@@ -11,8 +11,8 @@ export interface AccountUser {
 export namespace AccountUser {
     export function fromDbAccountUser(teamMember: DbAccountUser): AccountUser {
         return {
-            userId: teamMember.accountId,
-            teamMemberId: teamMember.userId,
+            accountId: teamMember.accountId,
+            userId: teamMember.userId,
             displayName: teamMember.accountDisplayName,
             roles: teamMember.roles,
             scopes: teamMember.scopes

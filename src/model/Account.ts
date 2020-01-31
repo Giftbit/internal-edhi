@@ -1,7 +1,7 @@
 import {DbAccount} from "../db/DbAccount";
 
 export interface Account {
-    userId: string;
+    accountId: string;
     name: string;
 }
 
@@ -9,7 +9,7 @@ export namespace Account {
 
     export function getFromDbAccount(account: DbAccount): Account {
         return {
-            userId: account.accountId,
+            accountId: account.accountId,
             name: account.name
         };
     }
