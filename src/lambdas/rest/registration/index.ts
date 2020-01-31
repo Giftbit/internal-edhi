@@ -31,7 +31,8 @@ export function installRegistrationRest(router: cassava.Router): void {
                     },
                     password: {
                         type: "string",
-                        minLength: 8
+                        minLength: 8,
+                        maxLength: 255
                     },
                     name: {
                         type: "string",
