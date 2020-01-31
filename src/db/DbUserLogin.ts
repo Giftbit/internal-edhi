@@ -180,6 +180,8 @@ export namespace DbUserLogin {
         const userLogin = {...o};
         delete userLogin.pk;
         delete userLogin.sk;
+        delete userLogin.pk2;
+        delete userLogin.sk2;
         return userLogin as any;
     }
 
@@ -207,6 +209,10 @@ export namespace DbUserLogin {
 
     export async function get(email: string): Promise<DbUserLogin> {
         return fromDbObject(await DbObject.get("UserLogin/" + email, "UserLogin/" + email));
+    }
+
+    export async function put(userLogin: DbUserLogin): Promise<void> {
+        await DbObject.put(toDbObject(userLogin));
     }
 
     export async function update(userLogin: DbUserLogin, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
