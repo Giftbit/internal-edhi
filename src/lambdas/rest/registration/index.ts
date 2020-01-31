@@ -32,6 +32,10 @@ export function installRegistrationRest(router: cassava.Router): void {
                     password: {
                         type: "string",
                         minLength: 8
+                    },
+                    name: {
+                        type: "string",
+                        minLength: 1
                     }
                 },
                 required: ["email", "password"],
@@ -40,7 +44,8 @@ export function installRegistrationRest(router: cassava.Router): void {
 
             await createUserAndAccount({
                 email: evt.body.email,
-                plaintextPassword: evt.body.password
+                plaintextPassword: evt.body.password,
+                name: evt.body.name
             });
 
             return {
@@ -86,22 +91,22 @@ export function installRegistrationRest(router: cassava.Router): void {
         });
 }
 
-async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
+async function createUserAndAccount(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
+    const accountId = DbAccount.generateAccountId();
     const userId = DbUser.generateUserId();
-    const teamMemberId = DbUser.generateUserId();
     const createdDate = createdDateNow();
 
-    log.info("Registering new user email=", params.email, "userId=", userId, "teamMemberId=", teamMemberId);
+    log.info("Registering new account and user, email=", params.email, "accountId=", accountId, "userId=", userId);
 
     const userLogin: DbUserLogin = {
         email: params.email,
-        userId: teamMemberId,
+        userId: userId,
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
-        defaultLoginAccountId: userId,
+        defaultLoginAccountId: accountId,
         createdDate
     };
     const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
@@ -111,7 +116,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     });
 
     const userDetails: DbUser = {
-        userId: teamMemberId,
+        userId: userId,
         email: params.email
     };
     const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
@@ -121,31 +126,31 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
     });
 
     const accountDetails: DbAccount = {
-        accountId: userId,
-        name: "My Organization"
+        accountId: accountId,
+        name: params.name ?? "Account"
     };
-    const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
-    objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
+    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
+    objectDynameh.requestBuilder.addCondition(putAccountReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const teamMember: DbAccountUser = {
-        accountId: userId,
-        userId: teamMemberId,
+    const accountUser: DbAccountUser = {
+        accountId: accountId,
+        userId: userId,
         userDisplayName: params.email,
         accountDisplayName: accountDetails.name,
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         createdDate
     };
-    const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(teamMember));
-    objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+    const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
+    objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountDetailsReq, putTeamMemberReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountReq, putAccountUserReq);
     try {
         await transactWriteItemsFixed(writeReq);
     } catch (error) {

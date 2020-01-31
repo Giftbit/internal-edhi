@@ -44,10 +44,10 @@ describe("/v2/account", () => {
 
     it("can update account name", async () => {
         const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
-            name: "Worlds Okayest Organization"
+            name: "Worlds Okayest Account"
         });
         chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(patchAccountResp.body.name, "Worlds Okayest Organization");
+        chai.assert.equal(patchAccountResp.body.name, "Worlds Okayest Account");
 
         const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -56,7 +56,7 @@ describe("/v2/account", () => {
         const getUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(getUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getUserAccountsResp.body, 1);
-        chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Organization");
+        chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {

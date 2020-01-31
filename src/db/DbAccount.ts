@@ -1,5 +1,6 @@
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
@@ -7,7 +8,7 @@ import {dynamodb, objectDynameh} from "./dynamodb";
 export interface DbAccount {
 
     accountId: string;
-    
+
     name: string;
 
 }
@@ -66,5 +67,11 @@ export namespace DbAccount {
             operator: "attribute_exists"
         });
         await dynamodb.updateItem(req).promise();
+    }
+
+    export function generateAccountId(): string {
+        // Accounts were the original users and this is how IDs were generated.
+        // They still take this form for consistency.
+        return "user-" + uuid().replace(/-/g, "");
     }
 }
