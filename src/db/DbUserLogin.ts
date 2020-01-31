@@ -5,7 +5,6 @@ import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
-import {DbUser} from "./DbUser";
 
 /**
  * Stores login information about a user.  Users log in with their email address
@@ -42,7 +41,7 @@ export interface DbUserLogin {
     frozen: boolean;
 
     /**
-     * Accounts can be time locked on too many
+     * Accounts can be time locked on too many login failures.
      */
     lockedUntilDate?: string;
 
@@ -200,7 +199,9 @@ export namespace DbUserLogin {
         }
         return {
             pk: "UserLogin/" + userLogin.email,
-            sk: "UserLogin/" + userLogin.email
+            sk: "UserLogin/" + userLogin.email,
+            pk2: "UserLogin/" + userLogin.userId,
+            sk2: "UserLogin/" + userLogin.userId,
         };
     }
 
@@ -227,8 +228,7 @@ export namespace DbUserLogin {
     }
 
     export async function getById(userId: string): Promise<DbUserLogin> {
-        const userDetails = await DbUser.get(userId);
-        return userDetails && get(userDetails.email);
+        return fromDbObject(await DbObject.getSecondary("UserLogin/" + userId, "UserLogin/" + userId));
     }
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUserLogin> {

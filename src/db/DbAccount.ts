@@ -7,6 +7,7 @@ import {dynamodb, objectDynameh} from "./dynamodb";
 export interface DbAccount {
 
     accountId: string;
+    
     name: string;
 
 }
