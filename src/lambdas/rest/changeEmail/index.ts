@@ -130,16 +130,16 @@ export async function completeChangeEmail(token: string): Promise<void> {
     await sendEmailAddressChangedEmail(userLogin.email);
     await TokenAction.del(tokenAction);
 
-    const teamMemberships = await DbAccountUser.getAllForUser(tokenAction.userId);
-    for (const teamMember of teamMemberships) {
+    const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);
+    for (const accountUser of accountUsers) {
         try {
-            await DbAccountUser.update(teamMember, {
+            await DbAccountUser.update(accountUser, {
                 attribute: "userDisplayName",
                 action: "put",
                 value: tokenAction.email
             });
         } catch (error) {
-            log.error("Unable to change displayName for team member", teamMember.accountId, teamMember.userId, "\n", error);
+            log.error("Unable to change displayName for AccountUser", accountUser.accountId, accountUser.userId, "\n", error);
         }
     }
 }

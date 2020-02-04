@@ -350,7 +350,7 @@ async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dyn
 
     await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
 
-    const accountUser = await DbAccountUser.getUserLoginAccount(userLogin);
+    const accountUser = await DbAccountUser.getByUserLogin(userLogin);
     if (!accountUser) {
         return DbUserLogin.getOrphanBadge(userLogin);
     }

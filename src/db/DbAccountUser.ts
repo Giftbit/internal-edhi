@@ -130,28 +130,26 @@ export namespace DbAccountUser {
     }
 
     /**
-     * Get the team member the given user should login as.
+     * Get the AccountUser the given User should login as.
      */
-    export async function getUserLoginAccount(userLogin: DbUserLogin, accountUserId?: string): Promise<DbAccountUser> {
-        if (!accountUserId) {
-            accountUserId = userLogin.defaultLoginAccountId;
-        }
-        if (accountUserId) {
-            const accountUser = await DbAccountUser.get(accountUserId, userLogin.userId);
+    export async function getByUserLogin(userLogin: DbUserLogin, overrideAccountId?: string): Promise<DbAccountUser> {
+        const accountId = overrideAccountId || userLogin.defaultLoginAccountId;
+        if (accountId) {
+            const accountUser = await DbAccountUser.get(accountId, userLogin.userId);
             if (accountUser) {
-                if (accountUserId !== userLogin.defaultLoginAccountId) {
+                if (accountId !== userLogin.defaultLoginAccountId) {
                     await DbUserLogin.update(userLogin, {
                         action: "put",
                         attribute: "defaultLoginUserId",
-                        value: accountUserId
+                        value: accountId
                     });
                 }
-                log.info("Got login team membership", accountUserId, "for User", userLogin.email);
+                log.info("Got login AccountUser", accountId, "for User", userLogin.email);
                 return accountUser;
             }
         }
 
-        log.info("Could not find login team membership", accountUserId, "for User", userLogin.email, "; falling back to one at random");
+        log.info("Could not find login AccountUser", accountId, "for User", userLogin.email, "; falling back to one at random");
 
         // Get any random AccountUser to log in as.
         const queryReq = objectDynameh2.requestBuilder.buildQueryInput(userLogin.userId);

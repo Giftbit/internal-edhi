@@ -41,7 +41,7 @@ export function installAccountRest(router: cassava.Router): void {
                     name: {
                         type: "string",
                         minLength: 1,
-                        maxLength: 1024
+                        maxLength: 1023
                     }
                 },
                 required: [],
@@ -105,7 +105,7 @@ export function installAccountRest(router: cassava.Router): void {
                         type: "string",
                         enum: ["live", "test"]
                     },
-                    userId: {
+                    accountId: {
                         type: "string",
                         minLength: 1
                     }
@@ -115,9 +115,9 @@ export function installAccountRest(router: cassava.Router): void {
             });
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            const teamMember = await DbAccountUser.getUserLoginAccount(userLogin, evt.body.userId);
-            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.userId && isTestModeUserId(evt.body.userId));
-            const userBadge = DbUserLogin.getBadge(teamMember, liveMode, true);
+            const accountUser = await DbAccountUser.getByUserLogin(userLogin, evt.body.accountId);
+            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.accountId && isTestModeUserId(evt.body.accountId));
+            const userBadge = DbUserLogin.getBadge(accountUser, liveMode, true);
 
             return {
                 body: null,
@@ -310,16 +310,16 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     if (params.name) {
         log.info("Updating TeamMember.accountDisplayName for Account", auth.userId);
 
-        const teamMembers = await DbAccountUser.getAllForAccount(auth.userId);
-        for (const teamMember of teamMembers) {
+        const accountUsers = await DbAccountUser.getAllForAccount(auth.userId);
+        for (const accountUser of accountUsers) {
             try {
-                await DbAccountUser.update(teamMember, {
+                await DbAccountUser.update(accountUser, {
                     attribute: "accountDisplayName",
                     action: "put",
                     value: params.name
                 });
             } catch (error) {
-                log.error("Unable to change accountDisplayName for team member", teamMember.accountId, teamMember.userId, "\n", error);
+                log.error("Unable to change accountDisplayName for AccountUser", accountUser.accountId, accountUser.userId, "\n", error);
             }
         }
     }
@@ -524,7 +524,7 @@ export async function removeTeamMember(auth: giftbitRoutes.jwtauth.Authorization
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
     if (teamMember.invitation) {
-        log.info("The user is invited but not a full team member");
+        log.info("The user is invited but not a full member");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
 
@@ -537,7 +537,7 @@ export async function removeTeamMember(auth: giftbitRoutes.jwtauth.Authorization
         });
     } catch (error) {
         if (error.code === "ConditionalCheckFailedException") {
-            log.info("The user is invited but not a full team member");
+            log.info("The user is invited but not a full member");
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
         }
         throw error;

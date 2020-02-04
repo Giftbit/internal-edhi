@@ -79,7 +79,7 @@ describe("/v2/account", () => {
         chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.teamMemberId);
 
         const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
-            userId: createAccountResp.body.accountId,
+            accountId: createAccountResp.body.accountId,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
@@ -333,7 +333,7 @@ describe("/v2/account", () => {
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
 
         const switchAccountResp = await router.testPostLoginRequest(loginResp, "/v2/account/switch", "POST", {
-            userId: testUtils.defaultTestUser.userId,
+            accountId: testUtils.defaultTestUser.userId,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
@@ -352,7 +352,7 @@ describe("/v2/account", () => {
         chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.userId);
     });
 
-    it("can update a team member's roles and scopes (which deletes their API keys)", async () => {
+    it("can update an AccountUser's roles and scopes (which deletes their API keys)", async () => {
         const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "GET");
         chai.assert.equal(getTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
@@ -395,7 +395,7 @@ describe("/v2/account", () => {
         chai.assert.deepEqual(getTeamMateApiKeysResp.body, []);
     });
 
-    it("can delete the team member (and their api keys)", async () => {
+    it("can delete the AccountUser (and their api keys)", async () => {
         let inviteEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
