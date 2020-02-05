@@ -94,6 +94,22 @@ describe("/v2/user/changePassword", () => {
         chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
+    it("rejects a password of only numbers", async () => {
+        const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+            oldPassword: testUtils.defaultTestUser.password,
+            newPassword: "1234567654321"
+        });
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
+    it("rejects a very common password", async () => {
+        const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+            oldPassword: testUtils.defaultTestUser.password,
+            newPassword: "midnight"
+        });
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("requires the oldPassword to validate", async () => {
         const newPassword = generateId();
         const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {

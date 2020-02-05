@@ -101,6 +101,14 @@ describe("/v2/user/register", () => {
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
+    it("cannot register a user with a common password", async () => {
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: "commonpass@example.com",
+            password: "edmonton"
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("cannot verifyEmail with a bad token", async () => {
         const resp = await router.testUnauthedRequest<any>("/v2/user/register/verifyEmail?token=asdfasdfasdf", "GET");
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
