@@ -1,13 +1,12 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as superagent from "superagent";
-import * as uuid from "uuid/v4";
 import {DbApiKey} from "../../../db/DbApiKey";
-import {DbTeamMember} from "../../../db/DbTeamMember";
 import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
@@ -79,12 +78,12 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
 
     log.info("Creating API key for", auth.userId, auth.teamMemberId, "with name", name);
 
-    const teamMember = await DbTeamMember.getByAuth(auth);
+    const teamMember = await DbAccountUser.getByAuth(auth);
     const apiKey: DbApiKey = {
-        userId: stripUserIdTestMode(auth.userId),
-        teamMemberId: stripUserIdTestMode(auth.teamMemberId),
+        accountId: stripUserIdTestMode(auth.userId),
+        userId: stripUserIdTestMode(auth.teamMemberId),
         name: name,
-        tokenId: uuid().replace(/-/g, ""),
+        tokenId: DbApiKey.generateTokenId(),
         tokenVersion: 3,
         roles: teamMember.roles,
         scopes: teamMember.scopes,
@@ -129,11 +128,11 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
  * Revokes the API key in the external credentials service.
  */
 async function revokeApiKey(apiKey: DbApiKey): Promise<void> {
-    log.info("Revoking API key", apiKey.userId, apiKey.teamMemberId, apiKey.tokenId);
+    log.info("Revoking API key", apiKey.accountId, apiKey.userId, apiKey.tokenId);
 
     const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-    auth.userId = apiKey.userId;
-    auth.teamMemberId = apiKey.teamMemberId;
+    auth.userId = apiKey.accountId;
+    auth.teamMemberId = apiKey.userId;
     auth.uniqueIdentifier = apiKey.tokenId;
     auth.roles = apiKey.roles;
     auth.scopes = apiKey.scopes;

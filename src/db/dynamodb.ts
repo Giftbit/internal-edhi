@@ -58,7 +58,7 @@ export const objectSchema: dynameh.TableSchema = {
 
 export const objectSchema2: dynameh.TableSchema = {
     tableName: process.env["OBJECT_TABLE"],
-    indexName: "ReverseIndex",
+    indexName: "EdhiIx2",
     indexProperties: {
         projectionType: "ALL",
         type: "GLOBAL"

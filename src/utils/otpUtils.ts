@@ -69,7 +69,7 @@ export async function validateOtpCode(secret: string, code: string): Promise<boo
  */
 export async function generateSkewedOtpCode(secret: string, skewMilliSeconds: number): Promise<string> {
     return otplibCore.totpToken(otplib.authenticator.decode(await decryptOtpSecret(secret)), {
-        ...otplib.authenticator.optionsAll,
+        ...otplib.authenticator.allOptions(),
         epoch: Date.now() + skewMilliSeconds
     });
 }

@@ -10,11 +10,11 @@ import {
 } from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
-import {DbTeamMember} from "../../../db/DbTeamMember";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserDetails} from "../../../db/DbUserDetails";
+import {DbUser} from "../../../db/DbUser";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {DbAccount} from "../../../db/DbAccount";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
@@ -31,7 +31,13 @@ export function installRegistrationRest(router: cassava.Router): void {
                     },
                     password: {
                         type: "string",
-                        minLength: 8
+                        minLength: 8,
+                        maxLength: 255
+                    },
+                    name: {
+                        type: "string",
+                        minLength: 1,
+                        maxLength: 1023
                     }
                 },
                 required: ["email", "password"],
@@ -40,7 +46,8 @@ export function installRegistrationRest(router: cassava.Router): void {
 
             await createUserAndAccount({
                 email: evt.body.email,
-                plaintextPassword: evt.body.password
+                plaintextPassword: evt.body.password,
+                name: evt.body.name
             });
 
             return {
@@ -86,22 +93,22 @@ export function installRegistrationRest(router: cassava.Router): void {
         });
 }
 
-async function createUserAndAccount(params: { email: string, plaintextPassword: string }): Promise<void> {
+async function createUserAndAccount(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
-    const userId = DbUserDetails.generateUserId();
-    const teamMemberId = DbUserDetails.generateUserId();
+    const accountId = DbAccount.generateAccountId();
+    const userId = DbUser.generateUserId();
     const createdDate = createdDateNow();
 
-    log.info("Registering new user email=", params.email, "userId=", userId, "teamMemberId=", teamMemberId);
+    log.info("Registering new account and user, email=", params.email, "accountId=", accountId, "userId=", userId);
 
     const userLogin: DbUserLogin = {
         email: params.email,
-        userId: teamMemberId,
+        userId: userId,
         password: await hashPassword(params.plaintextPassword),
         emailVerified: false,
         frozen: false,
-        defaultLoginUserId: userId,
+        defaultLoginAccountId: accountId,
         createdDate
     };
     const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
@@ -110,42 +117,42 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const userDetails: DbUserDetails = {
-        userId: teamMemberId,
+    const userDetails: DbUser = {
+        userId: userId,
         email: params.email
     };
-    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
+    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
     objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const accountDetails: DbAccountDetails = {
-        userId,
-        name: "My Organization"
+    const accountDetails: DbAccount = {
+        accountId: accountId,
+        name: params.name ?? "Account"
     };
-    const putAccountDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
-    objectDynameh.requestBuilder.addCondition(putAccountDetailsReq, {
+    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
+    objectDynameh.requestBuilder.addCondition(putAccountReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const teamMember: DbTeamMember = {
-        userId,
-        teamMemberId,
+    const accountUser: DbAccountUser = {
+        accountId: accountId,
+        userId: userId,
         userDisplayName: params.email,
         accountDisplayName: accountDetails.name,
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         createdDate
     };
-    const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
-    objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
+    const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
+    objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountDetailsReq, putTeamMemberReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountReq, putAccountUserReq);
     try {
         await transactWriteItemsFixed(writeReq);
     } catch (error) {
@@ -200,9 +207,9 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
     ];
 
-    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.teamMemberId);
+    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.userId);
     if (!userLogin) {
-        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.teamMemberId}`);
+        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.userId}`);
     }
     if (!userLogin.emailVerified) {
         // Accepting the invite verifies the email address.
@@ -221,14 +228,14 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         updates.push(updateUserReq);
     }
 
-    const teamMember = await DbTeamMember.get(acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+    const teamMember = await DbAccountUser.get(acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
     if (!teamMember) {
-        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.userId, acceptInviteTokenAction.teamMemberId);
+        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
     }
     if (teamMember.invitation) {
         const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbTeamMember.getKeys(teamMember),
+            DbAccountUser.getKeys(teamMember),
             {
                 action: "remove",
                 attribute: "invitation"

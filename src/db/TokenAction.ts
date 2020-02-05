@@ -9,8 +9,8 @@ export interface TokenAction {
     token: string;
     action: TokenAction.Action;
     email: string;
+    accountId?: string;
     userId?: string;
-    teamMemberId?: string;
     ttl: Date | number;
 }
 
@@ -19,8 +19,8 @@ export namespace TokenAction {
 
     export interface GenerateAdditionalParams {
         email: string;
+        accountId?: string;
         userId?: string;
-        teamMemberId?: string;
     }
 
     export function generate(action: Action, durationInHours: number, params: GenerateAdditionalParams): TokenAction {

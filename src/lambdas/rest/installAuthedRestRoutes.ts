@@ -1,12 +1,13 @@
 import * as cassava from "cassava";
 import {installPingRest} from "./ping";
-import {installChangePasswordRest} from "./changePassword";
 import {installAccountRest} from "./account";
+import {installAccountInvitationsRest} from "./accountInvitations";
 import {installApiKeysRest} from "./apiKeys";
 import {installChangeEmailAuthedRest} from "./changeEmail";
-import {installMfaRest} from "./mfa";
-import {installLoginAuthedRest} from "./login";
+import {installChangePasswordRest} from "./changePassword";
 import {installCustomerSupportRest} from "./customerSupport";
+import {installLoginAuthedRest} from "./login";
+import {installMfaRest} from "./mfa";
 import {installPaymentsRest} from "./payments";
 
 /**
@@ -14,6 +15,7 @@ import {installPaymentsRest} from "./payments";
  */
 export function installAuthedRestRoutes(router: cassava.Router): void {
     installAccountRest(router);
+    installAccountInvitationsRest(router);
     installApiKeysRest(router);
     installChangeEmailAuthedRest(router);
     installChangePasswordRest(router);

@@ -2,8 +2,8 @@ import {DbApiKey} from "../db/DbApiKey";
 
 export interface ApiKey {
 
+    accountId: string;
     userId: string;
-    teamMemberId: string;
     name: string;
 
     tokenId: string;
@@ -20,8 +20,8 @@ export namespace ApiKey {
 
     export function fromDbApiKey(apiKey: DbApiKey): ApiKey {
         return {
+            accountId: apiKey.accountId,
             userId: apiKey.userId,
-            teamMemberId: apiKey.teamMemberId,
             name: apiKey.name,
             tokenId: apiKey.tokenId,
             roles: apiKey.roles,

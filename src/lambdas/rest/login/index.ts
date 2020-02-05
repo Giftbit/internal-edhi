@@ -5,13 +5,13 @@ import * as uuid from "uuid/v4";
 import {createdDateNow} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
-import {DbTeamMember} from "../../../db/DbTeamMember";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {validateOtpCode} from "../../../utils/otpUtils";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -350,13 +350,13 @@ async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dyn
 
     await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
 
-    const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin);
-    if (!teamMember) {
+    const accountUser = await DbAccountUser.getByUserLogin(userLogin);
+    if (!accountUser) {
         return DbUserLogin.getOrphanBadge(userLogin);
     }
 
-    const liveMode = isTestModeUserId(userLogin.defaultLoginUserId);
-    return DbUserLogin.getBadge(teamMember, liveMode, true);
+    const liveMode = isTestModeUserId(userLogin.defaultLoginAccountId);
+    return DbUserLogin.getBadge(accountUser, liveMode, true);
 }
 
 async function onUserLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {

@@ -1,9 +1,8 @@
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbObject} from "./DbObject";
-import {DbTeamMember} from "./DbTeamMember";
+import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
-import {DbUserDetails} from "./DbUserDetails";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
 
@@ -42,7 +41,7 @@ export interface DbUserLogin {
     frozen: boolean;
 
     /**
-     * Accounts can be time locked on too many
+     * Accounts can be time locked on too many login failures.
      */
     lockedUntilDate?: string;
 
@@ -61,7 +60,7 @@ export interface DbUserLogin {
      * The default account userId a user will log in to
      * if none is specified.
      */
-    defaultLoginUserId: string;
+    defaultLoginAccountId: string;
 
     /**
      * A history of recent failed log in attempt Dates.  Too many
@@ -181,6 +180,8 @@ export namespace DbUserLogin {
         const userLogin = {...o};
         delete userLogin.pk;
         delete userLogin.sk;
+        delete userLogin.pk2;
+        delete userLogin.sk2;
         return userLogin as any;
     }
 
@@ -200,12 +201,18 @@ export namespace DbUserLogin {
         }
         return {
             pk: "UserLogin/" + userLogin.email,
-            sk: "UserLogin/" + userLogin.email
+            sk: "UserLogin/" + userLogin.email,
+            pk2: "UserLogin/" + userLogin.userId,
+            sk2: "UserLogin/" + userLogin.userId,
         };
     }
 
     export async function get(email: string): Promise<DbUserLogin> {
         return fromDbObject(await DbObject.get("UserLogin/" + email, "UserLogin/" + email));
+    }
+
+    export async function put(userLogin: DbUserLogin): Promise<void> {
+        await DbObject.put(toDbObject(userLogin));
     }
 
     export async function update(userLogin: DbUserLogin, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
@@ -227,8 +234,7 @@ export namespace DbUserLogin {
     }
 
     export async function getById(userId: string): Promise<DbUserLogin> {
-        const userDetails = await DbUserDetails.get(userId);
-        return userDetails && get(userDetails.email);
+        return fromDbObject(await DbObject.getSecondary("UserLogin/" + userId, "UserLogin/" + userId));
     }
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUserLogin> {
@@ -240,12 +246,12 @@ export namespace DbUserLogin {
         return userLogin;
     }
 
-    export function getBadge(teamMember: DbTeamMember, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(accountUser: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-        auth.userId = teamMember.userId + (liveMode ? "" : "-TEST");
-        auth.teamMemberId = teamMember.teamMemberId + (liveMode ? "" : "-TEST");
-        auth.roles = teamMember.roles;
-        auth.scopes = teamMember.scopes;
+        auth.userId = accountUser.accountId + (liveMode ? "" : "-TEST");
+        auth.teamMemberId = accountUser.userId + (liveMode ? "" : "-TEST");
+        auth.roles = accountUser.roles;
+        auth.scopes = accountUser.scopes;
         auth.issuer = "EDHI";
         auth.audience = shortLived ? "WEBAPP" : "API";
         auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60 * 1000) : null;

@@ -7,7 +7,7 @@ import {stripUserIdTestMode} from "../utils/userUtils";
  * Details about a user other than login information.  At a minimum
  * this exists to guarantee uniqueness on the primary key of the userId.
  */
-export interface DbUserDetails {
+export interface DbUser {
 
     /**
      * The primary key.
@@ -22,9 +22,9 @@ export interface DbUserDetails {
 
 }
 
-export namespace DbUserDetails {
+export namespace DbUser {
 
-    export function fromDbObject(o: DbObject): DbUserDetails {
+    export function fromDbObject(o: DbObject): DbUser {
         if (!o) {
             return null;
         }
@@ -34,7 +34,7 @@ export namespace DbUserDetails {
         return userDetails as any;
     }
 
-    export function toDbObject(userDetails: DbUserDetails): DbUserDetails & DbObject {
+    export function toDbObject(userDetails: DbUser): DbUser & DbObject {
         if (!userDetails) {
             return null;
         }
@@ -44,7 +44,7 @@ export namespace DbUserDetails {
         };
     }
 
-    export function getKeys(userDetails: DbUserDetails): DbObject {
+    export function getKeys(userDetails: DbUser): DbObject {
         if (!userDetails || !userDetails.userId) {
             throw new Error("Not a valid UserDetails.");
         }
@@ -54,12 +54,12 @@ export namespace DbUserDetails {
         };
     }
 
-    export async function get(userId: string): Promise<DbUserDetails> {
+    export async function get(userId: string): Promise<DbUser> {
         userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("User/" + userId, "User/" + userId));
     }
 
-    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUserDetails> {
+    export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbUser> {
         auth.requireIds("teamMemberId");
         const user = await get(stripUserIdTestMode(auth.teamMemberId));
         if (!user) {

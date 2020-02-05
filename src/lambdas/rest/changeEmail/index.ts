@@ -1,12 +1,12 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbTeamMember} from "../../../db/DbTeamMember";
 import {sendChangeEmailAddressEmail} from "./sendChangeEmailAddressEmail";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserDetails} from "../../../db/DbUserDetails";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
+import {DbUser} from "../../../db/DbUser";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -67,19 +67,19 @@ export async function completeChangeEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error confirming the change of email address.  Maybe the email link timed out.");
     }
 
-    log.info("Changing email address for", tokenAction.teamMemberId, "to", tokenAction.email);
+    log.info("Changing email address for", tokenAction.userId, "to", tokenAction.email);
 
-    const userDetails = await DbUserDetails.get(tokenAction.teamMemberId);
+    const userDetails = await DbUser.get(tokenAction.userId);
     if (!userDetails) {
-        throw new Error(`Could not find UserDetails for '${tokenAction.teamMemberId}'.`);
+        throw new Error(`Could not find UserDetails for '${tokenAction.userId}'.`);
     }
 
     const userLogin = await DbUserLogin.get(userDetails.email);
     if (!userLogin) {
-        throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.teamMemberId}' so the DB is inconsistent.`);
+        throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.userId}' so the DB is inconsistent.`);
     }
 
-    const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUserDetails.getKeys(userDetails), {
+    const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(userDetails), {
         attribute: "email",
         action: "put",
         value: tokenAction.email
@@ -122,7 +122,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
         throw error;
     }
 
-    log.info("Changed (authoritative data) email address for", tokenAction.teamMemberId, "to", tokenAction.email);
+    log.info("Changed (authoritative data) email address for", tokenAction.userId, "to", tokenAction.email);
 
     // At this point there's no going back.  If we die here some data in the DB will be inconsistent.
     // Such is life in a de-normalized DB.  The good news is nothing below is considered authoritative.
@@ -130,16 +130,16 @@ export async function completeChangeEmail(token: string): Promise<void> {
     await sendEmailAddressChangedEmail(userLogin.email);
     await TokenAction.del(tokenAction);
 
-    const teamMemberships = await DbTeamMember.getUserTeamMemberships(tokenAction.teamMemberId);
-    for (const teamMember of teamMemberships) {
+    const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);
+    for (const accountUser of accountUsers) {
         try {
-            await DbTeamMember.update(teamMember, {
+            await DbAccountUser.update(accountUser, {
                 attribute: "userDisplayName",
                 action: "put",
                 value: tokenAction.email
             });
         } catch (error) {
-            log.error("Unable to change displayName for team member", teamMember.userId, teamMember.teamMemberId, "\n", error);
+            log.error("Unable to change displayName for AccountUser", accountUser.accountId, accountUser.userId, "\n", error);
         }
     }
 }

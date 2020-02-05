@@ -1,20 +1,17 @@
-import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbTeamMember} from "../../../db/DbTeamMember";
-import {Invitation} from "../../../model/Invitation";
+import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
-import {sendTeamInvitation} from "./sendTeamInvitationEmail";
 import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import {DbUserDetails} from "../../../db/DbUserDetails";
+import {DbUser} from "../../../db/DbUser";
 import {deleteApiKeysForUser} from "../apiKeys";
 import {UserAccount} from "../../../model/UserAccount";
 import {AccountUser} from "../../../model/AccountUser";
-import {DbAccountDetails} from "../../../db/DbAccountDetails";
+import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
-import {getRolesForUserPrivilege, UserPrivilege} from "../../../utils/rolesUtils";
+import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -24,9 +21,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:read");
             auth.requireIds("userId");
-            const account = await DbAccountDetails.get(auth.userId);
+            const account = await DbAccount.get(auth.userId);
             return {
-                body: Account.getFromDbAccountDetails(account)
+                body: Account.getFromDbAccount(account)
             };
         });
 
@@ -41,7 +38,7 @@ export function installAccountRest(router: cassava.Router): void {
                     name: {
                         type: "string",
                         minLength: 1,
-                        maxLength: 1024
+                        maxLength: 1023
                     }
                 },
                 required: [],
@@ -50,7 +47,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             const account = await updateAccount(auth, evt.body);
             return {
-                body: Account.getFromDbAccountDetails(account)
+                body: Account.getFromDbAccount(account)
             };
         });
 
@@ -75,7 +72,7 @@ export function installAccountRest(router: cassava.Router): void {
             const account = await createAccount(auth, evt.body);
 
             return {
-                body: Account.getFromDbAccountDetails(account),
+                body: Account.getFromDbAccount(account),
                 statusCode: cassava.httpStatusCode.success.CREATED
             };
         });
@@ -86,9 +83,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("teamMemberId");
-            const userAccounts = await DbTeamMember.getUserTeamMemberships(auth.teamMemberId);
+            const userAccounts = await DbAccountUser.getAllForUser(auth.teamMemberId);
             return {
-                body: userAccounts.map(UserAccount.fromDbTeamMember)
+                body: userAccounts.map(UserAccount.fromDbAccountUser)
             };
         });
 
@@ -105,7 +102,7 @@ export function installAccountRest(router: cassava.Router): void {
                         type: "string",
                         enum: ["live", "test"]
                     },
-                    userId: {
+                    accountId: {
                         type: "string",
                         minLength: 1
                     }
@@ -115,9 +112,9 @@ export function installAccountRest(router: cassava.Router): void {
             });
 
             const userLogin = await DbUserLogin.getByAuth(auth);
-            const teamMember = await DbTeamMember.getUserLoginTeamMembership(userLogin, evt.body.userId);
-            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.userId && isTestModeUserId(evt.body.userId));
-            const userBadge = DbUserLogin.getBadge(teamMember, liveMode, true);
+            const accountUser = await DbAccountUser.getByUserLogin(userLogin, evt.body.accountId);
+            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.accountId && isTestModeUserId(evt.body.accountId));
+            const userBadge = DbUserLogin.getBadge(accountUser, liveMode, true);
 
             return {
                 body: null,
@@ -135,9 +132,9 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:list");
             auth.requireIds("userId");
-            const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
+            const teamMembers = await DbAccountUser.getAllForAccount(auth.userId);
             return {
-                body: teamMembers.map(AccountUser.fromDbTeamMember)
+                body: teamMembers.map(AccountUser.fromDbAccountUser)
             };
         });
 
@@ -147,12 +144,12 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:read");
             auth.requireIds("userId");
-            const teamMember = await DbTeamMember.get(auth.userId, evt.pathParameters.id);
+            const teamMember = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
             if (!teamMember || teamMember.invitation) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: AccountUser.fromDbTeamMember(teamMember)
+                body: AccountUser.fromDbAccountUser(teamMember)
             };
         });
 
@@ -183,9 +180,9 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const teamMember = await updateTeamMember(auth, evt.pathParameters.id, evt.body);
+            const teamMember = await updateAccountUser(auth, evt.pathParameters.id, evt.body);
             return {
-                body: AccountUser.fromDbTeamMember(teamMember)
+                body: AccountUser.fromDbAccountUser(teamMember)
             };
         });
 
@@ -194,100 +191,20 @@ export function installAccountRest(router: cassava.Router): void {
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:delete");
-            await removeTeamMember(auth, evt.pathParameters.id);
-            return {
-                body: {}
-            };
-        });
-
-    router.route("/v2/account/invites")
-        .method("POST")
-        .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:account:users:create");
-
-            evt.validateBody({
-                properties: {
-                    email: {
-                        type: "string",
-                        format: "email"
-                    },
-                    userPrivilegeType: {
-                        type: "string",
-                        enum: ["OWNER", "FULL_ACCESS", "LIMITED_ACCESS"]
-                    },
-                    roles: {
-                        type: "array",
-                        items: {
-                            type: "string",
-                            minLength: 1,
-                            maxLength: 255
-                        }
-                    },
-                    scopes: {
-                        type: "array",
-                        items: {
-                            type: "string",
-                            minLength: 1,
-                            maxLength: 255
-                        }
-                    }
-                },
-                required: ["email"],
-                additionalProperties: false
-            });
-
-            const invitation = await inviteUser(auth, evt.body);
-            return {
-                body: invitation,
-                statusCode: cassava.httpStatusCode.success.CREATED
-            };
-        });
-
-    router.route("/v2/account/invites")
-        .method("GET")
-        .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:account:users:list");
-            const invites = await listInvites(auth);
-            return {
-                body: invites
-            };
-        });
-
-    router.route("/v2/account/invites/{id}")
-        .method("GET")
-        .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:account:users:read");
-            const invite = await getInvite(auth, evt.pathParameters.id);
-            if (!invite) {
-                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find invite with id '${evt.pathParameters.id}'.`, "InviteNotFound");
-            }
-            return {
-                body: invite
-            };
-        });
-
-    router.route("/v2/account/invites/{id}")
-        .method("DELETE")
-        .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:account:users:delete");
-            await cancelInvite(auth, evt.pathParameters.id);
+            await removeAccountUser(auth, evt.pathParameters.id);
             return {
                 body: {}
             };
         });
 }
 
-async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccountDetails> {
+async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating Account", auth.userId);
 
-    const account = await DbAccountDetails.get(auth.userId);
+    const account = await DbAccount.get(auth.userId);
     if (!account) {
-        throw new Error(`Could not find DbAccountDetails for user '${auth.userId}'`);
+        throw new Error(`Could not find DbAccount for user '${auth.userId}'`);
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
@@ -304,22 +221,22 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         return account;
     }
 
-    await DbAccountDetails.update(account, ...updates);
+    await DbAccount.update(account, ...updates);
 
     // Update non-authoritative data.
     if (params.name) {
         log.info("Updating TeamMember.accountDisplayName for Account", auth.userId);
 
-        const teamMembers = await DbTeamMember.getAccountTeamMembers(auth.userId);
-        for (const teamMember of teamMembers) {
+        const accountUsers = await DbAccountUser.getAllForAccount(auth.userId);
+        for (const accountUser of accountUsers) {
             try {
-                await DbTeamMember.update(teamMember, {
+                await DbAccountUser.update(accountUser, {
                     attribute: "accountDisplayName",
                     action: "put",
                     value: params.name
                 });
             } catch (error) {
-                log.error("Unable to change accountDisplayName for team member", teamMember.userId, teamMember.teamMemberId, "\n", error);
+                log.error("Unable to change accountDisplayName for AccountUser", accountUser.accountId, accountUser.userId, "\n", error);
             }
         }
     }
@@ -327,36 +244,36 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return account;
 }
 
-async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name: string }): Promise<DbAccountDetails> {
+async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name: string }): Promise<DbAccount> {
     auth.requireIds("teamMemberId");
-    const userId = DbUserDetails.generateUserId();
-    log.info("Creating new Account", userId, "for existing user", auth.teamMemberId);
+    const accountId = DbAccount.generateAccountId();
+    log.info("Creating new Account", accountId, "for existing user", auth.teamMemberId);
 
-    const userDetails = await DbUserDetails.getByAuth(auth);
+    const userDetails = await DbUser.getByAuth(auth);
     if (!userDetails) {
         throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
     }
 
-    const accountDetails: DbAccountDetails = {
-        userId,
+    const accountDetails: DbAccount = {
+        accountId: accountId,
         name: params.name
     };
-    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(accountDetails));
+    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(createAccountReq, {
         operator: "attribute_not_exists",
         attribute: "pk"
     });
 
-    const teamMember: DbTeamMember = {
-        userId,
-        teamMemberId: stripUserIdTestMode(auth.teamMemberId),
+    const accountUser: DbAccountUser = {
+        accountId: accountId,
+        userId: stripUserIdTestMode(auth.teamMemberId),
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         userDisplayName: userDetails.email,
         accountDisplayName: accountDetails.name,
         createdDate: createdDateNow()
     };
-    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
+    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
     objectDynameh.requestBuilder.addCondition(createTeamMemberReq, {
         operator: "attribute_not_exists",
         attribute: "pk"
@@ -368,119 +285,13 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return accountDetails;
 }
 
-export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
+export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
     auth.requireIds("userId");
-    const accountUserId = stripUserIdTestMode(auth.userId);
-    log.info("Inviting User", params.email, "to Account", accountUserId);
+    log.info("Updating AccountUser", userId, "in Account", auth.userId, "\n", params);
 
-    const accountDetails = await DbAccountDetails.get(auth.userId);
-    if (!accountDetails) {
-        throw new Error(`Could not find AccountDetails for authed userId '${auth.userId}'`);
-    }
-
-    const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
-    const createdDate = createdDateNow();
-
-    let userLogin = await DbUserLogin.get(params.email);
-    if (userLogin) {
-        log.info("Inviting existing User", userLogin.userId);
-    } else {
-        const userId = DbUserDetails.generateUserId();
-        userLogin = {
-            email: params.email,
-            userId,
-            emailVerified: false,
-            frozen: false,
-            defaultLoginUserId: accountUserId,
-            createdDate
-        };
-        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
-        objectDynameh.requestBuilder.addCondition(putUserReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putUserReq);
-
-        const userDetails: DbUserDetails = {
-            userId,
-            email: params.email
-        };
-        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(userDetails));
-        objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putUserDetailsReq);
-
-        log.info("Inviting new User", userLogin.userId);
-    }
-
-    let teamMember = await DbTeamMember.get(accountUserId, userLogin.userId);
-    if (teamMember) {
-        log.info("Inviting existing TeamMember", teamMember.userId, teamMember.teamMemberId);
-        if (teamMember.invitation) {
-            const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-                DbTeamMember.getKeys(teamMember),
-                {
-                    action: "put",
-                    attribute: "invitation.createdDate",
-                    value: createdDate
-                });
-            updates.push(updateTeamMemberReq);
-            log.info("Resending invitation to invited TeamMember", teamMember.userId, teamMember.teamMemberId);
-        } else {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
-        }
-    } else {
-        if (params.userPrivilegeType && params.roles) {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Cannot specify both userPrivilegeType and roles.");
-        }
-        if (!params.userPrivilegeType && !(params.roles && params.roles.length) && !(params.scopes && params.scopes.length)) {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Must specify userPrivilegeType or one of roles, scopes.");
-        }
-        const roles = (params.userPrivilegeType && getRolesForUserPrivilege(params.userPrivilegeType)) || params.roles;
-        const scopes = params.scopes || [];
-
-        const expiresDate = new Date();
-        expiresDate.setDate(expiresDate.getDate() + 5);
-        teamMember = {
-            userId: accountUserId,
-            teamMemberId: userLogin.userId,
-            userDisplayName: params.email,
-            accountDisplayName: accountDetails.name,
-            invitation: {
-                email: params.email,
-                createdDate,
-                expiresDate: expiresDate.toISOString()
-            },
-            roles,
-            scopes,
-            createdDate
-        };
-        const putTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(teamMember));
-        objectDynameh.requestBuilder.addCondition(putTeamMemberReq, {
-            attribute: "userId",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putTeamMemberReq);
-        log.info("Inviting new TeamMember", teamMember.userId, teamMember.teamMemberId);
-    }
-
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
-    await dynamodb.transactWriteItems(writeReq).promise();
-
-    await sendTeamInvitation({email: params.email, userId: accountUserId, teamMemberId: userLogin.userId});
-
-    return Invitation.fromDbTeamMember(teamMember);
-}
-
-export async function updateTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbTeamMember> {
-    auth.requireIds("userId");
-    log.info("Updating TeamMember", teamMemberId, "in Account", auth.userId, "\n", params);
-
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
-    if (!teamMember) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+    const accountUser = await DbAccountUser.get(auth.userId, userId);
+    if (!accountUser) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
@@ -490,7 +301,7 @@ export async function updateTeamMember(auth: giftbitRoutes.jwtauth.Authorization
             attribute: "roles",
             value: params.roles
         });
-        teamMember.roles = params.roles;
+        accountUser.roles = params.roles;
     }
     if (params.scopes) {
         updates.push({
@@ -498,88 +309,47 @@ export async function updateTeamMember(auth: giftbitRoutes.jwtauth.Authorization
             attribute: "scopes",
             value: params.scopes
         });
-        teamMember.scopes = params.scopes;
+        accountUser.scopes = params.scopes;
     }
 
     if (params.roles || params.scopes) {
         // This is separated from the above because other params might be patchable in the future.
         // Arguably we could only delete the API keys if we're strictly reducing their permissions,
         // but that seems like it might be more subtle and confusing.  This is easier to explain.
-        log.info("Updating roles or scopes for TeamMember", teamMemberId, "in Account", auth.userId, "has triggered deleting all of their API keys");
-        await deleteApiKeysForUser(auth, teamMemberId);
+        log.info("Updating roles or scopes for TeamMember", userId, "in Account", auth.userId, "has triggered deleting all of their API keys");
+        await deleteApiKeysForUser(auth, userId);
     }
 
     if (updates.length) {
-        await DbTeamMember.update(teamMember, ...updates);
+        await DbAccountUser.update(accountUser, ...updates);
     }
-    return teamMember;
+    return accountUser;
 }
 
-export async function removeTeamMember(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
+export async function removeAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
     auth.requireIds("userId");
     log.info("Removing TeamMember", teamMemberId, "from Account", auth.userId);
 
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
-    if (!teamMember) {
+    const accountUser = await DbAccountUser.get(auth.userId, teamMemberId);
+    if (!accountUser) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
-    if (teamMember.invitation) {
-        log.info("The user is invited but not a full team member");
+    if (accountUser.invitation) {
+        log.info("The user is invited but not a full member");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
 
     await deleteApiKeysForUser(auth, teamMemberId);
 
     try {
-        await DbTeamMember.del(teamMember, {
+        await DbAccountUser.del(accountUser, {
             attribute: "invitation",
             operator: "attribute_not_exists"
         });
     } catch (error) {
         if (error.code === "ConditionalCheckFailedException") {
-            log.info("The user is invited but not a full team member");
+            log.info("The user is invited but not a full member");
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
-        }
-        throw error;
-    }
-}
-
-export async function listInvites(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
-    auth.requireIds("userId");
-    const teamMembers = await DbTeamMember.getAccountInvitedTeamMembers(auth.userId);
-    return teamMembers.map(Invitation.fromDbTeamMember);
-}
-
-export async function getInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<Invitation> {
-    auth.requireIds("userId");
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
-    if (!teamMember || !teamMember.invitation) {
-        return null;
-    }
-    return Invitation.fromDbTeamMember(teamMember);
-}
-
-export async function cancelInvite(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
-    auth.requireIds("userId");
-    log.info("Cancel invitation", auth.userId, teamMemberId);
-
-    const teamMember = await DbTeamMember.get(auth.userId, teamMemberId);
-    if (!teamMember) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
-    }
-    if (!teamMember.invitation) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
-    }
-
-    try {
-        await DbTeamMember.del(teamMember, {
-            attribute: "invitation",
-            operator: "attribute_exists"
-        });
-    } catch (error) {
-        if (error.code === "ConditionalCheckFailedException") {
-            log.info("The invitation cannot be deleted because it was already accepted");
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
         }
         throw error;
     }

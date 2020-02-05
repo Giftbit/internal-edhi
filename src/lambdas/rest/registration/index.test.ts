@@ -93,6 +93,14 @@ describe("/v2/user/register", () => {
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
+    it("cannot register a user with an incredibly long password", async () => {
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: "longpass@example.com",
+            password: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in"
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("cannot verifyEmail with a bad token", async () => {
         const resp = await router.testUnauthedRequest<any>("/v2/user/register/verifyEmail?token=asdfasdfasdf", "GET");
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);

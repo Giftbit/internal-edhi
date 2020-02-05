@@ -1,15 +1,15 @@
-import {DbAccountDetails} from "../db/DbAccountDetails";
+import {DbAccount} from "../db/DbAccount";
 
 export interface Account {
-    userId: string;
+    accountId: string;
     name: string;
 }
 
 export namespace Account {
 
-    export function getFromDbAccountDetails(account: DbAccountDetails): Account {
+    export function getFromDbAccount(account: DbAccount): Account {
         return {
-            userId: account.userId,
+            accountId: account.accountId,
             name: account.name
         };
     }

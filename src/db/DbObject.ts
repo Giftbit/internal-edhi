@@ -16,9 +16,13 @@ export namespace DbObject {
     }
 
     export async function getSecondary(pk2: string, sk2: string): Promise<DbObject> {
-        const req = objectDynameh2.requestBuilder.buildGetInput(pk2, sk2);
-        const resp = await dynamodb.getItem(req).promise();
-        return objectDynameh2.responseUnwrapper.unwrapGetOutput(resp);
+        const req = objectDynameh2.requestBuilder.buildQueryInput(pk2, "=", sk2);
+        const resp = await dynamodb.query(req).promise();
+        const objs = objectDynameh2.responseUnwrapper.unwrapQueryOutput(resp);
+        if (objs.length) {
+            return objs[0];
+        }
+        return null;
     }
 
     export async function put(o: DbObject): Promise<void> {

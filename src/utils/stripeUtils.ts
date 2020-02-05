@@ -17,6 +17,7 @@ export async function getStripeClient(mode: "test" | "live"): Promise<Stripe> {
             log.warn("Using unit test Stripe secret key from env");
             stripeClientCache[mode] = new Stripe(process.env["LIGHTRAIL_STRIPE_TEST_SECRET_KEY"], stripeApiVersion);
             if (process.env["TEST_STRIPE_LOCAL"] === "true") {
+                log.warn("Using localhost:8000 for Stripe");
                 stripeClientCache[mode].setHost("localhost", 8000, "http");
             }
         } else {

@@ -637,11 +637,11 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
-            chai.assert.isString(code);
+            const enableSmsMfaCode = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(enableSmsMfaCode);
 
             const loginCompleteResp = await router.testPostLoginRequest(firstLoginResp, "/v2/user/login/mfa", "POST", {
-                code: code,
+                code: enableSmsMfaCode,
                 trustThisDevice: true
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -720,5 +720,3 @@ describe("/v2/user/login", () => {
         });
     });
 });
-
-

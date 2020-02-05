@@ -1,11 +1,12 @@
+import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 
 export interface DbApiKey {
 
+    accountId: string;
     userId: string;
-    teamMemberId: string;
     name: string;
 
     tokenId: string;
@@ -25,6 +26,8 @@ export namespace DbApiKey {
         const apiKey = {...o};
         delete apiKey.pk;
         delete apiKey.sk;
+        delete apiKey.pk2;
+        delete apiKey.sk2;
         return apiKey as any;
     }
 
@@ -39,13 +42,13 @@ export namespace DbApiKey {
     }
 
     export function getKeys(apiKey: DbApiKey): DbObject {
-        if (!apiKey || !apiKey.userId || !apiKey.teamMemberId || !apiKey.tokenId) {
+        if (!apiKey || !apiKey.accountId || !apiKey.userId || !apiKey.tokenId) {
             throw new Error("Not a valid ApiKey.");
         }
         return {
-            pk: "Account/" + apiKey.userId,
+            pk: "Account/" + apiKey.accountId,
             sk: "ApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.teamMemberId,
+            pk2: "User/" + apiKey.userId,
             sk2: "ApiKey/" + apiKey.tokenId,
         };
     }
@@ -56,23 +59,23 @@ export namespace DbApiKey {
      * them around for future reference.
      */
     function getDeletedKeys(apiKey: DbApiKey): DbObject {
-        if (!apiKey || !apiKey.userId || !apiKey.teamMemberId || !apiKey.tokenId) {
+        if (!apiKey || !apiKey.accountId || !apiKey.userId || !apiKey.tokenId) {
             throw new Error("Not a valid ApiKey.");
         }
         return {
-            pk: "Account/" + apiKey.userId,
+            pk: "Account/" + apiKey.accountId,
             sk: "DeletedApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.teamMemberId,
+            pk2: "User/" + apiKey.userId,
             sk2: "DeletedApiKey/" + apiKey.tokenId,
         };
     }
 
-    export async function getByAccount(userId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId));
+    export async function getByAccount(accountId: string, tokenId: string): Promise<DbApiKey> {
+        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(accountId), "ApiKey/" + tokenId));
     }
 
-    export async function getByUser(teamMemberId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.getSecondary("User/" + stripUserIdTestMode(teamMemberId), "ApiKey/" + tokenId));
+    export async function getByUser(userId: string, tokenId: string): Promise<DbApiKey> {
+        return fromDbObject(await DbObject.getSecondary("User/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId));
     }
 
     export async function put(apiKey: DbApiKey): Promise<void> {
@@ -93,19 +96,19 @@ export namespace DbApiKey {
         await dynamodb.transactWriteItems(req).promise();
     }
 
-    export async function getAllForAccount(userId: string): Promise<DbApiKey[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(userId), "begins_with", "ApiKey/");
+    export async function getAllForAccount(accountId: string): Promise<DbApiKey[]> {
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "ApiKey/");
         const resp = await dynamodb.query(req).promise();
         const objects = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
         return objects.map(fromDbObject);
     }
 
-    export async function getAllForAccountUser(userId: string, teamMemberId: string): Promise<DbApiKey[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(userId), "begins_with", "ApiKey/");
+    export async function getAllForAccountUser(accountId: string, userId: string): Promise<DbApiKey[]> {
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "ApiKey/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "pk2",
             operator: "=",
-            values: ["User/" + stripUserIdTestMode(teamMemberId)]
+            values: ["User/" + stripUserIdTestMode(userId)]
         });
         const resp = await dynamodb.query(req).promise();
         const objects = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
@@ -117,5 +120,9 @@ export namespace DbApiKey {
         const resp = await dynamodb.query(req).promise();
         const objects = objectDynameh2.responseUnwrapper.unwrapQueryOutput(resp);
         return objects.map(fromDbObject);
+    }
+
+    export function generateTokenId(): string {
+        return "tok-" + uuid().replace(/-/g, "");
     }
 }

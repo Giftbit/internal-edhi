@@ -19,7 +19,8 @@ export function installChangePasswordRest(router: cassava.Router): void {
                     },
                     newPassword: {
                         type: "string",
-                        minLength: 8
+                        minLength: 8,
+                        maxLength: 255
                     }
                 },
                 required: ["oldPassword", "newPassword"],

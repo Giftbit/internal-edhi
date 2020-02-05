@@ -4,10 +4,10 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
 import * as emailUtils from "../emailUtils";
 import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
-import {DbTeamMember} from "../../db/DbTeamMember";
+import {DbAccountUser} from "../../db/DbAccountUser";
 import {DbUserLogin} from "../../db/DbUserLogin";
-import {DbUserDetails} from "../../db/DbUserDetails";
-import {DbAccountDetails} from "../../db/DbAccountDetails";
+import {DbUser} from "../../db/DbUser";
+import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
@@ -56,20 +56,20 @@ export namespace defaultTestUser {
         },
         emailVerified: true,
         frozen: false,
-        defaultLoginUserId: userId + "-TEST",
+        defaultLoginAccountId: userId + "-TEST",
         createdDate: "2017-03-07T18:34:06.603Z"
     };
-    export const userDetails: DbUserDetails = {
+    export const userDetails: DbUser = {
         userId: teamMemberId,
         email: email
     };
-    export const accountDetails: DbAccountDetails = {
-        userId: userId,
+    export const accountDetails: DbAccount = {
+        accountId: userId,
         name: "Test Account"
     };
-    export const teamMember: DbTeamMember = {
-        userId: userId,
-        teamMemberId: teamMemberId,
+    export const teamMember: DbAccountUser = {
+        accountId: userId,
+        userId: teamMemberId,
         userDisplayName: email,
         accountDisplayName: accountDetails.name,
         roles: auth.roles,
@@ -115,16 +115,16 @@ export namespace defaultTestUser {
             },
             emailVerified: true,
             frozen: false,
-            defaultLoginUserId: userId + "-TEST",
+            defaultLoginAccountId: userId + "-TEST",
             createdDate: "2019-04-08T21:09:21.127Z"
         };
-        export const userDetails: DbUserDetails = {
+        export const userDetails: DbUser = {
             userId: teamMemberId,
             email: email
         };
-        export const teamMember: DbTeamMember = {
-            userId: userId,
-            teamMemberId: teamMemberId,
+        export const teamMember: DbAccountUser = {
+            accountId: userId,
+            userId: teamMemberId,
             userDisplayName: email,
             accountDisplayName: "Test Account",
             roles: auth.roles,
@@ -163,12 +163,12 @@ export async function resetDb(): Promise<void> {
 
     log.trace("adding default data");
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.userLogin))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.userDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountDetails.toDbObject(defaultTestUser.accountDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(defaultTestUser.teamMember))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.userDetails))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(defaultTestUser.accountDetails))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMember))).promise();
     await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.teamMate.userLogin))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserDetails.toDbObject(defaultTestUser.teamMate.userDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbTeamMember.toDbObject(defaultTestUser.teamMate.teamMember))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.teamMate.userDetails))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMate.teamMember))).promise();
 }
 
 /**
