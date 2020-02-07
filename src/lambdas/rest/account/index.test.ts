@@ -25,10 +25,10 @@ describe("/v2/account", () => {
     });
 
     it("can get account details", async () => {
-        const getAccoundResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
-        chai.assert.equal(getAccoundResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(getAccoundResp.body.accountId, testUtils.defaultTestUser.userId);
-        chai.assert.equal(getAccoundResp.body.name, testUtils.defaultTestUser.accountDetails.name);
+        const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getAccountResp.body.name, testUtils.defaultTestUser.accountDetails.name);
     });
 
     it("can update account name", async () => {

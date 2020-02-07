@@ -11,6 +11,8 @@ export interface DbAccount {
 
     name: string;
 
+    requireMfa?: boolean;
+
 }
 
 export namespace DbAccount {
