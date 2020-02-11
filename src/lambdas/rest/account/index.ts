@@ -3,7 +3,7 @@ import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
-import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
+import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
 import {deleteApiKeysForUser} from "../apiKeys";
@@ -93,29 +93,25 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:user:read");
-            auth.requireIds("userId", "teamMemberId");
+            auth.requireScopes("lightrailV2:user:read", "lightrailV2:user:write");
+            auth.requireIds("teamMemberId");
 
             evt.validateBody({
                 properties: {
-                    mode: {
-                        type: "string",
-                        enum: ["live", "test"]
-                    },
                     accountId: {
                         type: "string",
                         minLength: 1
+                    },
+                    mode: {
+                        type: "string",
+                        enum: ["live", "test"]
                     }
                 },
-                required: [],
+                required: ["accountId", "mode"],
                 additionalProperties: false
             });
 
-            const userLogin = await DbUserLogin.getByAuth(auth);
-            const accountUser = await DbAccountUser.getByUserLogin(userLogin, evt.body.accountId);
-            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.accountId && isTestModeUserId(evt.body.accountId));
-            const userBadge = DbUserLogin.getBadge(accountUser, liveMode, true);
-
+            const userBadge = await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
             return {
                 body: null,
                 statusCode: cassava.httpStatusCode.redirect.FOUND,
@@ -283,6 +279,22 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     await dynamodb.transactWriteItems(writeReq).promise();
 
     return accountDetails;
+}
+
+async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+    const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
+    if (!accountUser || accountUser.invitation) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+
+    const userLogin = await DbUserLogin.getByAuth(auth);
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "defaultLoginAccountId",
+        value: liveMode ? stripUserIdTestMode(accountId) : setUserIdTestMode(accountId)
+    });
+
+    return DbUserLogin.getBadge(accountUser, liveMode, true);
 }
 
 export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {

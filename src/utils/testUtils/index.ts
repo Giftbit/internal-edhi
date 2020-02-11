@@ -9,6 +9,7 @@ import {DbUserLogin} from "../../db/DbUserLogin";
 import {DbUser} from "../../db/DbUser";
 import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
+import {generateOtpSecret} from "../otpUtils";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -204,6 +205,43 @@ export async function getNewUserLoginResp(router: TestRouter, sinonSandbox: sino
     });
     chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
     return loginResp;
+}
+
+/**
+ * Shortcut to enable TOTP MFA.  Enabling is properly tested elsewhere.
+ * @param email
+ */
+export async function enableTotpMfa(email: string): Promise<string> {
+    const userLogin = await DbUserLogin.get(email);
+    const secret = await generateOtpSecret();
+    const mfaSettings: DbUserLogin.Mfa = {
+        totpSecret: secret,
+        totpUsedCodes: {},
+        trustedDevices: {}
+    };
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "mfa",
+        value: mfaSettings
+    });
+    return secret;
+}
+
+/**
+ * Shortcut to enable SMS MFA.  Enabling is properly tested elsewhere.
+ * @param email
+ */
+export async function enableSmsMfa(email: string): Promise<void> {
+    const userLogin = await DbUserLogin.get(email);
+    const mfaSettings: DbUserLogin.Mfa = {
+        smsDevice: "+15558675309",
+        trustedDevices: {}
+    };
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "mfa",
+        value: mfaSettings
+    });
 }
 
 export function generateId(length?: number): string {

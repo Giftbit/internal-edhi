@@ -8,7 +8,7 @@ export namespace AccountSecurity {
 
     export function getFromDbAccount(account: DbAccount): AccountSecurity {
         return {
-            requireMfa: account.requireMfa || false
+            requireMfa: !!account.requireMfa
         };
     }
 }

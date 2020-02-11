@@ -11,7 +11,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
-import {generateOtpSecret, generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
 
 describe("/v2/user/login", () => {
 
@@ -33,37 +33,6 @@ describe("/v2/user/login", () => {
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
-
-    // Shortcut to enable SMS MFA.  Enabling is properly tested elsewhere.
-    async function enableSmsMfa(): Promise<void> {
-        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-        const mfaSettings: DbUserLogin.Mfa = {
-            smsDevice: "+15558675309",
-            trustedDevices: {}
-        };
-        await DbUserLogin.update(userLogin, {
-            action: "put",
-            attribute: "mfa",
-            value: mfaSettings
-        });
-    }
-
-    // Shortcut to enable TOTP MFA.  Enabling is properly tested elsewhere.
-    async function enableTotpMfa(): Promise<string> {
-        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-        const secret = await generateOtpSecret();
-        const mfaSettings: DbUserLogin.Mfa = {
-            totpSecret: secret,
-            totpUsedCodes: {},
-            trustedDevices: {}
-        };
-        await DbUserLogin.update(userLogin, {
-            action: "put",
-            attribute: "mfa",
-            value: mfaSettings
-        });
-        return secret;
-    }
 
     async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
         chai.assert.isString(loginResp.headers["Location"]);
@@ -232,7 +201,7 @@ describe("/v2/user/login", () => {
 
     describe("SMS MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -256,7 +225,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct SMS code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -291,7 +260,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a case-insensitive code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -317,7 +286,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can send a new code (invalidating the old one)", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -361,7 +330,7 @@ describe("/v2/user/login", () => {
         });
 
         it("is secure against replay attack (using the same code a second time)", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -404,7 +373,7 @@ describe("/v2/user/login", () => {
 
     describe("TOTP MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await enableTotpMfa();
+            await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
@@ -425,7 +394,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct TOTP code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
@@ -446,7 +415,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a 30-second-old code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
@@ -462,7 +431,7 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot complete with a 60-second-old code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
@@ -477,7 +446,7 @@ describe("/v2/user/login", () => {
         });
 
         it("does not allow reusing a code even if it was valid", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
@@ -508,7 +477,7 @@ describe("/v2/user/login", () => {
 
     describe("backup code login", () => {
         it("can complete login with a backup code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -535,7 +504,7 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot use the same backup code twice", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -569,7 +538,7 @@ describe("/v2/user/login", () => {
 
     describe("trust this device", () => {
         it("allows skipping the MFA step with the correct token", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -623,7 +592,7 @@ describe("/v2/user/login", () => {
         });
 
         it("expires trusted devices even if they have the correct token", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -674,7 +643,7 @@ describe("/v2/user/login", () => {
         });
 
         it("forgets trusted devices when MFA is disabled and re-enabled", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -705,7 +674,7 @@ describe("/v2/user/login", () => {
             const disableMfaResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/user/mfa", "DELETE");
             chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
 
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {

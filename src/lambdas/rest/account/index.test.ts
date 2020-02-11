@@ -1,6 +1,7 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
 import * as testUtils from "../../../utils/testUtils";
+import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
@@ -9,12 +10,16 @@ import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {UserAccount} from "../../../model/UserAccount";
 import {Account} from "../../../model/Account";
+import {Invitation} from "../../../model/Invitation";
+import * as sinon from "sinon";
+import * as emailUtils from "../../../utils/emailUtils";
 
 chai.use(chaiExclude);
 
 describe("/v2/account", () => {
 
     const router = new TestRouter();
+    const sinonSandbox = sinon.createSandbox();
 
     before(async () => {
         await testUtils.resetDb();
@@ -22,6 +27,10 @@ describe("/v2/account", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+    });
+
+    afterEach(() => {
+        sinonSandbox.restore();
     });
 
     it("can get account details", async () => {
@@ -51,6 +60,7 @@ describe("/v2/account", () => {
     it("can create a brand new account and switch to it", async () => {
         const initialUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(initialUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isDefined(initialUserAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialUserAccountsResp.bodyRaw}`);
 
         const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
             name: "Totally Not a Drug Front"
@@ -61,6 +71,7 @@ describe("/v2/account", () => {
         const userAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(userAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(userAccountsResp.body, initialUserAccountsResp.body.length + 1, userAccountsResp.bodyRaw);
+        chai.assert.isDefined(userAccountsResp.body.find(a => a.accountId === createAccountResp.body.accountId), `looking for accountId ${createAccountResp.body.accountId} in ${userAccountsResp.bodyRaw}`);
 
         const createdUserAccount = userAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
         chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
@@ -83,5 +94,40 @@ describe("/v2/account", () => {
         chai.assert.equal(createdAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(createdAccountUsersResp.body, 1, "the only user in this account");
         chai.assert.isAtLeast(createdAccountUsersResp.body[0].roles.length, 1, "has at least 1 role");
+    });
+
+    it("can't switch to an account that doesn't exist", async () => {
+        const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+            accountId: generateId(),
+            mode: "test"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, switchAccountResp.bodyRaw);
+    });
+
+    it("can't switch to an account before accepting an invitation", async () => {
+        sinonSandbox.stub(emailUtils, "sendEmail");
+
+        const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
+            name: "Totally Not a Drug Front"
+        });
+        chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+            accountId: createAccountResp.body.accountId,
+            mode: "test"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+
+        const inviteResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
+            email: testUtils.defaultTestUser.teamMate.email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        const teamMateSwitchAccountResp = await router.testTeamMateRequest("/v2/account/switch", "POST", {
+            accountId: createAccountResp.body.accountId,
+            mode: "test"
+        });
+        chai.assert.equal(teamMateSwitchAccountResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, teamMateSwitchAccountResp.bodyRaw);
     });
 });
