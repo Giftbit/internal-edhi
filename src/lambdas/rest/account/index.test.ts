@@ -1,18 +1,19 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
+import * as crypto from "crypto";
+import * as sinon from "sinon";
+import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
-import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {UserAccount} from "../../../model/UserAccount";
 import {Account} from "../../../model/Account";
 import {Invitation} from "../../../model/Invitation";
-import * as sinon from "sinon";
-import * as emailUtils from "../../../utils/emailUtils";
+import chaiExclude from "chai-exclude";
+import {initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
 
 chai.use(chaiExclude);
 
@@ -27,6 +28,7 @@ describe("/v2/account", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
     });
 
     afterEach(() => {
@@ -98,7 +100,7 @@ describe("/v2/account", () => {
 
     it("can't switch to an account that doesn't exist", async () => {
         const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
-            accountId: generateId(),
+            accountId: testUtils.generateId(),
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, switchAccountResp.bodyRaw);

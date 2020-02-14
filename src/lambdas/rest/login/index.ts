@@ -12,6 +12,8 @@ import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {validateOtpCode} from "../../../utils/otpUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
+import {DbAccount} from "../../../db/DbAccount";
+import {LoginResult} from "../../../model/LoginResult";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -36,21 +38,12 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const cookies = await loginUser({
+            return await loginUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp,
                 trustedDeviceToken: evt.cookies["gb_ttd"]
             });
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                },
-                cookies: cookies
-            };
         });
 
     router.route("/v2/user/logout")
@@ -121,23 +114,15 @@ export function installLoginAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const cookies = await completeMfaLogin(auth, {
+            return await completeMfaLogin(auth, {
                 code: evt.body.code,
                 trustThisDevice: evt.body.trustThisDevice,
                 sourceIp: evt.requestContext.identity.sourceIp
             });
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                },
-                cookies: cookies
-            };
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<{ [key: string]: RouterResponseCookie }> {
+async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
     const userLogin = await DbUserLogin.get(params.email);
 
     if (!userLogin) {
@@ -159,16 +144,14 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     }
     if (!await validatePassword(params.plaintextPassword, userLogin.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
-        await onUserLoginFailure(userLogin, params.sourceIp);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        await completeLoginFailure(userLogin, params.sourceIp);
     }
 
     if (userLogin.mfa) {
         if (params.trustedDeviceToken) {
             if (userLogin.mfa.trustedDevices[params.trustedDeviceToken] && userLogin.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
                 log.info("User", params.email, "has a trusted device");
-                const userBadge = await onUserLoginSuccess(userLogin);
-                return await DbUserLogin.getBadgeCookies(userBadge);
+                return await completeLoginSuccess(userLogin);
             }
             log.info("User", params.email, "trusted device token is not trusted");
             log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", userLogin.mfa.trustedDevices);
@@ -177,21 +160,18 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
             log.info("Partially logged in user", params.email, "sending SMS code");
 
             await sendSmsMfaChallenge(userLogin);
-            const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
-            return await DbUserLogin.getBadgeCookies(badge);
+            return getLoginAdditionalAuthenticationRequiredResponse(userLogin);
         }
         if (userLogin.mfa.totpSecret) {
             log.info("Partially logged in user", params.email, "awaiting TOTP code");
-            const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
-            return await DbUserLogin.getBadgeCookies(badge);
+            return getLoginAdditionalAuthenticationRequiredResponse(userLogin);
         }
     }
 
-    const userBadge = await onUserLoginSuccess(userLogin);
-    return await DbUserLogin.getBadgeCookies(userBadge);
+    return completeLoginSuccess(userLogin);
 }
 
-async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<{ [key: string]: RouterResponseCookie }> {
+async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<cassava.RouterResponse> {
     const userLogin = await DbUserLogin.getByAuth(auth);
 
     if (userLogin.frozen) {
@@ -275,8 +255,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-        await onUserLoginFailure(userLogin, params.sourceIp);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        await completeLoginFailure(userLogin, params.sourceIp);
     }
 
     if (params.trustThisDevice) {
@@ -301,14 +280,17 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         };
     }
 
-    const userBadge = await onUserLoginSuccess(userLogin, userUpdates, userUpdateConditions);
-    return {
-        ...await DbUserLogin.getBadgeCookies(userBadge),
-        ...additionalCookies
-    };
+    const loginResponse = await completeLoginSuccess(userLogin, userUpdates, userUpdateConditions);
+    if (additionalCookies) {
+        loginResponse.cookies = {
+            ...loginResponse.cookies,
+            ...additionalCookies
+        };
+    }
+    return loginResponse;
 }
 
-async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function completeLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<cassava.RouterResponse> {
     log.info("Logged in user", userLogin.email);
 
     // Store last login date.
@@ -350,16 +332,12 @@ async function onUserLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dyn
 
     await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
 
-    const accountUser = await DbAccountUser.getByUserLogin(userLogin);
-    if (!accountUser) {
-        return DbUserLogin.getOrphanBadge(userLogin);
-    }
-
+    const accountUser = await DbAccountUser.getForUserLogin(userLogin);
     const liveMode = isTestModeUserId(userLogin.defaultLoginAccountId);
-    return DbUserLogin.getBadge(accountUser, liveMode, true);
+    return getLoginResponse(userLogin, accountUser, liveMode);
 }
 
-async function onUserLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<void> {
+async function completeLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<never> {
     const failedAttempt = `${createdDateNow()}, ${sourceIp}`;
     if (!userLogin.failedLoginAttempts) {
         userLogin.failedLoginAttempts = new Set();
@@ -390,4 +368,56 @@ async function onUserLoginFailure(userLogin: DbUserLogin, sourceIp: string): Pro
             });
         await sendFailedLoginTimeoutEmail(userLogin, failedLoginTimoutMinutes);
     }
+
+    throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+}
+
+export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    let body: LoginResult = {
+        hasMfa: DbUserLogin.hasMfaActive(userLogin)
+    };
+    let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
+
+    const account = accountUser && await DbAccount.get(accountUser.accountId);
+
+    if (!account) {
+        body.message = "You have been removed from all Accounts.  You can create your own to continue.";
+        body.messageCode = "NoAccount";
+        badge = DbUserLogin.getOrphanBadge(userLogin);
+    } else if (account.requireMfa && !body.hasMfa) {
+        body.message = "The Account requires that MFA is enabled to continue.";
+        body.messageCode = "AccountMfaRequired";
+        badge = DbUserLogin.getOrphanBadge(userLogin);
+    } else {
+        badge = DbUserLogin.getBadge(accountUser, liveMode, true);
+    }
+
+    return {
+        body: body,
+        statusCode: cassava.httpStatusCode.redirect.FOUND,
+        headers: {
+            Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+        },
+        cookies: {
+            ...await DbUserLogin.getBadgeCookies(badge),
+            ...additionalCookies
+        }
+    };
+}
+
+async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+
+    return {
+        body: {
+            hasMfa: DbUserLogin.hasMfaActive(userLogin),
+            message: "Additional authentication through MFA is required.",
+            messageCode: "MfaAuthRequired"
+        },
+        statusCode: cassava.httpStatusCode.redirect.FOUND,
+        headers: {
+            Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+        },
+        cookies: await DbUserLogin.getBadgeCookies(badge)
+    };
 }

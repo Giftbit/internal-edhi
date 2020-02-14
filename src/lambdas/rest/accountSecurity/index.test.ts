@@ -63,6 +63,8 @@ describe("/v2/account/security", () => {
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountWithMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+
+            // TODO also test the login flow
         });
 
         it.skip("new users are required to set up mfa as part of gaining access", async () => {

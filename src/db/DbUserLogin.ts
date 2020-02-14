@@ -260,13 +260,17 @@ export namespace DbUserLogin {
     }
 
     /**
-     * An orphaned user has no team.  All they can do is create an Account.
+     * An orphaned user has no team.  All they can do is create an Account and manage themselves.
      * @param userLogin
      */
     export function getOrphanBadge(userLogin: DbUserLogin): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.teamMemberId = userLogin.userId;
-        auth.roles = [];
+        auth.roles = [
+            "lightrailV2:account:create",
+            "lightrailV2:user:read",
+            "lightrailV2:user:write"
+        ];
         auth.scopes = [];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
@@ -331,5 +335,9 @@ export namespace DbUserLogin {
                 }
             }
         };
+    }
+
+    export function hasMfaActive(userLogin: DbUserLogin): boolean {
+        return !!(userLogin?.mfa?.smsDevice) || !!(userLogin?.mfa?.totpSecret);
     }
 }

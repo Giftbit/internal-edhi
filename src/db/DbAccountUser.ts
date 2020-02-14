@@ -132,10 +132,10 @@ export namespace DbAccountUser {
     /**
      * Get the AccountUser the given User should login as.
      */
-    export async function getByUserLogin(userLogin: DbUserLogin): Promise<DbAccountUser> {
+    export async function getForUserLogin(userLogin: DbUserLogin): Promise<DbAccountUser> {
         if (userLogin.defaultLoginAccountId) {
             const accountUser = await DbAccountUser.get(userLogin.defaultLoginAccountId, userLogin.userId);
-            if (accountUser) {
+            if (accountUser && !accountUser.invitation) {
                 log.info("Got login AccountUser", userLogin.defaultLoginAccountId, "for User", userLogin.email);
                 return accountUser;
             }

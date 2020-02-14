@@ -12,6 +12,8 @@ import {AccountUser} from "../../../model/AccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
+import {LoginResult} from "../../../model/LoginResult";
+import {getLoginResponse} from "../login";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -111,15 +113,7 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const userBadge = await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                },
-                cookies: await DbUserLogin.getBadgeCookies(userBadge)
-            };
+            return await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
         });
 
     router.route("/v2/account/users")
@@ -281,7 +275,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return accountDetails;
 }
 
-async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<giftbitRoutes.jwtauth.AuthorizationBadge> {
+async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
     if (!accountUser || accountUser.invitation) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
@@ -294,7 +288,7 @@ async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, acc
         value: liveMode ? stripUserIdTestMode(accountId) : setUserIdTestMode(accountId)
     });
 
-    return DbUserLogin.getBadge(accountUser, liveMode, true);
+    return getLoginResponse(userLogin, accountUser, liveMode);
 }
 
 export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {

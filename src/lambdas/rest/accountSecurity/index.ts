@@ -51,7 +51,7 @@ async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBa
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
-    if (params.requireMfa) {
+    if (params.requireMfa != null) {
         updates.push({
             action: "put",
             attribute: "requireMfa",
