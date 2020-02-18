@@ -38,7 +38,7 @@ describe("/v2/account", () => {
     it("can get account details", async () => {
         const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(getAccountResp.body.name, testUtils.defaultTestUser.accountDetails.name);
     });
 
@@ -78,7 +78,7 @@ describe("/v2/account", () => {
         const createdUserAccount = userAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
         chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
         chai.assert.equal(createdUserAccount.accountId, createAccountResp.body.accountId);
-        chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.teamMemberId);
+        chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.userId);
 
         const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.accountId,

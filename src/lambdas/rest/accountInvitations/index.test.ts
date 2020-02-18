@@ -49,7 +49,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
         chai.assert.isObject(inviteEmail, "invite email sent");
         chai.assert.equal(inviteEmail.toAddress, email);
@@ -163,7 +163,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
 
         const listInvitationsResp = await router.testApiRequest<Invitation[]>("/v2/account/invitations", "GET");
@@ -184,7 +184,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(reinviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(reinviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(reinviteResp.body.email, email);
 
         const acceptReinviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(reinviteEmail.htmlBody)[1];
@@ -256,7 +256,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
 
         const acceptInviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
@@ -268,11 +268,11 @@ describe("/v2/account/invitations", () => {
 
         const listAccountsResp = await router.testPostLoginRequest<UserAccount[]>(loginResp, "/v2/account/switch", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
-        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
-        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
 
         const switchAccountResp = await router.testPostLoginRequest(loginResp, "/v2/account/switch", "POST", {
-            accountId: testUtils.defaultTestUser.userId,
+            accountId: testUtils.defaultTestUser.accountId,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
@@ -288,7 +288,7 @@ describe("/v2/account/invitations", () => {
 
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.accountId);
     });
 
     it("can update an AccountUser's roles and scopes (which deletes their API keys)", async () => {

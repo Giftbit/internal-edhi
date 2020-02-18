@@ -47,8 +47,8 @@ describe("/v2/user/contactCustomerSupport", () => {
         chai.assert.isObject(emailParams, "email sent");
         chai.assert.include(emailParams.subject, subject);
         chai.assert.include(emailParams.textBody, message);
+        chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.accountId);
         chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.userId);
-        chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.teamMemberId);
         chai.assert.include(emailParams.textBody, testUtils.defaultTestUser.email);
     });
 

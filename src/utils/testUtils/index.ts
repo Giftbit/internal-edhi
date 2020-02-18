@@ -19,13 +19,13 @@ if (!process.env["TEST_ENV"]) {
 }
 
 export namespace defaultTestUser {
-    export const userId = "user-testaccount";
-    export const teamMemberId = "user-testuser";
+    export const accountId = "user-testaccount";
+    export const userId = "user-testuser";
     export const email = "default-test-user@example.com";
     export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
-            "gui": userId + "-TEST",
-            "tmi": teamMemberId + "-TEST",
+            "gui": accountId + "-TEST",
+            "tmi": userId + "-TEST",
         },
         "iat": "2017-03-07T18:34:06.603+0000",
         "jti": "badge-dd95b9b582e840ecba1cbf41365d57e1",
@@ -48,7 +48,7 @@ export namespace defaultTestUser {
     export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
     export const password = "password";
     export const userLogin: DbUserLogin = {
-        userId: teamMemberId,
+        userId: userId,
         email: email,
         password: {
             algorithm: "BCRYPT",
@@ -57,20 +57,20 @@ export namespace defaultTestUser {
         },
         emailVerified: true,
         frozen: false,
-        defaultLoginAccountId: userId + "-TEST",
+        defaultLoginAccountId: accountId + "-TEST",
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userDetails: DbUser = {
-        userId: teamMemberId,
+        userId: userId,
         email: email
     };
     export const accountDetails: DbAccount = {
-        accountId: userId,
+        accountId: accountId,
         name: "Test Account"
     };
     export const teamMember: DbAccountUser = {
-        accountId: userId,
-        userId: teamMemberId,
+        accountId: accountId,
+        userId: userId,
         userDisplayName: email,
         accountDisplayName: accountDetails.name,
         roles: auth.roles,
@@ -83,7 +83,7 @@ export namespace defaultTestUser {
         export const email = "teammate@example.com";
         export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
             "g": {
-                "gui": userId + "-TEST",
+                "gui": accountId + "-TEST",
                 "tmi": teamMemberId + "-TEST",
             },
             "iat": "2019-04-08T21:09:21.127Z",
@@ -116,7 +116,7 @@ export namespace defaultTestUser {
             },
             emailVerified: true,
             frozen: false,
-            defaultLoginAccountId: userId + "-TEST",
+            defaultLoginAccountId: accountId + "-TEST",
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userDetails: DbUser = {
@@ -124,7 +124,7 @@ export namespace defaultTestUser {
             email: email
         };
         export const teamMember: DbAccountUser = {
-            accountId: userId,
+            accountId: accountId,
             userId: teamMemberId,
             userDisplayName: email,
             accountDisplayName: "Test Account",

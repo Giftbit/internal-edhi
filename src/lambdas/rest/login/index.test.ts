@@ -12,6 +12,7 @@ import {DbUserLogin} from "../../../db/DbUserLogin";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
 import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {LoginResult} from "../../../model/LoginResult";
 
 describe("/v2/user/login", () => {
 
@@ -206,11 +207,12 @@ describe("/v2/user/login", () => {
                 .callsFake(async params => {
                 });
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -233,11 +235,12 @@ describe("/v2/user/login", () => {
                     sms = params;
                 });
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
@@ -375,11 +378,12 @@ describe("/v2/user/login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
             await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -396,11 +400,12 @@ describe("/v2/user/login", () => {
         it("can complete login with the correct TOTP code", async () => {
             const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.userLogin.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const wrongCodeLoginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
                 code: "123456"

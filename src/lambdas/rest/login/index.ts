@@ -407,13 +407,14 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
 
 async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+    const body: LoginResult = {
+        hasMfa: DbUserLogin.hasMfaActive(userLogin),
+        message: "Additional authentication through MFA is required.",
+        messageCode: "MfaAuthRequired"
+    };
 
     return {
-        body: {
-            hasMfa: DbUserLogin.hasMfaActive(userLogin),
-            message: "Additional authentication through MFA is required.",
-            messageCode: "MfaAuthRequired"
-        },
+        body: body,
         statusCode: cassava.httpStatusCode.redirect.FOUND,
         headers: {
             Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
