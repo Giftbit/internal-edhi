@@ -281,7 +281,7 @@ export namespace DbUserLogin {
         auth.scopes = [
             "lightrailV2:account:create",
             "lightrailV2:user:read",
-            "lightrailV2:user:write"
+            "lightrailV2:user:update"
         ];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";

@@ -35,6 +35,138 @@ describe("/v2/account/security", () => {
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
 
+    describe("maxPasswordAge (tests are interdependent)", () => {
+
+        const defaultTestUserPassword = testUtils.defaultTestUser.userLogin.password;
+
+        beforeEach(async () => {
+            const expiredLoginDate = new Date(testUtils.defaultTestUser.userLogin.password.createdDate);
+            expiredLoginDate.setFullYear(expiredLoginDate.getFullYear() - 1);
+
+            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+            await DbUserLogin.update(userLogin, {
+                action: "put",
+                attribute: "password.createdDate",
+                value: expiredLoginDate
+            });
+        });
+
+        afterEach(async () => {
+            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
+            await DbUserLogin.update(userLogin, {
+                action: "put",
+                attribute: "password",
+                value: defaultTestUserPassword
+            });
+        });
+
+        it("is null by default", async () => {
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isNull(getAccountSecurityResp.body.maxPasswordAge);
+        });
+
+        it("can't be set negative", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxPasswordAge: -10
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can't be set to 0", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxPasswordAge: 0
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can't be set to a crazy high number", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxPasswordAge: 9999
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can be set to a reasonable number", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxPasswordAge: 90  // a good, recommended value
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.equal(patchAccountResp.body.maxPasswordAge, 90);
+
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(getAccountSecurityResp.body.maxPasswordAge, 90);
+        });
+
+        it("requires users with passwords older than maxPasswordAge to update their password before switching to the Account", async () => {
+            const switchAccountFailResp = await router.testWebAppRequest<any>("/v2/account/switch", "POST", {
+                accountId: testUtils.defaultTestUser.accountId,
+                mode: "test"
+            });
+            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountFailResp.bodyRaw);
+            chai.assert.equal(switchAccountFailResp.body.messageCode, "AccountMaxPasswordAge", switchAccountFailResp.bodyRaw);
+
+            const getAccountOldPasswordResp = await router.testPostLoginRequest<Account>(switchAccountFailResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountOldPasswordResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+
+            const changePasswordResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: generateId()
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, changePasswordResp.bodyRaw);
+
+            const switchAccountSuccessResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+                accountId: testUtils.defaultTestUser.accountId,
+                mode: "test"
+            });
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+
+            const getAccountSuccessResp = await router.testPostLoginRequest<Account>(switchAccountSuccessResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
+        });
+
+        it("requires users with passwords older than maxPasswordAge to update their password before logging in to the Account", async () => {
+            const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxPasswordAge", loginFailResp.bodyRaw);
+
+            const getAccountOldPasswordResp = await router.testPostLoginRequest<Account>(loginFailResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountOldPasswordResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+
+            const newPassword = generateId();
+            const changePasswordResp = await router.testPostLoginRequest<any>(loginFailResp, "/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: newPassword
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, changePasswordResp.bodyRaw);
+
+            const loginSuccessResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: newPassword
+            });
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const getAccountSuccessResp = await router.testPostLoginRequest<Account>(loginSuccessResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
+        });
+
+        it("can be cleared", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxPasswordAge: null
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.isNull(patchAccountResp.body.maxPasswordAge);
+
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isNull(getAccountSecurityResp.body.maxPasswordAge);
+        });
+    });
+
     describe("requireMfa (tests are interdependent)", () => {
         it("is false by default", async () => {
             const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
@@ -54,7 +186,7 @@ describe("/v2/account/security", () => {
             chai.assert.isTrue(getAccountSecurityResp.body.requireMfa);
         });
 
-        it("existing users without mfa enabled are required to do so before switching to the account", async () => {
+        it("requires existing users without mfa enabled to do so before switching to the account", async () => {
             const switchAccountNoMfaResp = await router.testWebAppRequest<LoginResult>("/v2/account/switch", "POST", {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
@@ -84,7 +216,7 @@ describe("/v2/account/security", () => {
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
         });
 
-        it("existing users without mfa enabled are required to do so before logging into the account", async () => {
+        it("requires existing users without mfa enabled to do so before logging into the account", async () => {
             const dbUserLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
             chai.assert.isNotNull(dbUserLogin);
             chai.assert.equal(dbUserLogin.defaultLoginAccountId, setUserIdTestMode(testUtils.defaultTestUser.accountId), "make sure we're logging in to the right account");
@@ -123,7 +255,7 @@ describe("/v2/account/security", () => {
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
         });
 
-        it("new users are required to set up mfa as part of gaining access", async () => {
+        it("requires new users to set up mfa as part of gaining access", async () => {
             const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
 
             const loginNoMfaResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {

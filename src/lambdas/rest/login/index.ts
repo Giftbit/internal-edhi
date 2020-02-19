@@ -389,6 +389,10 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
         badge = DbUserLogin.getOrphanBadge(userLogin);
+    } else if (account.maxPasswordAge && userLogin.password.createdDate < getMaxPasswordAgeCutoff(account.maxPasswordAge)) {
+        body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
+        body.messageCode = "AccountMaxPasswordAge";
+        badge = DbUserLogin.getOrphanBadge(userLogin);
     } else {
         badge = DbUserLogin.getBadge(accountUser, liveMode, true);
     }
@@ -404,6 +408,12 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
             ...additionalCookies
         }
     };
+}
+
+function getMaxPasswordAgeCutoff(maxPasswordAge: number): string {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - maxPasswordAge);
+    return cutoff.toISOString();
 }
 
 async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {

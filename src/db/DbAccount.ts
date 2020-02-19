@@ -12,6 +12,13 @@ export interface DbAccount {
     name: string;
 
     /**
+     * The maximum age (in days) of a password that can be used to log in to this Account.
+     * Setting this value is *not* recommended but is required anyways by some
+     * IT departments.
+     */
+    maxPasswordAge?: number;
+
+    /**
      * Whether MFA is required to gain access to this Account.
      */
     requireMfa?: boolean;

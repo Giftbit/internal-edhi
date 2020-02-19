@@ -26,6 +26,11 @@ export function installAccountSecurityRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    maxPasswordAge: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
                     requireMfa: {
                         type: "boolean"
                     },
@@ -44,7 +49,7 @@ export function installAccountSecurityRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { requireMfa?: boolean, requirePasswordHistory?: boolean }): Promise<DbAccount> {
+async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { maxPasswordAge?: number, requireMfa?: boolean, requirePasswordHistory?: boolean }): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating AccountSecurity", auth.userId);
 
@@ -54,6 +59,17 @@ async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBa
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.maxPasswordAge !== undefined) {
+        if (params.maxPasswordAge !== null && params.maxPasswordAge <= 0) {
+            throw new Error("params.maxPasswordAge can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxPasswordAge",
+            value: params.maxPasswordAge
+        });
+        account.maxPasswordAge = params.maxPasswordAge;
+    }
     if (params.requireMfa != null) {
         updates.push({
             action: "put",

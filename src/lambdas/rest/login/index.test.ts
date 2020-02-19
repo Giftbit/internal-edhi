@@ -73,7 +73,7 @@ describe("/v2/user/login", () => {
 
     it("cannot login with a user with the wrong password", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: generateId()
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -81,7 +81,7 @@ describe("/v2/user/login", () => {
 
     it("can login the test user", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -103,7 +103,7 @@ describe("/v2/user/login", () => {
 
         for (let i = 0; i < 10; i++) {
             const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: generateId()
             });
             chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -116,7 +116,7 @@ describe("/v2/user/login", () => {
         }
 
         const goodPasswordButLockedResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodPasswordButLockedResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -135,7 +135,7 @@ describe("/v2/user/login", () => {
         await dynamodb.updateItem(updateLockedDateReq).promise();
 
         const goodLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -208,7 +208,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -236,7 +236,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -272,7 +272,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -303,7 +303,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -347,7 +347,7 @@ describe("/v2/user/login", () => {
                 });
 
             const login1Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login1Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -362,7 +362,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(login1CompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -379,7 +379,7 @@ describe("/v2/user/login", () => {
             await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -401,7 +401,7 @@ describe("/v2/user/login", () => {
             const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -423,7 +423,7 @@ describe("/v2/user/login", () => {
             const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -439,7 +439,7 @@ describe("/v2/user/login", () => {
             const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -454,7 +454,7 @@ describe("/v2/user/login", () => {
             const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -467,7 +467,7 @@ describe("/v2/user/login", () => {
             await assertFullyLoggedIn(loginCompleteResp);
 
             const loginAgainResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -491,7 +491,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -518,7 +518,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -529,7 +529,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -552,7 +552,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -573,7 +573,7 @@ describe("/v2/user/login", () => {
 
             const badTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -585,7 +585,7 @@ describe("/v2/user/login", () => {
 
             const goodTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -606,7 +606,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -637,7 +637,7 @@ describe("/v2/user/login", () => {
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -657,7 +657,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -683,7 +683,7 @@ describe("/v2/user/login", () => {
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
