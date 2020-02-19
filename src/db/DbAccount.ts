@@ -11,7 +11,16 @@ export interface DbAccount {
 
     name: string;
 
+    /**
+     * Whether MFA is required to gain access to this Account.
+     */
     requireMfa?: boolean;
+
+    /**
+     * Whether to require that users in the Account not reuse an
+     * old password when changing their password.
+     */
+    requirePasswordHistory?: boolean;
 
 }
 
@@ -47,6 +56,11 @@ export namespace DbAccount {
     export async function get(accountId: string): Promise<DbAccount> {
         accountId = stripUserIdTestMode(accountId);
         return fromDbObject(await DbObject.get("Account/" + accountId, "Account/" + accountId));
+    }
+
+    export async function getMany(accountIds: string[]): Promise<DbAccount[]> {
+        const dbObjects = await DbObject.getMany(accountIds.map(accountId => ["Account/" + accountId, "Account/" + accountId]));
+        return dbObjects.map(fromDbObject);
     }
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccount> {

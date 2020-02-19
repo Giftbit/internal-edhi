@@ -379,6 +379,7 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
     const account = accountUser && await DbAccount.get(accountUser.accountId);
+    log.debug("Get login response for account=", account, "hasMfa=", body.hasMfa);
 
     if (!account) {
         body.message = "You have been removed from all Accounts.  You can create your own to continue.";

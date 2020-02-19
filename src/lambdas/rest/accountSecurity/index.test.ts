@@ -1,7 +1,9 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
 import * as crypto from "crypto";
+import * as sinon from "sinon";
 import * as testUtils from "../../../utils/testUtils";
+import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
@@ -15,6 +17,7 @@ import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../ut
 describe("/v2/account/security", () => {
 
     const router = new TestRouter();
+    const sinonSandbox = sinon.createSandbox();
 
     before(async () => {
         await testUtils.resetDb();
@@ -26,6 +29,8 @@ describe("/v2/account/security", () => {
     });
 
     afterEach(async () => {
+        sinonSandbox.restore();
+
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
@@ -118,8 +123,21 @@ describe("/v2/account/security", () => {
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
         });
 
-        it.skip("new users are required to set up mfa as part of gaining access", async () => {
+        it("new users are required to set up mfa as part of gaining access", async () => {
+            const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
 
+            const loginNoMfaResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: newUser.email,
+                password: newUser.password
+            });
+            chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
+            chai.assert.equal(loginNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
+            chai.assert.isString(loginNoMfaResp.headers["Location"]);
+            chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
+
+            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
         });
 
         it("can be disabled", async () => {
@@ -141,6 +159,78 @@ describe("/v2/account/security", () => {
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+        });
+    });
+
+    describe("requirePasswordHistory (tests are interdependent)", () => {
+        it("is false by default", async () => {
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isFalse(getAccountSecurityResp.body.requirePasswordHistory);
+        });
+
+        it("can be enabled", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                requirePasswordHistory: true
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.isTrue(patchAccountResp.body.requirePasswordHistory);
+
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isTrue(getAccountSecurityResp.body.requirePasswordHistory);
+        });
+
+        it("requires that users in the Account cannot reuse the last password when changing passwords", async () => {
+            const changePasswordResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, changePasswordResp.bodyRaw);
+            chai.assert.equal(changePasswordResp.body.messageCode, "ReusedPassword");
+        });
+
+        const passwords = Array(DbUserLogin.maxPasswordHistoryLength + 1).fill(0).map(() => generateId());
+        it("requires that users in the Account cannot reuse a recent password when changing passwords", async () => {
+            for (let passwordIx = 0; passwordIx < passwords.length; passwordIx++) {
+                const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+                    oldPassword: passwordIx === 0 ? testUtils.defaultTestUser.password : passwords[passwordIx - 1],
+                    newPassword: passwords[passwordIx]
+                });
+                chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, `Password ix=${passwordIx} password=${passwords[passwordIx]} should be able to change, response=${changePasswordResp.bodyRaw}`);
+
+                // For all but the last password it should be impossible to change back to the original.
+                if (passwordIx < passwords.length - 1) {
+                    const changePasswordBackFailResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                        oldPassword: passwords[passwordIx],
+                        newPassword: testUtils.defaultTestUser.password
+                    });
+                    chai.assert.equal(changePasswordBackFailResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, `Password ix=${passwordIx} should not be changed back to default, response=${changePasswordResp.bodyRaw}`);
+                    chai.assert.equal(changePasswordBackFailResp.body.messageCode, "ReusedPassword", `Password ix=${passwordIx} should not be changed back to default, response=${changePasswordResp.bodyRaw}`);
+                } else {
+                    const changePasswordBackSuccessResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                        oldPassword: passwords[passwordIx],
+                        newPassword: testUtils.defaultTestUser.password
+                    });
+                    chai.assert.equal(changePasswordBackSuccessResp.statusCode, cassava.httpStatusCode.success.OK, `Password ix=${passwordIx} should change back to default, response=${changePasswordResp.bodyRaw}`);
+                }
+            }
+        }).timeout(30000);  // Validating passwords takes a long time and this test does *a lot* of that.
+
+        it("can be disabled", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                requirePasswordHistory: false
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.isFalse(patchAccountResp.body.requirePasswordHistory);
+        });
+
+        it("does not prevent users from reusing passwords after all their Accounts stop requiring it", async () => {
+            const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+                oldPassword: testUtils.defaultTestUser.password,
+                newPassword: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, changePasswordResp.bodyRaw);
         });
     });
 });

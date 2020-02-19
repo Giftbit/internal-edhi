@@ -10,6 +10,7 @@ import {installCustomerSupportRest} from "./customerSupport";
 import {installLoginAuthedRest} from "./login";
 import {installMfaRest} from "./mfa";
 import {installPaymentsRest} from "./payments";
+import {installUserRest} from "./user";
 
 /**
  * Install REST routes that require valid authorization.
@@ -26,4 +27,5 @@ export function installAuthedRestRoutes(router: cassava.Router): void {
     installMfaRest(router);
     installPaymentsRest(router);
     installPingRest(router);
+    installUserRest(router);
 }

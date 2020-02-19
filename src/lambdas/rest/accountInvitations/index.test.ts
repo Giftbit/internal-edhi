@@ -288,7 +288,7 @@ describe("/v2/account/invitations", () => {
 
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
     });
 
     it("can update an AccountUser's roles and scopes (which deletes their API keys)", async () => {

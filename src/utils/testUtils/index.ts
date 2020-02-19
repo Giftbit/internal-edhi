@@ -10,6 +10,8 @@ import {DbUser} from "../../db/DbUser";
 import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import {generateOtpSecret} from "../otpUtils";
+import {LoginResult} from "../../model/LoginResult";
+import {Invitation} from "../../model/Invitation";
 import log = require("loglevel");
 import uuid = require("uuid/v4");
 
@@ -46,13 +48,13 @@ export namespace defaultTestUser {
     });
     export const jwt = auth.sign("secret");
     export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
-    export const password = "password";
+    export const password = "Lw0^d8Sx";
     export const userLogin: DbUserLogin = {
         userId: userId,
         email: email,
         password: {
             algorithm: "BCRYPT",
-            hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
+            hash: "$2a$10$Q74mZB7vTMSlGTEbBwa71eqFjJt3zswf4.Vnhxx8t89QaM2vSCi5y",
             createdDate: "2017-03-07T18:34:06.603Z"
         },
         emailVerified: true,
@@ -105,13 +107,13 @@ export namespace defaultTestUser {
         });
         export const jwt = auth.sign("secret");
         export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
-        export const password = "password";
+        export const password = "0Gb1@KN$";
         export const userLogin: DbUserLogin = {
             userId: teamMemberId,
             email: email,
             password: {
                 algorithm: "BCRYPT",
-                hash: "$2a$10$1A7dIgsPiB.Xf0kaHbVggOiI75vF8nU26MdDb6teeKq0B.AqaXLsy",
+                hash: "$2a$10$SOOnWX/DibG7SosygSsagOSJ1ddouwhkkrnqMVJGicnEYJLmbdpUC",
                 createdDate: "2019-04-08T21:09:21.127Z"
             },
             emailVerified: true,
@@ -173,13 +175,13 @@ export async function resetDb(): Promise<void> {
 }
 
 /**
- * Create a new user.  This takes several calls and a lot of time for a unit
+ * Create a new user in a new account.  This takes several calls and a lot of time for a unit
  * test.  Using the existing test users above is preferable but sometimes inappropriate.
  * @param router The TestRouter
  * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
-export async function getNewUserLoginResp(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<ParsedProxyResponse<any>> {
+export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
     let verifyEmail: emailUtils.SendEmailParams;
     sinonSandbox.stub(emailUtils, "sendEmail")
         .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -204,7 +206,65 @@ export async function getNewUserLoginResp(router: TestRouter, sinonSandbox: sino
         password
     });
     chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-    return loginResp;
+
+    return {
+        loginResp: loginResp,
+        email: email,
+        password: password
+    };
+}
+
+/**
+ * Create a new user in the default account.  This takes several calls and a lot of time for a unit
+ * test.  Using the existing test users above is preferable but sometimes inappropriate.
+ * @param router The TestRouter
+ * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
+ * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
+ */
+export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
+    let inviteEmail: emailUtils.SendEmailParams;
+    sinonSandbox.stub(emailUtils, "sendEmail")
+        .callsFake(async (params: emailUtils.SendEmailParams) => {
+            inviteEmail = params;
+            return null;
+        });
+
+    const email = generateId() + "@example.com";
+    const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+        email: email,
+        userPrivilegeType: "FULL_ACCESS"
+    });
+    chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+    const acceptInviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
+    chai.assert.isString(acceptInviteToken);
+
+    const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
+    chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInviteResp.bodyRaw);
+    chai.assert.isString(acceptInviteResp.headers["Location"]);
+    chai.assert.match(acceptInviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
+
+    const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInviteResp.headers["Location"])[1];
+    chai.assert.isString(resetPasswordToken);
+
+    const password = generateId();
+    const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        token: resetPasswordToken,
+        password
+    });
+    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+    const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+        email,
+        password
+    });
+    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+    return {
+        loginResp: loginResp,
+        email: email,
+        password: password
+    };
 }
 
 /**

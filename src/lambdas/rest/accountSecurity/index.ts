@@ -28,6 +28,9 @@ export function installAccountSecurityRest(router: cassava.Router): void {
                 properties: {
                     requireMfa: {
                         type: "boolean"
+                    },
+                    requirePasswordHistory: {
+                        type: "boolean"
                     }
                 },
                 required: [],
@@ -41,7 +44,7 @@ export function installAccountSecurityRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { requireMfa?: boolean }): Promise<DbAccount> {
+async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { requireMfa?: boolean, requirePasswordHistory?: boolean }): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating AccountSecurity", auth.userId);
 
@@ -58,6 +61,14 @@ async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBa
             value: params.requireMfa
         });
         account.requireMfa = params.requireMfa;
+    }
+    if (params.requirePasswordHistory != null) {
+        updates.push({
+            action: "put",
+            attribute: "requirePasswordHistory",
+            value: params.requirePasswordHistory
+        });
+        account.requirePasswordHistory = params.requirePasswordHistory;
     }
 
     if (updates.length) {

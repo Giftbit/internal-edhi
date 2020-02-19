@@ -29,6 +29,11 @@ export interface DbUserLogin {
     password?: DbUserLogin.Password;
 
     /**
+     * History of recent passwords stored in a dictionary.
+     */
+    passwordHistory?: { [key: string]: DbUserLogin.Password };
+
+    /**
      * Whether the email address has been verified.  If not the user
      * must verify their email before they can log in.
      */
@@ -76,6 +81,12 @@ export interface DbUserLogin {
 }
 
 export namespace DbUserLogin {
+
+    /**
+     * The maximum number of passwords to store in passwordHistory.
+     */
+    export const maxPasswordHistoryLength = 12;
+
     /**
      * If we migrate to another password hashing algorithm it should be given
      * an identifier here.
