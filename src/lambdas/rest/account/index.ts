@@ -37,10 +37,26 @@ export function installAccountRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    maxInactiveDays: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
+                    maxPasswordAge: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
                     name: {
                         type: "string",
                         minLength: 1,
                         maxLength: 1023
+                    },
+                    requireMfa: {
+                        type: "boolean"
+                    },
+                    requirePasswordHistory: {
+                        type: "boolean"
                     }
                 },
                 required: [],
@@ -196,7 +212,15 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccount> {
+interface UpdateAccountParams {
+    maxInactiveDays?: number | null;
+    maxPasswordAge?: number | null;
+    name?: string;
+    requireMfa?: boolean;
+    requirePasswordHistory?: boolean;
+}
+
+async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: UpdateAccountParams): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating Account", auth.userId);
 
@@ -206,6 +230,28 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.maxInactiveDays !== undefined) {
+        if (params.maxInactiveDays !== null && params.maxInactiveDays <= 0) {
+            throw new Error("params.maxInactiveDays can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxInactiveDays",
+            value: params.maxInactiveDays
+        });
+        account.maxInactiveDays = params.maxInactiveDays;
+    }
+    if (params.maxPasswordAge !== undefined) {
+        if (params.maxPasswordAge !== null && params.maxPasswordAge <= 0) {
+            throw new Error("params.maxPasswordAge can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxPasswordAge",
+            value: params.maxPasswordAge
+        });
+        account.maxPasswordAge = params.maxPasswordAge;
+    }
     if (params.name) {
         updates.push({
             action: "put",
@@ -213,6 +259,22 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
             value: params.name
         });
         account.name = params.name;
+    }
+    if (params.requireMfa != null) {
+        updates.push({
+            action: "put",
+            attribute: "requireMfa",
+            value: params.requireMfa
+        });
+        account.requireMfa = params.requireMfa;
+    }
+    if (params.requirePasswordHistory != null) {
+        updates.push({
+            action: "put",
+            attribute: "requirePasswordHistory",
+            value: params.requirePasswordHistory
+        });
+        account.requirePasswordHistory = params.requirePasswordHistory;
     }
 
     if (!updates.length) {
