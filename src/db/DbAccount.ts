@@ -12,6 +12,12 @@ export interface DbAccount {
     name: string;
 
     /**
+     * The maximum number of days a user can be inactive before their
+     * account is locked.
+     */
+    maxInactiveDays?: number;
+
+    /**
      * The maximum age (in days) of a password that can be used to log in to this Account.
      * Setting this value is *not* recommended but is required anyways by some
      * IT departments.

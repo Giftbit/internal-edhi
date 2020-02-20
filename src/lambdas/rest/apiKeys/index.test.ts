@@ -94,7 +94,7 @@ describe("/v2/account/apiKeys", () => {
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createKeyResp.body.accountId, testUtils.defaultTestUser.accountId);
-        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.teamMate.teamMemberId);
+        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.teamMate.userId);
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.createdDate);

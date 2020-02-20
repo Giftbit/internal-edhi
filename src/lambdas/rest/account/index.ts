@@ -122,9 +122,11 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:list");
             auth.requireIds("userId");
-            const teamMembers = await DbAccountUser.getAllForAccount(auth.userId);
+
+            const account = await DbAccount.get(auth.userId);
+            const accountUsers = await DbAccountUser.getAllForAccount(auth.userId);
             return {
-                body: teamMembers.map(AccountUser.fromDbAccountUser)
+                body: accountUsers.map(accountUser => AccountUser.fromDbAccountUser(account, accountUser))
             };
         });
 
@@ -134,12 +136,14 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:read");
             auth.requireIds("userId");
-            const teamMember = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
-            if (!teamMember || teamMember.invitation) {
+
+            const account = await DbAccount.get(auth.userId);
+            const accountUser = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
+            if (!accountUser || accountUser.invitation) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: AccountUser.fromDbAccountUser(teamMember)
+                body: AccountUser.fromDbAccountUser(account, accountUser)
             };
         });
 
@@ -151,6 +155,9 @@ export function installAccountRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    lockedOnInactivity: {
+                        type: "boolean"
+                    },
                     roles: {
                         type: "array",
                         items: {
@@ -170,9 +177,10 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const teamMember = await updateAccountUser(auth, evt.pathParameters.id, evt.body);
+            const account = await DbAccount.get(auth.userId);
+            const accountUser = await updateAccountUser(auth, evt.pathParameters.id, evt.body);
             return {
-                body: AccountUser.fromDbAccountUser(teamMember)
+                body: AccountUser.fromDbAccountUser(account, accountUser)
             };
         });
 
@@ -291,7 +299,7 @@ async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, acc
     return getLoginResponse(userLogin, accountUser, liveMode);
 }
 
-export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
+export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedOnInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
     auth.requireIds("userId");
     log.info("Updating AccountUser", userId, "in Account", auth.userId, "\n", params);
 
@@ -301,6 +309,15 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.lockedOnInactivity !== undefined) {
+        const lastLoginDate = params.lockedOnInactivity ? new Date(0).toISOString() : createdDateNow();
+        updates.push({
+            action: "put",
+            attribute: "lastLoginDate",
+            value: lastLoginDate
+        });
+        accountUser.lastLoginDate = lastLoginDate;
+    }
     if (params.roles) {
         updates.push({
             action: "put",

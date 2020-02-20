@@ -13,6 +13,9 @@ import {Account} from "../../../model/Account";
 import {LoginResult} from "../../../model/LoginResult";
 import {setUserIdTestMode} from "../../../utils/userUtils";
 import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {DbAccountUser} from "../../../db/DbAccountUser";
+import {AccountUser} from "../../../model/AccountUser";
+import {createdDatePast} from "../../../db/dynamodb";
 
 describe("/v2/account/security", () => {
 
@@ -33,6 +36,241 @@ describe("/v2/account/security", () => {
 
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
+    });
+
+    describe("maxInactiveDays (tests are interdependent)", () => {
+        it("is null by default", async () => {
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isNull(getAccountSecurityResp.body.maxInactiveDays);
+        });
+
+        it("can't be set negative", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxInactiveDays: -10
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can't be set to 0", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxInactiveDays: 0
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can't be set to a crazy high number", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxInactiveDays: 9999
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, patchAccountResp.bodyRaw);
+        });
+
+        it("can be set to a reasonable number", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxInactiveDays: 180  // a good, recommended value
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.equal(patchAccountResp.body.maxInactiveDays, 180);
+
+            const getAccountSecurityResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "GET");
+            chai.assert.equal(getAccountSecurityResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(getAccountSecurityResp.body.maxInactiveDays, 180);
+        });
+
+        it("prevents users with inactive accounts from switching", async () => {
+            const inactiveDate = new Date();
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 190)
+            });
+
+            const switchAccountFailResp = await router.testWebAppRequest<any>("/v2/account/switch", "POST", {
+                accountId: testUtils.defaultTestUser.accountId,
+                mode: "test"
+            });
+            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountFailResp.bodyRaw);
+            chai.assert.equal(switchAccountFailResp.body.messageCode, "AccountMaxInactiveDays", switchAccountFailResp.bodyRaw);
+
+            const getAccountFailResp = await router.testPostLoginRequest<Account>(switchAccountFailResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountFailResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+        });
+
+        it("prevents users with inactive accounts from logging in", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 190)
+            });
+
+            const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
+
+            const getAccountFailResp = await router.testPostLoginRequest<Account>(loginFailResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountFailResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+        });
+
+        it("does not prevent users with active accounts from switching", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 4)
+            });
+
+            const switchAccountSuccessResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+                accountId: testUtils.defaultTestUser.accountId,
+                mode: "test"
+            });
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+
+            const accountUserAfterLogin = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            chai.assert.notEqual(accountUserAfterLogin.lastLoginDate, accountUser.lastLoginDate);
+
+            const getAccountSuccessResp = await router.testPostLoginRequest<Account>(switchAccountSuccessResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
+        });
+
+        it("does not prevent users with active accounts from logging in", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 4)
+            });
+
+            const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isUndefined(loginSuccessResp.body.messageCode);
+
+            const accountUserAfterLogin = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            chai.assert.notEqual(accountUserAfterLogin.lastLoginDate, accountUser.lastLoginDate);
+
+            const getAccountSuccessResp = await router.testPostLoginRequest<Account>(loginSuccessResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
+        });
+
+        it("does not prevent brand new users from logging in", async () => {
+            const newUser = await testUtils.getNewUser(router, sinonSandbox);
+
+            const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: newUser.email,
+                password: newUser.password
+            });
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isUndefined(loginSuccessResp.body.messageCode);
+        });
+
+        it("causes AccountUsers with inactive logins to be listed as such", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 190)
+            });
+
+            const accountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "GET");
+            chai.assert.equal(accountUserResp.statusCode, cassava.httpStatusCode.success.OK, accountUserResp.bodyRaw);
+            chai.assert.isTrue(accountUserResp.body.lockedOnInactivity);
+
+            const otherAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
+            chai.assert.equal(otherAccountUserResp.statusCode, cassava.httpStatusCode.success.OK, accountUserResp.bodyRaw);
+            chai.assert.isFalse(otherAccountUserResp.body.lockedOnInactivity);
+
+            const accountUsersResp = await router.testWebAppRequest<AccountUser[]>("/v2/account/users", "GET");
+            chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, accountUsersResp.bodyRaw);
+            chai.assert.isTrue(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.userId).lockedOnInactivity);
+            chai.assert.isFalse(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.teamMate.userId).lockedOnInactivity);
+        });
+
+        it("can lock active users out if lockedOnInactivity is PATCHed to true", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 4)
+            });
+
+            const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isUndefined(loginSuccessResp.body.messageCode);
+
+            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
+                lockedOnInactivity: true
+            });
+            chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isTrue(patchAccountUserResp.body.lockedOnInactivity);
+
+            const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
+        });
+
+        it("can allow inactive users back in if lockedOnInactivity is PATCHed to false", async () => {
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(0, 0, 190)
+            });
+
+            const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
+
+            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
+                lockedOnInactivity: false
+            });
+            chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isFalse(patchAccountUserResp.body.lockedOnInactivity);
+
+            const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.isUndefined(loginSuccessResp.body.messageCode);
+        });
+
+        it("can be disabled", async () => {
+            const patchAccountResp = await router.testWebAppRequest<AccountSecurity>("/v2/account/security", "PATCH", {
+                maxInactiveDays: null
+            });
+            chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
+            chai.assert.isNull(patchAccountResp.body.maxInactiveDays);
+
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            await DbAccountUser.update(accountUser, {
+                action: "put",
+                attribute: "lastLoginDate",
+                value: createdDatePast(1, 0, 0)
+            });
+
+            const switchAccountSuccessResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+                accountId: testUtils.defaultTestUser.accountId,
+                mode: "test"
+            });
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+        });
     });
 
     describe("maxPasswordAge (tests are interdependent)", () => {

@@ -81,12 +81,12 @@ export namespace defaultTestUser {
     };
 
     export namespace teamMate {
-        export const teamMemberId = "user-testteammate";
+        export const userId = "user-testteammate";
         export const email = "teammate@example.com";
         export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
             "g": {
                 "gui": accountId + "-TEST",
-                "tmi": teamMemberId + "-TEST",
+                "tmi": userId + "-TEST",
             },
             "iat": "2019-04-08T21:09:21.127Z",
             "jti": "badge-0ab6d47706c94cf8a83197cdce4dcc94",
@@ -109,7 +109,7 @@ export namespace defaultTestUser {
         export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
         export const password = "0Gb1@KN$";
         export const userLogin: DbUserLogin = {
-            userId: teamMemberId,
+            userId: userId,
             email: email,
             password: {
                 algorithm: "BCRYPT",
@@ -122,12 +122,12 @@ export namespace defaultTestUser {
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userDetails: DbUser = {
-            userId: teamMemberId,
+            userId: userId,
             email: email
         };
         export const teamMember: DbAccountUser = {
             accountId: accountId,
-            userId: teamMemberId,
+            userId: userId,
             userDisplayName: email,
             accountDisplayName: "Test Account",
             roles: auth.roles,

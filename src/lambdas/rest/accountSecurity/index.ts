@@ -26,6 +26,11 @@ export function installAccountSecurityRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    maxInactiveDays: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
                     maxPasswordAge: {
                         type: ["number", "null"],
                         minimum: 7,
@@ -49,7 +54,7 @@ export function installAccountSecurityRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { maxPasswordAge?: number, requireMfa?: boolean, requirePasswordHistory?: boolean }): Promise<DbAccount> {
+async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { maxInactiveDays?: number | null, maxPasswordAge?: number | null, requireMfa?: boolean, requirePasswordHistory?: boolean }): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating AccountSecurity", auth.userId);
 
@@ -59,6 +64,17 @@ async function updateAccountSecurity(auth: giftbitRoutes.jwtauth.AuthorizationBa
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.maxInactiveDays !== undefined) {
+        if (params.maxInactiveDays !== null && params.maxInactiveDays <= 0) {
+            throw new Error("params.maxInactiveDays can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxInactiveDays",
+            value: params.maxInactiveDays
+        });
+        account.maxInactiveDays = params.maxInactiveDays;
+    }
     if (params.maxPasswordAge !== undefined) {
         if (params.maxPasswordAge !== null && params.maxPasswordAge <= 0) {
             throw new Error("params.maxPasswordAge can't be negative");

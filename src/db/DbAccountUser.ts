@@ -15,6 +15,7 @@ export interface DbAccountUser {
     invitation?: DbAccountUser.Invitation;
     roles: string[];
     scopes: string[];
+    lastLoginDate?: string;
     createdDate: string;
 
 }

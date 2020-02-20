@@ -2,7 +2,7 @@ import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
-import {createdDateNow} from "../../../db/dynamodb";
+import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
 import {DbUserLogin} from "../../../db/DbUserLogin";
@@ -389,11 +389,20 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
         badge = DbUserLogin.getOrphanBadge(userLogin);
-    } else if (account.maxPasswordAge && userLogin.password.createdDate < getMaxPasswordAgeCutoff(account.maxPasswordAge)) {
+    } else if (account.maxPasswordAge && userLogin.password.createdDate < createdDatePast(0, 0, account.maxPasswordAge)) {
         body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
         body.messageCode = "AccountMaxPasswordAge";
         badge = DbUserLogin.getOrphanBadge(userLogin);
+    } else if (account.maxInactiveDays && accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays)) {
+        body.message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
+        body.messageCode = "AccountMaxInactiveDays";
+        badge = DbUserLogin.getOrphanBadge(userLogin);
     } else {
+        await DbAccountUser.update(accountUser, {
+            action: "put",
+            attribute: "lastLoginDate",
+            value: createdDateNow()
+        });
         badge = DbUserLogin.getBadge(accountUser, liveMode, true);
     }
 
@@ -408,12 +417,6 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
             ...additionalCookies
         }
     };
-}
-
-function getMaxPasswordAgeCutoff(maxPasswordAge: number): string {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - maxPasswordAge);
-    return cutoff.toISOString();
 }
 
 async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {

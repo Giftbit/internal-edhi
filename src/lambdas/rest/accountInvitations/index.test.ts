@@ -292,7 +292,7 @@ describe("/v2/account/invitations", () => {
     });
 
     it("can update an AccountUser's roles and scopes (which deletes their API keys)", async () => {
-        const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "GET");
+        const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
         chai.assert.equal(getTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
 
@@ -313,7 +313,7 @@ describe("/v2/account/invitations", () => {
                     })
                 })
             } as any);
-        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "PATCH", {
+        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
             roles: newRoles,
             scopes: newScopes
         });
@@ -325,7 +325,7 @@ describe("/v2/account/invitations", () => {
             scopes: newScopes
         });
 
-        const getUpdatedTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "GET");
+        const getUpdatedTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
         chai.assert.equal(getUpdatedTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getUpdatedTeamMateResp.body, patchTeamMemberResp.body);
 
