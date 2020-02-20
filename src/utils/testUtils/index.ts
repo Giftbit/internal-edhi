@@ -221,7 +221,7 @@ export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSa
  * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
-export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
+export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
     let inviteEmail: emailUtils.SendEmailParams;
     sinonSandbox.stub(emailUtils, "sendEmail")
         .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -263,7 +263,8 @@ export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.Sino
     return {
         loginResp: loginResp,
         email: email,
-        password: password
+        password: password,
+        userId: inviteResp.body.userId
     };
 }
 
