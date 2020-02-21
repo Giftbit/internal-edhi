@@ -20,6 +20,8 @@ export interface DbUser {
      */
     email: string;
 
+    createdDate: string;
+
 }
 
 export namespace DbUser {

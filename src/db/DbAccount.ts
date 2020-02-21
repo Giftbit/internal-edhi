@@ -11,6 +11,7 @@ export interface DbAccount {
 
     name: string;
 
+    createdDate: string;
 }
 
 export namespace DbAccount {

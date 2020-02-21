@@ -61,11 +61,13 @@ export namespace defaultTestUser {
     };
     export const userDetails: DbUser = {
         userId: teamMemberId,
-        email: email
+        email: email,
+        createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const accountDetails: DbAccount = {
         accountId: userId,
-        name: "Test Account"
+        name: "Test Account",
+        createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const teamMember: DbAccountUser = {
         accountId: userId,
@@ -120,7 +122,8 @@ export namespace defaultTestUser {
         };
         export const userDetails: DbUser = {
             userId: teamMemberId,
-            email: email
+            email: email,
+            createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const teamMember: DbAccountUser = {
             accountId: userId,

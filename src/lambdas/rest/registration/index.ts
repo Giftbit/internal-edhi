@@ -119,7 +119,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     const userDetails: DbUser = {
         userId: userId,
-        email: params.email
+        email: params.email,
+        createdDate: createdDateNow()
     };
     const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
     objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
@@ -129,7 +130,8 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     const accountDetails: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account"
+        name: params.name ?? "Account",
+        createdDate: createdDateNow()
     };
     const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(putAccountReq, {

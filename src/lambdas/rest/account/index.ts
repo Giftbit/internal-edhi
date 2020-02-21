@@ -256,7 +256,8 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 
     const accountDetails: DbAccount = {
         accountId: accountId,
-        name: params.name
+        name: params.name,
+        createdDate: createdDateNow()
     };
     const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
     objectDynameh.requestBuilder.addCondition(createAccountReq, {

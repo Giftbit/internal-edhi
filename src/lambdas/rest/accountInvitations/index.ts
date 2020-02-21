@@ -129,7 +129,8 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
 
         const userDetails: DbUser = {
             userId,
-            email: params.email
+            email: params.email,
+            createdDate: createdDateNow()
         };
         const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
         objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
