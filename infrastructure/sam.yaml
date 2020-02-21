@@ -95,6 +95,7 @@ Resources:
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
           OBJECT_TABLE: !Ref ObjectTable
           SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
+          SECURE_CONFIG_KEY_INTERCOM_SECRET: intercom_secrets.json
           SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
           SECURE_CONFIG_KEY_OTP: otp.json
           SECURE_CONFIG_KEY_ROLE_DEFINITIONS: RoleDefinitions.json
@@ -110,6 +111,7 @@ Resources:
                 - s3:GetObject
               Resource:
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/intercom_secrets.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/otp.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/RoleDefinitions.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/sentry_lambda_services.json"

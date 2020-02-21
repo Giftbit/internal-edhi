@@ -7,6 +7,7 @@ import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
 import {DbUserLogin} from "../../db/DbUserLogin";
 import {initializeOtpEncryptionSecrets} from "../../utils/otpUtils";
 import {initializeTwilioCredentials, TwilioCredentialsConfig} from "../../utils/smsUtils";
+import {initializeIntercomSecrets, IntercomSecrets} from "../../utils/intercomUtils";
 import log = require("loglevel");
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)
@@ -57,6 +58,10 @@ initializeLightrailStripeConfig(
 
 initializeTwilioCredentials(
     giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<TwilioCredentialsConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_TWILIO")
+);
+
+initializeIntercomSecrets(
+    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<IntercomSecrets>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_INTERCOM_SECRET")
 );
 
 initializeOtpEncryptionSecrets(
