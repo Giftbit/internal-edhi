@@ -6,7 +6,6 @@ import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
-import {deleteApiKeysForUser} from "../apiKeys";
 import {UserAccount} from "../../../model/UserAccount";
 import {AccountUser} from "../../../model/AccountUser";
 import {DbAccount} from "../../../db/DbAccount";
@@ -397,14 +396,6 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
         accountUser.scopes = params.scopes;
     }
 
-    if (params.roles || params.scopes) {
-        // This is separated from the above because other params might be patchable in the future.
-        // Arguably we could only delete the API keys if we're strictly reducing their permissions,
-        // but that seems like it might be more subtle and confusing.  This is easier to explain.
-        log.info("Updating roles or scopes for TeamMember", userId, "in Account", auth.userId, "has triggered deleting all of their API keys");
-        await deleteApiKeysForUser(auth, userId);
-    }
-
     if (updates.length) {
         await DbAccountUser.update(accountUser, ...updates);
     }
@@ -423,8 +414,6 @@ export async function removeAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
         log.info("The user is invited but not a full member");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
-
-    await deleteApiKeysForUser(auth, teamMemberId);
 
     try {
         await DbAccountUser.del(accountUser, {
