@@ -16,7 +16,8 @@ export function installCustomerSupportRest(router: cassava.Router): void {
                     customerSupportEmail: {
                         type: "string",
                         format: "email",
-                        minLength: 1
+                        minLength: 1,
+                        maxLength: 320
                     },
                     subject: {
                         type: "string",

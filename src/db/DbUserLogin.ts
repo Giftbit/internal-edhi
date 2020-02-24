@@ -29,6 +29,11 @@ export interface DbUserLogin {
     password?: DbUserLogin.Password;
 
     /**
+     * History of recent passwords stored in a dictionary.
+     */
+    passwordHistory?: { [key: string]: DbUserLogin.Password };
+
+    /**
      * Whether the email address has been verified.  If not the user
      * must verify their email before they can log in.
      */
@@ -76,6 +81,12 @@ export interface DbUserLogin {
 }
 
 export namespace DbUserLogin {
+
+    /**
+     * The maximum number of passwords to store in passwordHistory.
+     */
+    export const maxPasswordHistoryLength = 12;
+
     /**
      * If we migrate to another password hashing algorithm it should be given
      * an identifier here.
@@ -260,14 +271,18 @@ export namespace DbUserLogin {
     }
 
     /**
-     * An orphaned user has no team.  All they can do is create an Account.
+     * An orphaned user has no team.  All they can do is create an Account and manage themselves.
      * @param userLogin
      */
     export function getOrphanBadge(userLogin: DbUserLogin): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.teamMemberId = userLogin.userId;
         auth.roles = [];
-        auth.scopes = [];
+        auth.scopes = [
+            "lightrailV2:account:create",
+            "lightrailV2:user:read",
+            "lightrailV2:user:update"
+        ];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
         auth.expirationTime = new Date(Date.now() + 180 * 60 * 1000);
@@ -331,5 +346,9 @@ export namespace DbUserLogin {
                 }
             }
         };
+    }
+
+    export function hasMfaActive(userLogin: DbUserLogin): boolean {
+        return !!(userLogin?.mfa?.smsDevice) || !!(userLogin?.mfa?.totpSecret);
     }
 }

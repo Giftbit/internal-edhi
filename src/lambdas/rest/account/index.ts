@@ -3,7 +3,7 @@ import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
-import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
+import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
 import {deleteApiKeysForUser} from "../apiKeys";
@@ -12,6 +12,8 @@ import {AccountUser} from "../../../model/AccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
+import {LoginResult} from "../../../model/LoginResult";
+import {getLoginResponse} from "../login";
 import log = require("loglevel");
 
 export function installAccountRest(router: cassava.Router): void {
@@ -35,10 +37,26 @@ export function installAccountRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    maxInactiveDays: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
+                    maxPasswordAge: {
+                        type: ["number", "null"],
+                        minimum: 7,
+                        maximum: 999
+                    },
                     name: {
                         type: "string",
                         minLength: 1,
                         maxLength: 1023
+                    },
+                    requireMfa: {
+                        type: "boolean"
+                    },
+                    requirePasswordHistory: {
+                        type: "boolean"
                     }
                 },
                 required: [],
@@ -93,37 +111,25 @@ export function installAccountRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:user:read");
-            auth.requireIds("userId", "teamMemberId");
+            auth.requireScopes("lightrailV2:user:read", "lightrailV2:user:update");
+            auth.requireIds("teamMemberId");
 
             evt.validateBody({
                 properties: {
-                    mode: {
-                        type: "string",
-                        enum: ["live", "test"]
-                    },
                     accountId: {
                         type: "string",
                         minLength: 1
+                    },
+                    mode: {
+                        type: "string",
+                        enum: ["live", "test"]
                     }
                 },
-                required: [],
+                required: ["accountId", "mode"],
                 additionalProperties: false
             });
 
-            const userLogin = await DbUserLogin.getByAuth(auth);
-            const accountUser = await DbAccountUser.getByUserLogin(userLogin, evt.body.accountId);
-            let liveMode = evt.body.mode === "live" || (!evt.body.mode && evt.body.accountId && isTestModeUserId(evt.body.accountId));
-            const userBadge = DbUserLogin.getBadge(accountUser, liveMode, true);
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                },
-                cookies: await DbUserLogin.getBadgeCookies(userBadge)
-            };
+            return await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
         });
 
     router.route("/v2/account/users")
@@ -132,9 +138,11 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:list");
             auth.requireIds("userId");
-            const teamMembers = await DbAccountUser.getAllForAccount(auth.userId);
+
+            const account = await DbAccount.get(auth.userId);
+            const accountUsers = await DbAccountUser.getAllForAccount(auth.userId);
             return {
-                body: teamMembers.map(AccountUser.fromDbAccountUser)
+                body: accountUsers.map(accountUser => AccountUser.fromDbAccountUser(account, accountUser))
             };
         });
 
@@ -144,12 +152,14 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:account:users:read");
             auth.requireIds("userId");
-            const teamMember = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
-            if (!teamMember || teamMember.invitation) {
+
+            const account = await DbAccount.get(auth.userId);
+            const accountUser = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
+            if (!accountUser || accountUser.invitation) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
-                body: AccountUser.fromDbAccountUser(teamMember)
+                body: AccountUser.fromDbAccountUser(account, accountUser)
             };
         });
 
@@ -161,6 +171,9 @@ export function installAccountRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
+                    lockedOnInactivity: {
+                        type: "boolean"
+                    },
                     roles: {
                         type: "array",
                         items: {
@@ -180,9 +193,10 @@ export function installAccountRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const teamMember = await updateAccountUser(auth, evt.pathParameters.id, evt.body);
+            const account = await DbAccount.get(auth.userId);
+            const accountUser = await updateAccountUser(auth, evt.pathParameters.id, evt.body);
             return {
-                body: AccountUser.fromDbAccountUser(teamMember)
+                body: AccountUser.fromDbAccountUser(account, accountUser)
             };
         });
 
@@ -198,7 +212,15 @@ export function installAccountRest(router: cassava.Router): void {
         });
 }
 
-async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { name?: string }): Promise<DbAccount> {
+interface UpdateAccountParams {
+    maxInactiveDays?: number | null;
+    maxPasswordAge?: number | null;
+    name?: string;
+    requireMfa?: boolean;
+    requirePasswordHistory?: boolean;
+}
+
+async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: UpdateAccountParams): Promise<DbAccount> {
     auth.requireIds("userId");
     log.info("Updating Account", auth.userId);
 
@@ -208,6 +230,28 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.maxInactiveDays !== undefined) {
+        if (params.maxInactiveDays !== null && params.maxInactiveDays <= 0) {
+            throw new Error("params.maxInactiveDays can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxInactiveDays",
+            value: params.maxInactiveDays
+        });
+        account.maxInactiveDays = params.maxInactiveDays;
+    }
+    if (params.maxPasswordAge !== undefined) {
+        if (params.maxPasswordAge !== null && params.maxPasswordAge <= 0) {
+            throw new Error("params.maxPasswordAge can't be negative");
+        }
+        updates.push({
+            action: "put",
+            attribute: "maxPasswordAge",
+            value: params.maxPasswordAge
+        });
+        account.maxPasswordAge = params.maxPasswordAge;
+    }
     if (params.name) {
         updates.push({
             action: "put",
@@ -215,6 +259,22 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
             value: params.name
         });
         account.name = params.name;
+    }
+    if (params.requireMfa != null) {
+        updates.push({
+            action: "put",
+            attribute: "requireMfa",
+            value: params.requireMfa
+        });
+        account.requireMfa = params.requireMfa;
+    }
+    if (params.requirePasswordHistory != null) {
+        updates.push({
+            action: "put",
+            attribute: "requirePasswordHistory",
+            value: params.requirePasswordHistory
+        });
+        account.requirePasswordHistory = params.requirePasswordHistory;
     }
 
     if (!updates.length) {
@@ -285,7 +345,23 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     return accountDetails;
 }
 
-export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
+async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
+    if (!accountUser || accountUser.invitation) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+
+    const userLogin = await DbUserLogin.getByAuth(auth);
+    await DbUserLogin.update(userLogin, {
+        action: "put",
+        attribute: "defaultLoginAccountId",
+        value: liveMode ? stripUserIdTestMode(accountId) : setUserIdTestMode(accountId)
+    });
+
+    return getLoginResponse(userLogin, accountUser, liveMode);
+}
+
+export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedOnInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
     auth.requireIds("userId");
     log.info("Updating AccountUser", userId, "in Account", auth.userId, "\n", params);
 
@@ -295,6 +371,15 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
+    if (params.lockedOnInactivity !== undefined) {
+        const lastLoginDate = params.lockedOnInactivity ? new Date(0).toISOString() : createdDateNow();
+        updates.push({
+            action: "put",
+            attribute: "lastLoginDate",
+            value: lastLoginDate
+        });
+        accountUser.lastLoginDate = lastLoginDate;
+    }
     if (params.roles) {
         updates.push({
             action: "put",
