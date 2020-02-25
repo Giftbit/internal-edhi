@@ -8,7 +8,7 @@
 STACK_NAME="dev-Edhi"
 
 # The name of an S3 bucket on your account to hold deployment artifacts.
-BUILD_ARTIFACT_BUCKET="dev-lightrailedhi-143ake-deploymentartifactbucket-i1ar6abjqotq"
+BUILD_ARTIFACT_BUCKET="dev-lightrailedhi-1d4vyn-deploymentartifactbucket-5rv7c6muhakz"
 
 # Parameter values for the sam template.  see: `aws cloudformation deploy help`
 PARAMETER_OVERRIDES="--parameter-overrides"
