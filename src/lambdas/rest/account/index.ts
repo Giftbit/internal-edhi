@@ -154,7 +154,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             const account = await DbAccount.get(auth.userId);
             const accountUser = await DbAccountUser.get(auth.userId, evt.pathParameters.id);
-            if (!accountUser || accountUser.invitation) {
+            if (!accountUser || accountUser.pendingInvitation) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${evt.pathParameters.id}'.`, "UserNotFound");
             }
             return {
@@ -346,7 +346,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 
 async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
-    if (!accountUser || accountUser.invitation) {
+    if (!accountUser || accountUser.pendingInvitation) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
     }
 
@@ -410,14 +410,14 @@ export async function removeAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     if (!accountUser) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
-    if (accountUser.invitation) {
+    if (accountUser.pendingInvitation) {
         log.info("The user is invited but not a full member");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
     }
 
     try {
         await DbAccountUser.del(accountUser, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_not_exists"
         });
     } catch (error) {

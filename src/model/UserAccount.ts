@@ -1,12 +1,12 @@
 import {DbAccountUser} from "../db/DbAccountUser";
 
 /**
- * Details of an Account shown to the User.
+ * Details of an Account when shown to the User.
  */
 export interface UserAccount {
     accountId: string;
     userId: string;
-    displayName: string;
+    accountDisplayName: string;
 }
 
 export namespace UserAccount {
@@ -14,7 +14,7 @@ export namespace UserAccount {
         return {
             accountId: accountUser.accountId,
             userId: accountUser.userId,
-            displayName: accountUser.accountDisplayName
+            accountDisplayName: accountUser.accountDisplayName
         };
     }
 }

@@ -64,7 +64,7 @@ describe("/v2/account", () => {
         const getUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(getUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getUserAccountsResp.body, 1);
-        chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Account");
+        chai.assert.equal(getUserAccountsResp.body[0].accountDisplayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {
@@ -83,7 +83,7 @@ describe("/v2/account", () => {
         chai.assert.lengthOf(userAccountsResp.body, initialUserAccountsResp.body.length + 1, userAccountsResp.bodyRaw);
         chai.assert.isDefined(userAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${userAccountsResp.bodyRaw}`);
 
-        const createdUserAccount = userAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
+        const createdUserAccount = userAccountsResp.body.find(a => a.accountDisplayName === "Totally Not a Drug Front");
         chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
         chai.assert.equal(createdUserAccount.accountId, createAccountResp.body.id);
         chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.userId);
@@ -128,11 +128,11 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
 
-        const inviteResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
+        const invitationResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
             email: testUtils.defaultTestUser.teamMate.email,
             userPrivilegeType: "FULL_ACCESS"
         });
-        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(invitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
         const teamMateSwitchAccountResp = await router.testTeamMateRequest("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,

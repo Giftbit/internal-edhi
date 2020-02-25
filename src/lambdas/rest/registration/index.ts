@@ -74,14 +74,14 @@ export function installRegistrationRest(router: cassava.Router): void {
             };
         });
 
-    router.route("/v2/user/register/acceptInvite")
+    router.route("/v2/user/register/acceptInvitation")
         .method("GET")
         .handler(async evt => {
             if (!evt.queryStringParameters.token) {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
             }
 
-            const acceptRes = await acceptInvite(evt.queryStringParameters.token);
+            const acceptRes = await acceptInvitation(evt.queryStringParameters.token);
 
             return {
                 body: null,
@@ -196,20 +196,20 @@ async function verifyEmail(token: string): Promise<void> {
     log.info("User", tokenAction.email, "has verified their email address");
 }
 
-async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
-    const acceptInviteTokenAction = await TokenAction.get(token);
-    if (!acceptInviteTokenAction || acceptInviteTokenAction.action !== "acceptTeamInvite") {
-        log.warn("Cannot accept team invite: can't find acceptTeamInvite TokenAction for token", token);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
+async function acceptInvitation(token: string): Promise<{ redirectUrl: string }> {
+    const acceptInvitationTokenAction = await TokenAction.get(token);
+    if (!acceptInvitationTokenAction || acceptInvitationTokenAction.action !== "acceptAccountInvitation") {
+        log.warn("Cannot accept account invitation: can't find acceptInvitation TokenAction for token", token);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invitation expired.");
     }
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [
-        tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInviteTokenAction)
+        tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInvitationTokenAction)
     ];
 
-    const userLogin = await DbUserLogin.getById(acceptInviteTokenAction.userId);
+    const userLogin = await DbUserLogin.getById(acceptInvitationTokenAction.userId);
     if (!userLogin) {
-        throw new Error(`Cannot accept team invite: can't find UserLogin with id ${acceptInviteTokenAction.userId}`);
+        throw new Error(`Cannot accept account invitation: can't find UserLogin with id ${acceptInvitationTokenAction.userId}`);
     }
     if (!userLogin.emailVerified) {
         // Accepting the invite verifies the email address.
@@ -228,17 +228,17 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
         updates.push(updateUserReq);
     }
 
-    const teamMember = await DbAccountUser.get(acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
-    if (!teamMember) {
-        log.warn("Cannot accept team invite: can't find TeamMember with ids", acceptInviteTokenAction.accountId, acceptInviteTokenAction.userId);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invite expired.");
+    const accountUser = await DbAccountUser.get(acceptInvitationTokenAction.accountId, acceptInvitationTokenAction.userId);
+    if (!accountUser) {
+        log.warn("Cannot accept account invitation: can't find DbAccountUser with accountId=", acceptInvitationTokenAction.accountId, "userId=", acceptInvitationTokenAction.userId);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invitation expired.");
     }
-    if (teamMember.invitation) {
+    if (accountUser.pendingInvitation) {
         const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbAccountUser.getKeys(teamMember),
+            DbAccountUser.getKeys(accountUser),
             {
                 action: "remove",
-                attribute: "invitation"
+                attribute: "pendingInvitation"
             }
         );
         objectDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
@@ -251,11 +251,11 @@ async function acceptInvite(token: string): Promise<{ redirectUrl: string }> {
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
-    log.info("User", acceptInviteTokenAction.email, "has accepted a team invite");
+    log.info("User", acceptInvitationTokenAction.email, "has accepted an account invitation");
 
     if (!userLogin.password) {
-        log.info("User", acceptInviteTokenAction.email, "has no password, setting up password reset");
-        const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInviteTokenAction.email});
+        log.info("User", acceptInvitationTokenAction.email, "has no password, setting up password reset");
+        const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
         return {
             redirectUrl: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`

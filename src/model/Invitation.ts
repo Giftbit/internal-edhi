@@ -10,15 +10,15 @@ export interface Invitation {
 
 export namespace Invitation {
     export function fromDbAccountUser(teamMember: DbAccountUser): Invitation {
-        if (!teamMember.invitation) {
+        if (!teamMember.pendingInvitation) {
             throw new Error("TeamMember does not have an invitation.");
         }
         return {
             accountId: teamMember.accountId,
             userId: teamMember.userId,
-            email: teamMember.invitation.email,
-            createdDate: teamMember.invitation.createdDate,
-            expiresDate: teamMember.invitation.expiresDate
+            email: teamMember.pendingInvitation.email,
+            createdDate: teamMember.pendingInvitation.createdDate,
+            expiresDate: teamMember.pendingInvitation.expiresDate
         };
     }
 }

@@ -5,6 +5,10 @@ import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {dynamodb, objectDynameh} from "./dynamodb";
 
+/**
+ * A team or organization that hopefully pays us money to use the system.
+ * Accounts own business data but Users make the changes.
+ */
 export interface DbAccount {
 
     accountId: string;

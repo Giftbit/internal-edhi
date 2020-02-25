@@ -46,7 +46,7 @@ export interface DbUserLogin {
     frozen: boolean;
 
     /**
-     * Accounts can be time locked on too many login failures.
+     * Login can be time locked on too many login failures.
      */
     lockedUntilDate?: string;
 
@@ -62,8 +62,7 @@ export interface DbUserLogin {
     mfa?: DbUserLogin.Mfa;
 
     /**
-     * The default account userId a user will log in to
-     * if none is specified.
+     * The default accountId a user will log in to.
      */
     defaultLoginAccountId: string;
 
@@ -75,7 +74,7 @@ export interface DbUserLogin {
     failedLoginAttempts?: Set<string>;
 
     /**
-     * Date the account was created.
+     * Date the user was created.
      */
     createdDate: string;
 }
