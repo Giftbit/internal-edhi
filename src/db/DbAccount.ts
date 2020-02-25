@@ -10,6 +10,7 @@ export interface DbAccount {
     accountId: string;
 
     name: string;
+    
     /**
      * The maximum number of days a user can be inactive before their
      * account is locked.
