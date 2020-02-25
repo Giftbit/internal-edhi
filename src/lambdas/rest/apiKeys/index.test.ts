@@ -1,7 +1,6 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
 import * as sinon from "sinon";
-import * as superagent from "superagent";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
@@ -40,8 +39,8 @@ describe("/v2/account/apiKeys", () => {
             name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(createKeyResp.body.accountId, testUtils.defaultTestUser.userId);
-        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.teamMemberId);
+        chai.assert.equal(createKeyResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.userId);
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.createdDate);
@@ -62,18 +61,9 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
-        // Stub the superagent calls that revoke the credentials.
-        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
-            .returns({
-                set: () => ({
-                    timeout: () => ({
-                        retry: () => Promise.resolve({})
-                    })
-                })
-            } as any);
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isTrue(sinonDeleteStub.called);
+        // NOTE: this is where we would check that a call to blacklist the token happens
 
         const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyPostDeleteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
@@ -93,8 +83,8 @@ describe("/v2/account/apiKeys", () => {
             name: name
         });
         chai.assert.equal(createKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(createKeyResp.body.accountId, testUtils.defaultTestUser.userId);
-        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.teamMate.teamMemberId);
+        chai.assert.equal(createKeyResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(createKeyResp.body.userId, testUtils.defaultTestUser.teamMate.userId);
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.createdDate);
@@ -108,17 +98,8 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
-        // Stub the superagent calls that revoke the credentials.
-        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
-            .returns({
-                set: () => ({
-                    timeout: () => ({
-                        retry: () => Promise.resolve({})
-                    })
-                })
-            } as any);
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isTrue(sinonDeleteStub.called);
+        // NOTE: this is where we would check that a call to blacklist the token happens
     });
 });

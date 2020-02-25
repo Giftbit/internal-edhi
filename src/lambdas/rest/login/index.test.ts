@@ -11,7 +11,8 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
-import {generateOtpSecret, generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {LoginResult} from "../../../model/LoginResult";
 
 describe("/v2/user/login", () => {
 
@@ -33,37 +34,6 @@ describe("/v2/user/login", () => {
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
-
-    // Shortcut to enable SMS MFA.  Enabling is properly tested elsewhere.
-    async function enableSmsMfa(): Promise<void> {
-        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-        const mfaSettings: DbUserLogin.Mfa = {
-            smsDevice: "+15558675309",
-            trustedDevices: {}
-        };
-        await DbUserLogin.update(userLogin, {
-            action: "put",
-            attribute: "mfa",
-            value: mfaSettings
-        });
-    }
-
-    // Shortcut to enable TOTP MFA.  Enabling is properly tested elsewhere.
-    async function enableTotpMfa(): Promise<string> {
-        const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-        const secret = await generateOtpSecret();
-        const mfaSettings: DbUserLogin.Mfa = {
-            totpSecret: secret,
-            totpUsedCodes: {},
-            trustedDevices: {}
-        };
-        await DbUserLogin.update(userLogin, {
-            action: "put",
-            attribute: "mfa",
-            value: mfaSettings
-        });
-        return secret;
-    }
 
     async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
         chai.assert.isString(loginResp.headers["Location"]);
@@ -103,7 +73,7 @@ describe("/v2/user/login", () => {
 
     it("cannot login with a user with the wrong password", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: generateId()
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -111,7 +81,7 @@ describe("/v2/user/login", () => {
 
     it("can login the test user", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -133,7 +103,7 @@ describe("/v2/user/login", () => {
 
         for (let i = 0; i < 10; i++) {
             const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: generateId()
             });
             chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -146,7 +116,7 @@ describe("/v2/user/login", () => {
         }
 
         const goodPasswordButLockedResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodPasswordButLockedResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -165,7 +135,7 @@ describe("/v2/user/login", () => {
         await dynamodb.updateItem(updateLockedDateReq).promise();
 
         const goodLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -232,16 +202,17 @@ describe("/v2/user/login", () => {
 
     describe("SMS MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -256,7 +227,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct SMS code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -264,11 +235,12 @@ describe("/v2/user/login", () => {
                     sms = params;
                 });
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
@@ -291,7 +263,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a case-insensitive code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -300,7 +272,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -317,7 +289,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can send a new code (invalidating the old one)", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -331,7 +303,7 @@ describe("/v2/user/login", () => {
                 });
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -361,7 +333,7 @@ describe("/v2/user/login", () => {
         });
 
         it("is secure against replay attack (using the same code a second time)", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -375,7 +347,7 @@ describe("/v2/user/login", () => {
                 });
 
             const login1Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login1Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -390,7 +362,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(login1CompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -404,13 +376,14 @@ describe("/v2/user/login", () => {
 
     describe("TOTP MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await enableTotpMfa();
+            await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -425,13 +398,14 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct TOTP code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
-            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+            const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const wrongCodeLoginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
                 code: "123456"
@@ -446,10 +420,10 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a 30-second-old code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -462,10 +436,10 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot complete with a 60-second-old code", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -477,10 +451,10 @@ describe("/v2/user/login", () => {
         });
 
         it("does not allow reusing a code even if it was valid", async () => {
-            const secret = await enableTotpMfa();
+            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -493,7 +467,7 @@ describe("/v2/user/login", () => {
             await assertFullyLoggedIn(loginCompleteResp);
 
             const loginAgainResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -508,7 +482,7 @@ describe("/v2/user/login", () => {
 
     describe("backup code login", () => {
         it("can complete login with a backup code", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -517,7 +491,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -535,7 +509,7 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot use the same backup code twice", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -544,7 +518,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -555,7 +529,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -569,7 +543,7 @@ describe("/v2/user/login", () => {
 
     describe("trust this device", () => {
         it("allows skipping the MFA step with the correct token", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -578,7 +552,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -599,7 +573,7 @@ describe("/v2/user/login", () => {
 
             const badTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -611,7 +585,7 @@ describe("/v2/user/login", () => {
 
             const goodTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -623,7 +597,7 @@ describe("/v2/user/login", () => {
         });
 
         it("expires trusted devices even if they have the correct token", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -632,7 +606,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -663,7 +637,7 @@ describe("/v2/user/login", () => {
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {
@@ -674,7 +648,7 @@ describe("/v2/user/login", () => {
         });
 
         it("forgets trusted devices when MFA is disabled and re-enabled", async () => {
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -683,7 +657,7 @@ describe("/v2/user/login", () => {
                 });
 
             const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -705,11 +679,11 @@ describe("/v2/user/login", () => {
             const disableMfaResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/user/mfa", "DELETE");
             chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
 
-            await enableSmsMfa();
+            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {
-                    email: testUtils.defaultTestUser.userLogin.email,
+                    email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
                 },
                 {

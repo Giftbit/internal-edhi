@@ -32,12 +32,8 @@ export async function sendEmail(params: SendEmailParams): Promise<aws.SES.SendEm
         },
         Message: {
             Body: {
-                Html: params.htmlBody && {
-                    Data: params.htmlBody
-                } || undefined,
-                Text: params.textBody && {
-                    Data: params.textBody
-                } || undefined
+                Html: params.htmlBody ? {Data: params.htmlBody} : undefined,
+                Text: params.textBody ? {Data: params.textBody} : undefined
             },
             Subject: {
                 Data: params.subject

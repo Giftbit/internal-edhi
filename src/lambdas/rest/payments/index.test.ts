@@ -27,7 +27,8 @@ describe("/v2/account/payments/cards", () => {
 
     it("can set, get and delete the card", async () => {
         // Use a new user to test the code path creating a Stripe customer.
-        const userLogin = await testUtils.getNewUserLoginResp(router, sinonSandbox);
+        const user = await testUtils.getNewUser(router, sinonSandbox);
+        const userLogin = user.loginResp;
 
         const getUnsetCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "GET");
         chai.assert.equal(getUnsetCardResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);

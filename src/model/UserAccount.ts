@@ -1,5 +1,8 @@
 import {DbAccountUser} from "../db/DbAccountUser";
 
+/**
+ * Details of an Account shown to the User.
+ */
 export interface UserAccount {
     accountId: string;
     userId: string;

@@ -10,6 +10,29 @@ export interface DbAccount {
     accountId: string;
 
     name: string;
+    /**
+     * The maximum number of days a user can be inactive before their
+     * account is locked.
+     */
+    maxInactiveDays?: number;
+
+    /**
+     * The maximum age (in days) of a password that can be used to log in to this Account.
+     * Setting this value is *not* recommended but is required anyways by some
+     * IT departments.
+     */
+    maxPasswordAge?: number;
+
+    /**
+     * Whether MFA is required to gain access to this Account.
+     */
+    requireMfa?: boolean;
+
+    /**
+     * Whether to require that users in the Account not reuse an
+     * old password when changing their password.
+     */
+    requirePasswordHistory?: boolean;
 
     createdDate: string;
 }
@@ -46,6 +69,11 @@ export namespace DbAccount {
     export async function get(accountId: string): Promise<DbAccount> {
         accountId = stripUserIdTestMode(accountId);
         return fromDbObject(await DbObject.get("Account/" + accountId, "Account/" + accountId));
+    }
+
+    export async function getMany(accountIds: string[]): Promise<DbAccount[]> {
+        const dbObjects = await DbObject.getMany(accountIds.map(accountId => ["Account/" + accountId, "Account/" + accountId]));
+        return dbObjects.map(fromDbObject);
     }
 
     export async function getByAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<DbAccount> {

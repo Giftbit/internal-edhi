@@ -12,6 +12,12 @@ export function createdDateNow(): string {
     return new Date().toISOString();
 }
 
+export function createdDatePast(years?: number, months?: number, days?: number): string {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() - (years || 0), date.getMonth() - (months || 0), date.getDate() - (days || 0));
+    return date.toISOString();
+}
+
 export async function queryAll(req: aws.DynamoDB.QueryInput): Promise<any[]> {
     let resp = await dynamodb.query(req).promise();
     const results = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);

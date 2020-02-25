@@ -1,7 +1,6 @@
 import * as cassava from "cassava";
 import * as chai from "chai";
 import * as sinon from "sinon";
-import * as superagent from "superagent";
 import * as emailUtils from "../../../utils/emailUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
@@ -49,7 +48,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
         chai.assert.isObject(inviteEmail, "invite email sent");
         chai.assert.equal(inviteEmail.toAddress, email);
@@ -163,7 +162,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
 
         const listInvitationsResp = await router.testApiRequest<Invitation[]>("/v2/account/invitations", "GET");
@@ -184,7 +183,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(reinviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(reinviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(reinviteResp.body.email, email);
 
         const acceptReinviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(reinviteEmail.htmlBody)[1];
@@ -256,7 +255,7 @@ describe("/v2/account/invitations", () => {
             userPrivilegeType: "FULL_ACCESS"
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
 
         const acceptInviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
@@ -268,11 +267,11 @@ describe("/v2/account/invitations", () => {
 
         const listAccountsResp = await router.testPostLoginRequest<UserAccount[]>(loginResp, "/v2/account/switch", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
-        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
-        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.userId), listAccountsResp.bodyRaw);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
+        chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
 
         const switchAccountResp = await router.testPostLoginRequest(loginResp, "/v2/account/switch", "POST", {
-            accountId: testUtils.defaultTestUser.userId,
+            accountId: testUtils.defaultTestUser.accountId,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
@@ -288,94 +287,38 @@ describe("/v2/account/invitations", () => {
 
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.equal(getAccountResp.body.accountId, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
     });
 
-    it("can update an AccountUser's roles and scopes (which deletes their API keys)", async () => {
-        const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "GET");
+    it("can update an AccountUser's roles and scopes", async () => {
+        const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
         chai.assert.equal(getTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
-
-        const createTeamMateApiKey = await router.testTeamMateRequest<ApiKey>("/v2/account/apiKeys", "POST", {
-            name: generateId()
-        });
-        chai.assert.equal(createTeamMateApiKey.statusCode, cassava.httpStatusCode.success.CREATED);
 
         const newRoles = [...getTeamMateResp.body.roles, "AssistantToTheManager"];
         const newScopes = [...getTeamMateResp.body.scopes, "foobar"];
 
-        // Stub the superagent calls that revoke the credentials.
-        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
-            .returns({
-                set: () => ({
-                    timeout: () => ({
-                        retry: () => Promise.resolve({})
-                    })
-                })
-            } as any);
-        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "PATCH", {
+        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
             roles: newRoles,
             scopes: newScopes
         });
         chai.assert.equal(patchTeamMemberResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isTrue(sinonDeleteStub.called);
         chai.assert.deepEqual(patchTeamMemberResp.body, {
             ...getTeamMateResp.body,
             roles: newRoles,
             scopes: newScopes
         });
 
-        const getUpdatedTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.teamMemberId}`, "GET");
+        const getUpdatedTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
         chai.assert.equal(getUpdatedTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getUpdatedTeamMateResp.body, patchTeamMemberResp.body);
-
-        const getTeamMateApiKeysResp = await router.testTeamMateRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
-        chai.assert.equal(getTeamMateApiKeysResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(getTeamMateApiKeysResp.body, []);
     });
 
-    it("can delete the AccountUser (and their api keys)", async () => {
-        let inviteEmail: emailUtils.SendEmailParams;
-        sinonSandbox.stub(emailUtils, "sendEmail")
-            .callsFake(async (params: emailUtils.SendEmailParams) => {
-                inviteEmail = params;
-                return null;
-            });
-
-        const email = testUtils.generateId() + "@example.com";
-        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
-            email: email,
-            userPrivilegeType: "FULL_ACCESS"
-        });
-        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
-
-        const acceptInviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
-        chai.assert.isString(acceptInviteToken);
-
-        const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
-        chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInviteResp.bodyRaw);
-        chai.assert.isString(acceptInviteResp.headers["Location"]);
-        chai.assert.match(acceptInviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
-
-        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInviteResp.headers["Location"])[1];
-        chai.assert.isString(resetPasswordToken);
-
-        const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
-            token: resetPasswordToken,
-            password
-        });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(completeResp.headers["Location"]);
-
-        const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
-            email,
-            password
-        });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+    it("can delete the AccountUser", async () => {
+        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
 
         // New account creates an API key.
-        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(loginResp, "/v2/account/apiKeys", "POST", {
+        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
         chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
@@ -384,21 +327,11 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqualExcludingEvery(listKeysResp.body, [createApiKeyResp.body], ["token"]);
 
-        const sinonDeleteStub = sinonSandbox.stub(superagent, "delete")
-            .returns({
-                set: () => ({
-                    timeout: () => ({
-                        retry: () => Promise.resolve({})
-                    })
-                })
-            } as any);
-        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${inviteResp.body.userId}`, "DELETE");
+        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
         chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
-        chai.assert.isTrue(sinonDeleteStub.called);
 
-        const listEmptyKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
-        chai.assert.equal(listEmptyKeysResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(listEmptyKeysResp.body, []);
+        const listKeysAfterDeleteResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
+        chai.assert.equal(listKeysAfterDeleteResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(listKeysAfterDeleteResp.body, listKeysResp.body, "deleting the user should not delete their api key");
     });
-
 });
