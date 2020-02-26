@@ -120,23 +120,23 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             defaultLoginAccountId: accountId,
             createdDate
         };
-        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
-        objectDynameh.requestBuilder.addCondition(putUserReq, {
+        const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
+        objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
             attribute: "pk",
             operator: "attribute_not_exists"
         });
-        updates.push(putUserReq);
+        updates.push(putUserLoginReq);
 
         const userDetails: DbUser = {
             userId,
             email: params.email
         };
-        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
-        objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
+        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
+        objectDynameh.requestBuilder.addCondition(putUserReq, {
             attribute: "pk",
             operator: "attribute_not_exists"
         });
-        updates.push(putUserDetailsReq);
+        updates.push(putUserReq);
 
         log.info("Inviting new User", userLogin.userId);
     }
