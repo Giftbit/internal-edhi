@@ -309,9 +309,9 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
     const accountId = DbAccount.generateAccountId();
     log.info("Creating new Account", accountId, "for existing user", auth.teamMemberId);
 
-    const userDetails = await DbUser.getByAuth(auth);
-    if (!userDetails) {
-        throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
+    const user = await DbUser.getByAuth(auth);
+    if (!user) {
+        throw new Error(`Could not find User for user '${auth.teamMemberId}'`);
     }
 
     const account: DbAccount = {
@@ -329,7 +329,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         userId: stripUserIdTestMode(auth.teamMemberId),
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
-        userDisplayName: userDetails.email,
+        userDisplayName: user.email,
         accountDisplayName: account.name,
         createdDate: createdDateNow()
     };
