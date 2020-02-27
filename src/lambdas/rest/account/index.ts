@@ -314,11 +314,11 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         throw new Error(`Could not find UserDetails for user '${auth.teamMemberId}'`);
     }
 
-    const accountDetails: DbAccount = {
+    const account: DbAccount = {
         accountId: accountId,
         name: params.name
     };
-    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
+    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
     objectDynameh.requestBuilder.addCondition(createAccountReq, {
         operator: "attribute_not_exists",
         attribute: "pk"
@@ -330,19 +330,19 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         userDisplayName: userDetails.email,
-        accountDisplayName: accountDetails.name,
+        accountDisplayName: account.name,
         createdDate: createdDateNow()
     };
-    const createTeamMemberReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
-    objectDynameh.requestBuilder.addCondition(createTeamMemberReq, {
+    const createAccountUser = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
+    objectDynameh.requestBuilder.addCondition(createAccountUser, {
         operator: "attribute_not_exists",
         attribute: "pk"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(createAccountReq, createTeamMemberReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(createAccountReq, createAccountUser);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    return accountDetails;
+    return account;
 }
 
 async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {

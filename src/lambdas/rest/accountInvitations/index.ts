@@ -94,13 +94,13 @@ export function installAccountInvitationsRest(router: cassava.Router): void {
         });
 }
 
-export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
+async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
     auth.requireIds("userId");
     const accountId = stripUserIdTestMode(auth.userId);
     log.info("Inviting User", params.email, "to Account", accountId);
 
-    const accountDetails = await DbAccount.get(auth.userId);
-    if (!accountDetails) {
+    const account = await DbAccount.get(auth.userId);
+    if (!account) {
         throw new Error(`Could not find Account for auth userId '${auth.userId}'`);
     }
 
@@ -127,11 +127,11 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
         });
         updates.push(putUserLoginReq);
 
-        const userDetails: DbUser = {
+        const user: DbUser = {
             userId,
             email: params.email
         };
-        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
+        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
         objectDynameh.requestBuilder.addCondition(putUserReq, {
             attribute: "pk",
             operator: "attribute_not_exists"
@@ -173,7 +173,7 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             accountId: accountId,
             userId: userLogin.userId,
             userDisplayName: params.email,
-            accountDisplayName: accountDetails.name,
+            accountDisplayName: account.name,
             pendingInvitation: {
                 email: params.email,
                 createdDate,
@@ -200,13 +200,13 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     return Invitation.fromDbAccountUser(accountUser);
 }
 
-export async function listInvitations(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
+async function listInvitations(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");
     const accountUsers = await DbAccountUser.getInvitationsForAccount(auth.userId);
     return accountUsers.map(Invitation.fromDbAccountUser);
 }
 
-export async function getInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<Invitation> {
+async function getInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUser = await DbAccountUser.get(auth.userId, userId);
     if (!accountUser || !accountUser.pendingInvitation) {
@@ -215,7 +215,7 @@ export async function getInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBad
     return Invitation.fromDbAccountUser(accountUser);
 }
 
-export async function cancelInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<void> {
+async function cancelInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<void> {
     auth.requireIds("userId");
     log.info("Cancel invitation", auth.userId, userId);
 

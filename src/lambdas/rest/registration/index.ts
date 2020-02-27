@@ -117,21 +117,21 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const userDetails: DbUser = {
+    const user: DbUser = {
         userId: userId,
         email: params.email
     };
-    const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
-    objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
+    const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
+    objectDynameh.requestBuilder.addCondition(putUserReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const accountDetails: DbAccount = {
+    const account: DbAccount = {
         accountId: accountId,
         name: params.name ?? "Account"
     };
-    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(accountDetails));
+    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
     objectDynameh.requestBuilder.addCondition(putAccountReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
@@ -141,7 +141,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         accountId: accountId,
         userId: userId,
         userDisplayName: params.email,
-        accountDisplayName: accountDetails.name,
+        accountDisplayName: account.name,
         roles: getRolesForUserPrivilege("OWNER"),
         scopes: [],
         createdDate
@@ -152,7 +152,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserDetailsReq, putAccountReq, putAccountUserReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserReq, putAccountReq, putAccountUserReq);
     try {
         await transactWriteItemsFixed(writeReq);
     } catch (error) {
