@@ -5,7 +5,7 @@ import {DbAccountUser} from "../db/DbAccountUser";
  */
 export interface SwitchableAccount {
     accountId: string;
-    displayName: string;
+    accountDisplayName: string;
     isCurrentAccount: boolean;
 }
 
@@ -13,7 +13,7 @@ export namespace SwitchableAccount {
     export function fromDbAccountUser(accountUser: DbAccountUser, isCurrentAccount: boolean): SwitchableAccount {
         return {
             accountId: accountUser.accountId,
-            displayName: accountUser.accountDisplayName,
+            accountDisplayName: accountUser.accountDisplayName,
             isCurrentAccount: isCurrentAccount
         };
     }

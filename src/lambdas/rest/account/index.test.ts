@@ -64,7 +64,7 @@ describe("/v2/account", () => {
         const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
-        chai.assert.equal(getSwitchableAccountsResp.body[0].displayName, "Worlds Okayest Account");
+        chai.assert.equal(getSwitchableAccountsResp.body[0].accountDisplayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {
@@ -86,7 +86,7 @@ describe("/v2/account", () => {
         const existingAccount = switchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountId);
         chai.assert.equal(existingAccount.isCurrentAccount, true);
 
-        const createdAccount = switchableAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
+        const createdAccount = switchableAccountsResp.body.find(a => a.accountDisplayName === "Totally Not a Drug Front");
         chai.assert.isDefined(createdAccount, "Find the name of the account created");
         chai.assert.equal(createdAccount.accountId, createAccountResp.body.id);
         chai.assert.equal(createdAccount.isCurrentAccount, false);
