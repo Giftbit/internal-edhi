@@ -12,7 +12,7 @@ import {DbUserLogin} from "../../../db/DbUserLogin";
 import {ApiKey} from "../../../model/ApiKey";
 import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
-import {UserAccount} from "../../../model/UserAccount";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 
 chai.use(chaiExclude);
@@ -265,7 +265,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
 
-        const listAccountsResp = await router.testPostLoginRequest<UserAccount[]>(loginResp, "/v2/account/switch", "GET");
+        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(loginResp, "/v2/account/switch", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);

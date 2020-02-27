@@ -10,7 +10,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {AccountUser} from "../../../model/AccountUser";
-import {UserAccount} from "../../../model/UserAccount";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 import {Invitation} from "../../../model/Invitation";
 import chaiExclude from "chai-exclude";
@@ -61,16 +61,16 @@ describe("/v2/account", () => {
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getAccountResp.body, patchAccountResp.body);
 
-        const getUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(getUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.lengthOf(getUserAccountsResp.body, 1);
-        chai.assert.equal(getUserAccountsResp.body[0].accountDisplayName, "Worlds Okayest Account");
+        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
+        chai.assert.equal(getSwitchableAccountsResp.body[0].displayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {
-        const initialUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(initialUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isDefined(initialUserAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialUserAccountsResp.bodyRaw}`);
+        const initialSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(initialSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isDefined(initialSwitchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialSwitchableAccountsResp.bodyRaw}`);
 
         const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
             name: "Totally Not a Drug Front"
@@ -78,15 +78,18 @@ describe("/v2/account", () => {
         chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
 
-        const userAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(userAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.lengthOf(userAccountsResp.body, initialUserAccountsResp.body.length + 1, userAccountsResp.bodyRaw);
-        chai.assert.isDefined(userAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${userAccountsResp.bodyRaw}`);
+        const switchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(switchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(switchableAccountsResp.body, initialSwitchableAccountsResp.body.length + 1, switchableAccountsResp.bodyRaw);
+        chai.assert.isDefined(switchableAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${switchableAccountsResp.bodyRaw}`);
 
-        const createdUserAccount = userAccountsResp.body.find(a => a.accountDisplayName === "Totally Not a Drug Front");
-        chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
-        chai.assert.equal(createdUserAccount.accountId, createAccountResp.body.id);
-        chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.userId);
+        const existingAccount = switchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountId);
+        chai.assert.equal(existingAccount.isCurrentAccount, true);
+
+        const createdAccount = switchableAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
+        chai.assert.isDefined(createdAccount, "Find the name of the account created");
+        chai.assert.equal(createdAccount.accountId, createAccountResp.body.id);
+        chai.assert.equal(createdAccount.isCurrentAccount, false);
 
         const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,

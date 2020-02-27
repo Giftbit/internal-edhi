@@ -6,7 +6,7 @@ import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
-import {UserAccount} from "../../../model/UserAccount";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {AccountUser} from "../../../model/AccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
@@ -100,9 +100,10 @@ export function installAccountRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("teamMemberId");
-            const userAccounts = await DbAccountUser.getAllForUser(auth.teamMemberId);
+            const accountUsers = await DbAccountUser.getAllForUser(auth.teamMemberId);
+            const currentAccount = stripUserIdTestMode(auth.userId);
             return {
-                body: userAccounts.map(UserAccount.fromDbAccountUser)
+                body: accountUsers.map(accountUser => SwitchableAccount.fromDbAccountUser(accountUser, accountUser.accountId === currentAccount))
             };
         });
 
@@ -284,7 +285,7 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 
     // Update non-authoritative data.
     if (params.name) {
-        log.info("Updating TeamMember.accountDisplayName for Account", auth.userId);
+        log.info("Updating all DbAccountUser.accountDisplayName for Account", auth.userId);
 
         const accountUsers = await DbAccountUser.getAllForAccount(auth.userId);
         for (const accountUser of accountUsers) {
