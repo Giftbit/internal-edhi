@@ -638,23 +638,23 @@ describe("/v2/account", () => {
         });
     });
 
-    describe("requirePasswordHistory (tests are interdependent)", () => {
+    describe("preventPasswordReuse (tests are interdependent)", () => {
         it("is false by default", async () => {
             const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
             chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isFalse(getAccountResp.body.requirePasswordHistory);
+            chai.assert.isFalse(getAccountResp.body.preventPasswordReuse);
         });
 
         it("can be enabled", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
-                requirePasswordHistory: true
+                preventPasswordReuse: true
             });
             chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
-            chai.assert.isTrue(patchAccountResp.body.requirePasswordHistory);
+            chai.assert.isTrue(patchAccountResp.body.preventPasswordReuse);
 
             const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
             chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isTrue(getAccountResp.body.requirePasswordHistory);
+            chai.assert.isTrue(getAccountResp.body.preventPasswordReuse);
         });
 
         it("requires that users in the Account cannot reuse the last password when changing passwords", async () => {
@@ -695,10 +695,10 @@ describe("/v2/account", () => {
 
         it("can be disabled", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
-                requirePasswordHistory: false
+                preventPasswordReuse: false
             });
             chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
-            chai.assert.isFalse(patchAccountResp.body.requirePasswordHistory);
+            chai.assert.isFalse(patchAccountResp.body.preventPasswordReuse);
         });
 
         it("does not prevent users from reusing passwords after all their Accounts stop requiring it", async () => {

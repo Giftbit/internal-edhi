@@ -1,6 +1,6 @@
 import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
-import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
+import {dynamodb, objectDynameh} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 
 export interface DbApiKey {
@@ -112,13 +112,6 @@ export namespace DbApiKey {
         });
         const resp = await dynamodb.query(req).promise();
         const objects = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
-        return objects.map(fromDbObject);
-    }
-
-    export async function getAllForUser(userId: string): Promise<DbApiKey[]> {
-        const req = objectDynameh2.requestBuilder.buildQueryInput("User/" + stripUserIdTestMode(userId), "begins_with", "ApiKey/");
-        const resp = await dynamodb.query(req).promise();
-        const objects = objectDynameh2.responseUnwrapper.unwrapQueryOutput(resp);
         return objects.map(fromDbObject);
     }
 

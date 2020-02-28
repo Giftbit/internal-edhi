@@ -58,7 +58,7 @@ describe("DbApiKey", () => {
         chai.assert.deepEqual(apiKeyByUser, apiKey);
     });
 
-    it("can get ApiKeys by Account, User or AccountUser", async () => {
+    it("can get ApiKeys by Account or AccountUser", async () => {
         const accountId1 = testUtils.generateId();
         const accountId2 = testUtils.generateId();
         const userId1 = testUtils.generateId();
@@ -133,18 +133,6 @@ describe("DbApiKey", () => {
 
         const unusedAccountApiKeys = await DbApiKey.getAllForAccount(testUtils.generateId());
         chai.assert.lengthOf(unusedAccountApiKeys, 0);
-
-        const user1ApiKeys = await DbApiKey.getAllForUser(userId1);
-        chai.assert.sameDeepMembers(user1ApiKeys, [account1User1Key, account1User1Key2]);
-
-        const user2ApiKeys = await DbApiKey.getAllForUser(userId2);
-        chai.assert.sameDeepMembers(user2ApiKeys, [account1User2Key, account2User2Key]);
-
-        const user3ApiKeys = await DbApiKey.getAllForUser(userId3);
-        chai.assert.sameDeepMembers(user3ApiKeys, [account2User3Key]);
-
-        const unusedUserApiKeys = await DbApiKey.getAllForUser(testUtils.generateId());
-        chai.assert.lengthOf(unusedUserApiKeys, 0);
 
         const account2User2ApiKeys = await DbApiKey.getAllForAccountUser(accountId2, userId2);
         chai.assert.sameDeepMembers(account2User2ApiKeys, [account2User2Key]);

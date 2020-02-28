@@ -29,15 +29,15 @@ export interface DbAccount {
     maxPasswordAge?: number;
 
     /**
+     * Whether to require that users in the Account not reuse an old password when
+     * changing their password by storing and checking a password history.
+     */
+    preventPasswordReuse?: boolean;
+
+    /**
      * Whether MFA is required to gain access to this Account.
      */
     requireMfa?: boolean;
-
-    /**
-     * Whether to require that users in the Account not reuse an
-     * old password when changing their password.
-     */
-    requirePasswordHistory?: boolean;
 
 }
 

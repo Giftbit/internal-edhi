@@ -54,7 +54,7 @@ export function installAccountRest(router: cassava.Router): void {
                     requireMfa: {
                         type: "boolean"
                     },
-                    requirePasswordHistory: {
+                    preventPasswordReuse: {
                         type: "boolean"
                     }
                 },
@@ -217,7 +217,7 @@ interface UpdateAccountParams {
     maxPasswordAge?: number | null;
     name?: string;
     requireMfa?: boolean;
-    requirePasswordHistory?: boolean;
+    preventPasswordReuse?: boolean;
 }
 
 async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: UpdateAccountParams): Promise<DbAccount> {
@@ -268,13 +268,13 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         });
         account.requireMfa = params.requireMfa;
     }
-    if (params.requirePasswordHistory != null) {
+    if (params.preventPasswordReuse != null) {
         updates.push({
             action: "put",
-            attribute: "requirePasswordHistory",
-            value: params.requirePasswordHistory
+            attribute: "preventPasswordReuse",
+            value: params.preventPasswordReuse
         });
-        account.requirePasswordHistory = params.requirePasswordHistory;
+        account.preventPasswordReuse = params.preventPasswordReuse;
     }
 
     if (!updates.length) {
