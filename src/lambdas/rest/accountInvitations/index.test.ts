@@ -9,7 +9,6 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {Invitation} from "../../../model/Invitation";
 import {DbUserLogin} from "../../../db/DbUserLogin";
-import {ApiKey} from "../../../model/ApiKey";
 import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
@@ -288,50 +287,5 @@ describe("/v2/account/invitations", () => {
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
-    });
-
-    it("can update an AccountUser's roles and scopes", async () => {
-        const getTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
-        chai.assert.equal(getTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isAtLeast(getTeamMateResp.body.roles.length, 2, "has at least 2 roles");
-
-        const newRoles = [...getTeamMateResp.body.roles, "AssistantToTheManager"];
-        const newScopes = [...getTeamMateResp.body.scopes, "foobar"];
-
-        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
-            roles: newRoles,
-            scopes: newScopes
-        });
-        chai.assert.equal(patchTeamMemberResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(patchTeamMemberResp.body, {
-            ...getTeamMateResp.body,
-            roles: newRoles,
-            scopes: newScopes
-        });
-
-        const getUpdatedTeamMateResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
-        chai.assert.equal(getUpdatedTeamMateResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(getUpdatedTeamMateResp.body, patchTeamMemberResp.body);
-    });
-
-    it("can delete the AccountUser", async () => {
-        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
-
-        // New account creates an API key.
-        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
-            name: generateId()
-        });
-        chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
-
-        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
-        chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqualExcludingEvery(listKeysResp.body, [createApiKeyResp.body], ["token"]);
-
-        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
-        chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
-
-        const listKeysAfterDeleteResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
-        chai.assert.equal(listKeysAfterDeleteResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(listKeysAfterDeleteResp.body, listKeysResp.body, "deleting the user should not delete their api key");
     });
 });

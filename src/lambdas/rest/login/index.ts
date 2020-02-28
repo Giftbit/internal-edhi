@@ -374,6 +374,7 @@ async function completeLoginFailure(userLogin: DbUserLogin, sourceIp: string): P
 
 export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     let body: LoginResult = {
+        userId: userLogin.userId,
         hasMfa: DbUserLogin.hasMfaActive(userLogin)
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
@@ -422,6 +423,7 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
 async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
     const body: LoginResult = {
+        userId: null,
         hasMfa: DbUserLogin.hasMfaActive(userLogin),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"

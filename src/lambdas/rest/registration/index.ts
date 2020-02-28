@@ -17,6 +17,7 @@ import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
+import {getLoginResponse} from "../login";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -81,15 +82,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
             }
 
-            const acceptRes = await acceptInvitation(evt.queryStringParameters.token);
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: acceptRes.redirectUrl
-                }
-            };
+            return await acceptInvitation(evt.queryStringParameters.token);
         });
 }
 
@@ -196,7 +189,7 @@ async function verifyEmail(token: string): Promise<void> {
     log.info("User", tokenAction.email, "has verified their email address");
 }
 
-async function acceptInvitation(token: string): Promise<{ redirectUrl: string }> {
+async function acceptInvitation(token: string): Promise<cassava.RouterResponse> {
     const acceptInvitationTokenAction = await TokenAction.get(token);
     if (!acceptInvitationTokenAction || acceptInvitationTokenAction.action !== "acceptAccountInvitation") {
         log.warn("Cannot accept account invitation: can't find acceptInvitation TokenAction for token", token);
@@ -258,11 +251,13 @@ async function acceptInvitation(token: string): Promise<{ redirectUrl: string }>
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
         return {
-            redirectUrl: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+            body: null,
+            statusCode: cassava.httpStatusCode.redirect.FOUND,
+            headers: {
+                Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+            }
         };
     }
 
-    return {
-        redirectUrl: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-    };
+    return getLoginResponse(userLogin, accountUser, true);
 }
