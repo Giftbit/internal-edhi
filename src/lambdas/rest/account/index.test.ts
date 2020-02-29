@@ -93,11 +93,12 @@ describe("/v2/account", () => {
         chai.assert.equal(createdAccount.accountId, createAccountResp.body.id);
         chai.assert.equal(createdAccount.isCurrentAccount, false);
 
-        const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+        const switchAccountResp = await router.testWebAppRequest<LoginResult>("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.isUndefined(switchAccountResp.body.messageCode);
         chai.assert.isString(switchAccountResp.headers["Location"]);
         chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
 
