@@ -108,7 +108,7 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
 async function userRequiresPasswordHistory(userLogin: DbUserLogin): Promise<boolean> {
     const accountUsers = await DbAccountUser.getAllForUser(userLogin.userId);
     const accounts = await DbAccount.getMany(accountUsers.map(accountUser => accountUser.accountId));
-    return !!accounts.find(account => account.requirePasswordHistory);
+    return !!accounts.find(account => account.preventPasswordReuse);
 }
 
 async function passwordIsInHistory(plaintextPassword: string, userLogin: DbUserLogin): Promise<boolean> {

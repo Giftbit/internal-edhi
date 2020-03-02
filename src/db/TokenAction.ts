@@ -15,7 +15,7 @@ export interface TokenAction {
 }
 
 export namespace TokenAction {
-    export type Action = "emailVerification" | "resetPassword" | "acceptTeamInvite" | "changeEmail";
+    export type Action = "emailVerification" | "resetPassword" | "acceptAccountInvitation" | "changeEmail";
 
     export interface GenerateAdditionalParams {
         email: string;

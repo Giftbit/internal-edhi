@@ -78,6 +78,11 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
         action: "put",
         attribute: "password",
         value: userPassword
+    }, {
+        // Because you can get here through recovering an account, which does require an email.
+        action: "put",
+        attribute: "emailVerified",
+        value: true
     });
     await TokenAction.del(tokenAction);
 

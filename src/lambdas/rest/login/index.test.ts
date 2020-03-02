@@ -13,6 +13,7 @@ import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
 import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
 import {LoginResult} from "../../../model/LoginResult";
+import {Account} from "../../../model/Account";
 
 describe("/v2/user/login", () => {
 
@@ -80,17 +81,45 @@ describe("/v2/user/login", () => {
     });
 
     it("can login the test user", async () => {
-        const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+        const resp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(resp.body.messageCode);
         chai.assert.isString(resp.headers["Location"]);
         chai.assert.isString(resp.headers["Set-Cookie"]);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
         await assertFullyLoggedIn(resp);
+    });
+
+    it("can log in a user that was removed from their only account (and they can create a new account)", async () => {
+        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
+
+        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
+        chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: newUser.email,
+            password: newUser.password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.body.messageCode, "NoAccount");
+        await assertNotFullyLoggedIn(loginResp);
+
+        const createAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "POST", {
+            name: "Totally Not a Drug Front"
+        });
+        chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        const switchAccountResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/account/switch", "POST", {
+            accountId: createAccountResp.body.id,
+            mode: "test"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.isUndefined(switchAccountResp.body.messageCode);
     });
 
     it("locks the user for an hour after 10 unsuccessful login attempts", async () => {
@@ -141,7 +170,7 @@ describe("/v2/user/login", () => {
         chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
     });
 
-    it("does not log in a user that hasn't not verified their email address, triggers sending another email", async () => {
+    it("does not log in a user that hasn't verified their email address, triggering sending another email", async () => {
         let verifyUrl1: string;
         let verifyUrl2: string;
         sinonSandbox.stub(emailUtils, "sendEmail")

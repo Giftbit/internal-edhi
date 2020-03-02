@@ -9,6 +9,9 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {AccountUser} from "../../../model/AccountUser";
+import {Invitation} from "../../../model/Invitation";
+import {LoginResult} from "../../../model/LoginResult";
+import {Account} from "../../../model/Account";
 
 describe("/v2/user/register", () => {
 
@@ -58,11 +61,12 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(badLoginResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
-        const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
@@ -114,7 +118,7 @@ describe("/v2/user/register", () => {
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
     });
 
-    it("sends an account recovery email when someone attempts to register with a taken email address", async () => {
+    it("sends an account recovery email when someone attempts to register with a email that already has an account", async () => {
         let recoverEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -134,11 +138,74 @@ describe("/v2/user/register", () => {
         chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(completeResp.body.messageCode);
         chai.assert.isString(completeResp.headers["Location"]);
+    });
+
+    it("sends an account recovery email to someone who was previously invited but then the invitation was deleted (which can then only create an account which is kinda lame but too endge-casey to optimize)", async () => {
+        let invitationEmail: emailUtils.SendEmailParams;
+        let recoverEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                invitationEmail = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                recoverEmail = params;
+                return null;
+            });
+
+        const email = testUtils.generateId() + "@example.com";
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(inviteResp.body.email, email);
+
+        const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invitations/${inviteResp.body.userId}`, "DELETE");
+        chai.assert.equal(deleteInvitationResp.statusCode, cassava.httpStatusCode.success.OK);
+
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: email,
+            password: generateId()
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(recoverEmail);
+        chai.assert.notMatch(recoverEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
+
+        // Because the user gets a recover password email rather than standard registration.
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(recoverEmail.htmlBody)[1];
+        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
+
+        const password = generateId();
+        const completeResp = await router.testUnauthedRequest<void>(`/v2/user/forgotPassword/complete`, "POST", {
+            token: resetPasswordToken,
+            password
+        });
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginResp.bodyRaw);
+        chai.assert.equal(loginResp.body.messageCode, "NoAccount");
+        chai.assert.isString(loginResp.headers["Location"]);
+        chai.assert.isString(loginResp.headers["Set-Cookie"]);
+
+        const createAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "POST", {
+            name: "Totally Not a Drug Front"
+        });
+        chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
     });
 });

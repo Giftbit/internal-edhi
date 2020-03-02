@@ -94,13 +94,13 @@ export function installAccountInvitationsRest(router: cassava.Router): void {
         });
 }
 
-export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
+async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
     auth.requireIds("userId");
     const accountId = stripUserIdTestMode(auth.userId);
     log.info("Inviting User", params.email, "to Account", accountId);
 
-    const accountDetails = await DbAccount.get(auth.userId);
-    if (!accountDetails) {
+    const account = await DbAccount.get(auth.userId);
+    if (!account) {
         throw new Error(`Could not find Account for auth userId '${auth.userId}'`);
     }
 
@@ -120,24 +120,24 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             defaultLoginAccountId: accountId,
             createdDate
         };
-        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
+        const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
+        objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        updates.push(putUserLoginReq);
+
+        const user: DbUser = {
+            userId,
+            email: params.email,
+            createdDate: createdDateNow()
+        };
+        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
         objectDynameh.requestBuilder.addCondition(putUserReq, {
             attribute: "pk",
             operator: "attribute_not_exists"
         });
         updates.push(putUserReq);
-
-        const userDetails: DbUser = {
-            userId,
-            email: params.email,
-            createdDate: createdDateNow()
-        };
-        const putUserDetailsReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(userDetails));
-        objectDynameh.requestBuilder.addCondition(putUserDetailsReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putUserDetailsReq);
 
         log.info("Inviting new User", userLogin.userId);
     }
@@ -145,12 +145,12 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     let accountUser = await DbAccountUser.get(accountId, userLogin.userId);
     if (accountUser) {
         log.info("Inviting existing AccountUser", accountUser.accountId, accountUser.userId);
-        if (accountUser.invitation) {
+        if (accountUser.pendingInvitation) {
             const updateAccountUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
                 DbAccountUser.getKeys(accountUser),
                 {
                     action: "put",
-                    attribute: "invitation.createdDate",
+                    attribute: "pendingInvitation.createdDate",
                     value: createdDate
                 });
             updates.push(updateAccountUserReq);
@@ -174,8 +174,8 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             accountId: accountId,
             userId: userLogin.userId,
             userDisplayName: params.email,
-            accountDisplayName: accountDetails.name,
-            invitation: {
+            accountDisplayName: account.name,
+            pendingInvitation: {
                 email: params.email,
                 createdDate,
                 expiresDate: expiresDate.toISOString()
@@ -201,22 +201,22 @@ export async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     return Invitation.fromDbAccountUser(accountUser);
 }
 
-export async function listInvitations(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
+async function listInvitations(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Invitation[]> {
     auth.requireIds("userId");
-    const accountUsers = await DbAccountUser.getInvitedForAccount(auth.userId);
+    const accountUsers = await DbAccountUser.getInvitationsForAccount(auth.userId);
     return accountUsers.map(Invitation.fromDbAccountUser);
 }
 
-export async function getInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<Invitation> {
+async function getInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<Invitation> {
     auth.requireIds("userId");
     const accountUser = await DbAccountUser.get(auth.userId, userId);
-    if (!accountUser || !accountUser.invitation) {
+    if (!accountUser || !accountUser.pendingInvitation) {
         return null;
     }
     return Invitation.fromDbAccountUser(accountUser);
 }
 
-export async function cancelInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<void> {
+async function cancelInvitation(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<void> {
     auth.requireIds("userId");
     log.info("Cancel invitation", auth.userId, userId);
 
@@ -224,13 +224,13 @@ export async function cancelInvitation(auth: giftbitRoutes.jwtauth.Authorization
     if (!accountUser) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
     }
-    if (!accountUser.invitation) {
+    if (!accountUser.pendingInvitation) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The invitation cannot be deleted because it was already accepted.", "InvitationAccepted");
     }
 
     try {
         await DbAccountUser.del(accountUser, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_exists"
         });
     } catch (error) {

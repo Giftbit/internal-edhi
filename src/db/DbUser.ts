@@ -6,6 +6,7 @@ import {stripUserIdTestMode} from "../utils/userUtils";
 /**
  * Details about a user other than login information.  At a minimum
  * this exists to guarantee uniqueness on the primary key of the userId.
+ * In the future we could store full names or profile photo URLs here.
  */
 export interface DbUser {
 

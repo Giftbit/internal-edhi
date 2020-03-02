@@ -184,9 +184,9 @@ export async function resetDb(): Promise<void> {
  * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
-export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
+export async function createNewAccountNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
     let verifyEmail: emailUtils.SendEmailParams;
-    sinonSandbox.stub(emailUtils, "sendEmail")
+    const emailStub = sinonSandbox.stub(emailUtils, "sendEmail")
         .callsFake(async (params: emailUtils.SendEmailParams) => {
             verifyEmail = params;
             return null;
@@ -200,6 +200,7 @@ export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSa
     });
     chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
+    emailStub.restore();
     const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
     const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
     chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -217,6 +218,31 @@ export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSa
     };
 }
 
+export async function inviteExistingUser(email: string, router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ acceptInvitationResp: ParsedProxyResponse<LoginResult> }> {
+    let invitationEmail: emailUtils.SendEmailParams;
+    const emailStub = sinonSandbox.stub(emailUtils, "sendEmail")
+        .callsFake(async (params: emailUtils.SendEmailParams) => {
+            invitationEmail = params;
+            return null;
+        });
+
+    const invitationResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+        email: email,
+        userPrivilegeType: "FULL_ACCESS"
+    });
+    chai.assert.equal(invitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+    emailStub.restore();
+    const acceptInvitationToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvitation\?token=([a-zA-Z0-9]*)/.exec(invitationEmail.htmlBody)[1];
+    chai.assert.isString(acceptInvitationToken);
+
+    const acceptInvitationResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
+
+    return {
+        acceptInvitationResp
+    };
+}
+
 /**
  * Create a new user in the default account.  This takes several calls and a lot of time for a unit
  * test.  Using the existing test users above is preferable but sometimes inappropriate.
@@ -225,29 +251,15 @@ export async function getNewUser(router: TestRouter, sinonSandbox: sinon.SinonSa
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
 export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
-    let inviteEmail: emailUtils.SendEmailParams;
-    sinonSandbox.stub(emailUtils, "sendEmail")
-        .callsFake(async (params: emailUtils.SendEmailParams) => {
-            inviteEmail = params;
-            return null;
-        });
-
     const email = generateId() + "@example.com";
-    const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
-        email: email,
-        userPrivilegeType: "FULL_ACCESS"
-    });
-    chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+    const invite = await inviteExistingUser(email, router, sinonSandbox);
+    const acceptInvitationResp = invite.acceptInvitationResp;
 
-    const acceptInviteToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvite\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
-    chai.assert.isString(acceptInviteToken);
+    chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
+    chai.assert.isString(acceptInvitationResp.headers["Location"]);
+    chai.assert.match(acceptInvitationResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
 
-    const acceptInviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvite?token=${acceptInviteToken}`, "GET");
-    chai.assert.equal(acceptInviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInviteResp.bodyRaw);
-    chai.assert.isString(acceptInviteResp.headers["Location"]);
-    chai.assert.match(acceptInviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
-
-    const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInviteResp.headers["Location"])[1];
+    const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInvitationResp.headers["Location"])[1];
     chai.assert.isString(resetPasswordToken);
 
     const password = generateId();
@@ -257,7 +269,7 @@ export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.Sino
     });
     chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-    const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+    const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
         email,
         password
     });
@@ -267,7 +279,7 @@ export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.Sino
         loginResp: loginResp,
         email: email,
         password: password,
-        userId: inviteResp.body.userId
+        userId: loginResp.body.userId
     };
 }
 

@@ -5,8 +5,8 @@ export interface Account {
     maxInactiveDays?: number;
     maxPasswordAge?: number;
     name: string;
+    preventPasswordReuse: boolean;
     requireMfa: boolean;
-    requirePasswordHistory: boolean;
 }
 
 export namespace Account {
@@ -18,7 +18,7 @@ export namespace Account {
             maxPasswordAge: account.maxPasswordAge || null,
             name: account.name,
             requireMfa: !!account.requireMfa,
-            requirePasswordHistory: !!account.requirePasswordHistory
+            preventPasswordReuse: !!account.preventPasswordReuse
         };
     }
 }

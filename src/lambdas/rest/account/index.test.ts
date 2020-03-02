@@ -10,7 +10,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
 import {AccountUser} from "../../../model/AccountUser";
-import {UserAccount} from "../../../model/UserAccount";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 import {Invitation} from "../../../model/Invitation";
 import chaiExclude from "chai-exclude";
@@ -19,6 +19,8 @@ import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDatePast} from "../../../db/dynamodb";
 import {LoginResult} from "../../../model/LoginResult";
 import {setUserIdTestMode} from "../../../utils/userUtils";
+import {ApiKey} from "../../../model/ApiKey";
+import {DbUser} from "../../../db/DbUser";
 
 chai.use(chaiExclude);
 
@@ -61,16 +63,16 @@ describe("/v2/account", () => {
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getAccountResp.body, patchAccountResp.body);
 
-        const getUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(getUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.lengthOf(getUserAccountsResp.body, 1);
-        chai.assert.equal(getUserAccountsResp.body[0].displayName, "Worlds Okayest Account");
+        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
+        chai.assert.equal(getSwitchableAccountsResp.body[0].accountDisplayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {
-        const initialUserAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(initialUserAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isDefined(initialUserAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialUserAccountsResp.bodyRaw}`);
+        const initialSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(initialSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isDefined(initialSwitchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialSwitchableAccountsResp.bodyRaw}`);
 
         const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
             name: "Totally Not a Drug Front"
@@ -78,21 +80,25 @@ describe("/v2/account", () => {
         chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
 
-        const userAccountsResp = await router.testWebAppRequest<UserAccount[]>("/v2/account/switch", "GET");
-        chai.assert.equal(userAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.lengthOf(userAccountsResp.body, initialUserAccountsResp.body.length + 1, userAccountsResp.bodyRaw);
-        chai.assert.isDefined(userAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${userAccountsResp.bodyRaw}`);
+        const switchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(switchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(switchableAccountsResp.body, initialSwitchableAccountsResp.body.length + 1, switchableAccountsResp.bodyRaw);
+        chai.assert.isDefined(switchableAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${switchableAccountsResp.bodyRaw}`);
 
-        const createdUserAccount = userAccountsResp.body.find(a => a.displayName === "Totally Not a Drug Front");
-        chai.assert.isDefined(createdUserAccount, "Find the name of the account created");
-        chai.assert.equal(createdUserAccount.accountId, createAccountResp.body.id);
-        chai.assert.equal(createdUserAccount.userId, testUtils.defaultTestUser.userId);
+        const existingAccount = switchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountId);
+        chai.assert.equal(existingAccount.isCurrentAccount, true);
 
-        const switchAccountResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
+        const createdAccount = switchableAccountsResp.body.find(a => a.accountDisplayName === "Totally Not a Drug Front");
+        chai.assert.isDefined(createdAccount, "Find the name of the account created");
+        chai.assert.equal(createdAccount.accountId, createAccountResp.body.id);
+        chai.assert.equal(createdAccount.isCurrentAccount, false);
+
+        const switchAccountResp = await router.testWebAppRequest<LoginResult>("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.isUndefined(switchAccountResp.body.messageCode);
         chai.assert.isString(switchAccountResp.headers["Location"]);
         chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
 
@@ -128,17 +134,70 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
 
-        const inviteResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
+        const invitationResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
             email: testUtils.defaultTestUser.teamMate.email,
             userPrivilegeType: "FULL_ACCESS"
         });
-        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(invitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
         const teamMateSwitchAccountResp = await router.testTeamMateRequest("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
         chai.assert.equal(teamMateSwitchAccountResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, teamMateSwitchAccountResp.bodyRaw);
+    });
+
+    it("can update an AccountUser's roles and scopes", async () => {
+        const getAccountUsersResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
+        chai.assert.equal(getAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isAtLeast(getAccountUsersResp.body.roles.length, 2, "has at least 2 roles");
+
+        const newRoles = [...getAccountUsersResp.body.roles, "AssistantToTheManager"];
+        const newScopes = [...getAccountUsersResp.body.scopes, "foobar"];
+
+        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
+            roles: newRoles,
+            scopes: newScopes
+        });
+        chai.assert.equal(patchTeamMemberResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(patchTeamMemberResp.body, {
+            ...getAccountUsersResp.body,
+            roles: newRoles,
+            scopes: newScopes
+        });
+
+        const getUpdatedAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
+        chai.assert.equal(getUpdatedAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(getUpdatedAccountUserResp.body, patchTeamMemberResp.body);
+    });
+
+    it("can remove the user from the account", async () => {
+        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
+
+        // New account creates an API key.
+        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
+            name: generateId()
+        });
+        chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        const listKeysResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
+        chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqualExcludingEvery(listKeysResp.body, [createApiKeyResp.body], ["token"]);
+
+        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
+        chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
+
+        const listKeysAfterDeleteResp = await router.testApiRequest<ApiKey[]>("/v2/account/apiKeys", "GET");
+        chai.assert.equal(listKeysAfterDeleteResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(listKeysAfterDeleteResp.body, listKeysResp.body, "deleting the user should not delete their api key");
+
+        const dbUser = await DbUser.get(newUser.userId);
+        chai.assert.isNotNull(dbUser, "does not delete the DbUser");
+        chai.assert.equal(dbUser.userId, newUser.userId);
+
+        const dbUserLogin = await DbUserLogin.getById(newUser.userId);
+        chai.assert.isNotNull(dbUserLogin, "does not delete the DbUserLogin");
+        chai.assert.equal(dbUserLogin.userId, newUser.userId);
     });
 
     describe("maxInactiveDays (tests are interdependent)", () => {
@@ -264,7 +323,7 @@ describe("/v2/account", () => {
         });
 
         it("does not prevent brand new users from logging in", async () => {
-            const newUser = await testUtils.getNewUser(router, sinonSandbox);
+            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
 
             const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: newUser.email,
@@ -495,6 +554,23 @@ describe("/v2/account", () => {
             chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
         });
 
+        it("requires existing users newly invited with passwords older than maxPasswordAge update their password", async () => {
+            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+            const newUserLogin = await DbUserLogin.get(newUser.email);
+            await DbUserLogin.update(newUserLogin, {
+                action: "put",
+                attribute: "password.createdDate",
+                value: createdDatePast(1)
+            });
+
+            const invite = await testUtils.inviteExistingUser(newUser.email, router, sinonSandbox);
+            chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMaxPasswordAge");
+
+            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(invite.acceptInvitationResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+        });
+
         it("can be cleared", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
                 maxPasswordAge: null
@@ -613,6 +689,16 @@ describe("/v2/account", () => {
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
         });
 
+        it("requires existing users newly invited set up mfa as part of gaining access", async () => {
+            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+            const invite = await testUtils.inviteExistingUser(newUser.email, router, sinonSandbox);
+            chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMfaRequired");
+
+            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(invite.acceptInvitationResp, "/v2/account", "GET");
+            chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+        });
+
         it("can be disabled", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
                 requireMfa: false
@@ -635,23 +721,23 @@ describe("/v2/account", () => {
         });
     });
 
-    describe("requirePasswordHistory (tests are interdependent)", () => {
+    describe("preventPasswordReuse (tests are interdependent)", () => {
         it("is false by default", async () => {
             const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
             chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isFalse(getAccountResp.body.requirePasswordHistory);
+            chai.assert.isFalse(getAccountResp.body.preventPasswordReuse);
         });
 
         it("can be enabled", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
-                requirePasswordHistory: true
+                preventPasswordReuse: true
             });
             chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
-            chai.assert.isTrue(patchAccountResp.body.requirePasswordHistory);
+            chai.assert.isTrue(patchAccountResp.body.preventPasswordReuse);
 
             const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
             chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isTrue(getAccountResp.body.requirePasswordHistory);
+            chai.assert.isTrue(getAccountResp.body.preventPasswordReuse);
         });
 
         it("requires that users in the Account cannot reuse the last password when changing passwords", async () => {
@@ -692,10 +778,10 @@ describe("/v2/account", () => {
 
         it("can be disabled", async () => {
             const patchAccountResp = await router.testWebAppRequest<Account>("/v2/account", "PATCH", {
-                requirePasswordHistory: false
+                preventPasswordReuse: false
             });
             chai.assert.equal(patchAccountResp.statusCode, cassava.httpStatusCode.success.OK, patchAccountResp.bodyRaw);
-            chai.assert.isFalse(patchAccountResp.body.requirePasswordHistory);
+            chai.assert.isFalse(patchAccountResp.body.preventPasswordReuse);
         });
 
         it("does not prevent users from reusing passwords after all their Accounts stop requiring it", async () => {

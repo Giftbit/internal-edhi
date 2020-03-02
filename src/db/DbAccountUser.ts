@@ -6,13 +6,18 @@ import {DbObject} from "./DbObject";
 import {DbUserLogin} from "./DbUserLogin";
 import log = require("loglevel");
 
+/**
+ * Joins Users to Accounts and defines what permissions they have
+ * in that Account.  A DbUser without any associated DbAccountUser
+ * records can't log in to any Account (but can create a new one).
+ */
 export interface DbAccountUser {
 
     accountId: string;
     userId: string;
     userDisplayName: string;
     accountDisplayName: string;
-    invitation?: DbAccountUser.Invitation;
+    pendingInvitation?: DbAccountUser.Invitation;
     roles: string[];
     scopes: string[];
     lastLoginDate?: string;
@@ -91,10 +96,10 @@ export namespace DbAccountUser {
     /**
      * Get all users on the given team.
      */
-    export async function getAllForAccount(accountUserId: string): Promise<DbAccountUser[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "AccountUser/");
+    export async function getAllForAccount(accountId: string): Promise<DbAccountUser[]> {
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "AccountUser/");
         objectDynameh.requestBuilder.addFilter(req, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_not_exists"
         });
 
@@ -105,10 +110,10 @@ export namespace DbAccountUser {
     /**
      * Get invited users on the given team.
      */
-    export async function getInvitedForAccount(accountUserId: string): Promise<DbAccountUser[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountUserId), "begins_with", "AccountUser/");
+    export async function getInvitationsForAccount(accountId: string): Promise<DbAccountUser[]> {
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "AccountUser/");
         objectDynameh.requestBuilder.addFilter(req, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_exists"
         });
 
@@ -122,7 +127,7 @@ export namespace DbAccountUser {
     export async function getAllForUser(userId: string): Promise<DbAccountUser[]> {
         const req = objectDynameh2.requestBuilder.buildQueryInput("User/" + stripUserIdTestMode(userId), "begins_with", "AccountUser/");
         objectDynameh.requestBuilder.addFilter(req, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_not_exists"
         });
 
@@ -136,7 +141,7 @@ export namespace DbAccountUser {
     export async function getForUserLogin(userLogin: DbUserLogin): Promise<DbAccountUser> {
         if (userLogin.defaultLoginAccountId) {
             const accountUser = await DbAccountUser.get(userLogin.defaultLoginAccountId, userLogin.userId);
-            if (accountUser && !accountUser.invitation) {
+            if (accountUser && !accountUser.pendingInvitation) {
                 log.info("Got login AccountUser", userLogin.defaultLoginAccountId, "for User", userLogin.email);
                 return accountUser;
             }
@@ -147,7 +152,7 @@ export namespace DbAccountUser {
         // Get any random AccountUser to log in as.
         const queryReq = objectDynameh2.requestBuilder.buildQueryInput(userLogin.userId);
         objectDynameh2.requestBuilder.addFilter(queryReq, {
-            attribute: "invitation",
+            attribute: "pendingInvitation",
             operator: "attribute_not_exists"
         });
         queryReq.Limit = 1;
