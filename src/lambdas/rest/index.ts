@@ -39,6 +39,8 @@ router.route(new giftbitRoutes.MetricsRoute({
     logFunction: log.info
 }));
 
+router.route(new giftbitRoutes.HealthCheckRoute("/v2/user/healthCheck"));
+
 installUnauthedRestRoutes(router);
 
 const authConfigPromise = giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.AuthenticationConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_JWT");
