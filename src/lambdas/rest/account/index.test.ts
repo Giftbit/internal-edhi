@@ -172,7 +172,7 @@ describe("/v2/account", () => {
     });
 
     it("can remove the user from the account", async () => {
-        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
+        const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
         // New account creates an API key.
         const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
@@ -323,7 +323,7 @@ describe("/v2/account", () => {
         });
 
         it("does not prevent brand new users from logging in", async () => {
-            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+            const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
             const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: newUser.email,
@@ -555,7 +555,7 @@ describe("/v2/account", () => {
         });
 
         it("requires existing users newly invited with passwords older than maxPasswordAge update their password", async () => {
-            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+            const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
             const newUserLogin = await DbUserLogin.get(newUser.email);
             await DbUserLogin.update(newUserLogin, {
                 action: "put",
@@ -563,7 +563,7 @@ describe("/v2/account", () => {
                 value: createdDatePast(1)
             });
 
-            const invite = await testUtils.inviteExistingUser(newUser.email, router, sinonSandbox);
+            const invite = await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
             chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMaxPasswordAge");
 
@@ -673,7 +673,7 @@ describe("/v2/account", () => {
         });
 
         it("requires new users to set up mfa as part of gaining access", async () => {
-            const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
+            const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
             const loginNoMfaResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: newUser.email,
@@ -690,8 +690,8 @@ describe("/v2/account", () => {
         });
 
         it("requires existing users newly invited set up mfa as part of gaining access", async () => {
-            const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
-            const invite = await testUtils.inviteExistingUser(newUser.email, router, sinonSandbox);
+            const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+            const invite = await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
             chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMfaRequired");
 

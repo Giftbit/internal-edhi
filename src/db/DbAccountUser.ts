@@ -147,7 +147,7 @@ export namespace DbAccountUser {
             }
         }
 
-        log.info("Could not find login AccountUser", userLogin.defaultLoginAccountId, "for User", userLogin.email, "; falling back to one at random");
+        log.info("Could not find login AccountUser accountId=", userLogin.defaultLoginAccountId, "userId=", userLogin.userId, "for User", userLogin.email, "; falling back to one at random");
 
         // Get any random AccountUser to log in as.
         const queryReq = objectDynameh2.requestBuilder.buildQueryInput(userLogin.userId);

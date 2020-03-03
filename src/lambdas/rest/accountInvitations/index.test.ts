@@ -212,7 +212,7 @@ describe("/v2/account/invitations", () => {
         // Reset the DB because we're going to count users.
         await testUtils.resetDb();
 
-        const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
         const firstAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(newUser.loginResp, "/v2/account/users", "GET");
         chai.assert.equal(firstAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -266,8 +266,63 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
     });
 
-    it("can cancel an invitation a user to an account that already has its own account, without deleting that user", async () => {
-        const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+    it("lets a user accept an invitation if they register for their own account after being invited but before accepting", async () => {
+        let inviteEmail: emailUtils.SendEmailParams;
+        let verifyEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                inviteEmail = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                verifyEmail = params;
+                return null;
+            });
+
+        const email = generateId() + "@example.com";
+
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(inviteResp.body.email, email);
+
+        const password = generateId();
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        chai.assert.isDefined(verifyEmail);
+        const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
+        const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
+        chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
+
+        const acceptInvitationToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvitation\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
+        chai.assert.isString(acceptInvitationToken);
+
+        const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
+        chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
+        chai.assert.isString(acceptInvitationResp.headers["Location"]);
+
+        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(loginResp, "/v2/account/switch", "GET");
+        chai.assert.lengthOf(listAccountsResp.body, 2);
+    });
+
+    it("can cancel an invitation of user to an account that already has its own account, without deleting that user", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
         let inviteEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")

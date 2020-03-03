@@ -96,7 +96,7 @@ describe("/v2/user/login", () => {
     });
 
     it("can log in a user that was removed from their only account (and they can create a new account)", async () => {
-        const newUser = await testUtils.inviteNewUser(router, sinonSandbox);
+        const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
         const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
         chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.success.OK, deleteUserResp.bodyRaw);
