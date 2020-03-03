@@ -4,6 +4,9 @@ import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {TokenAction} from "../../../db/TokenAction";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import {getLoginResponse} from "../login";
+import {DbAccountUser} from "../../../db/DbAccountUser";
+import {createdDateNow} from "../../../db/dynamodb";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -46,22 +49,15 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await completeForgotPassword({
+            const resp = await completeForgotPassword({
                 token: evt.body.token,
                 plaintextPassword: evt.body.password
             });
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                }
-            };
+            return resp;
         });
 }
 
-async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
+async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<cassava.RouterResponse> {
     const tokenAction = await TokenAction.get(params.token);
     if (!tokenAction || tokenAction.action !== "resetPassword") {
         log.warn("Could not find resetPassword TokenAction for token", params.token);
@@ -83,8 +79,16 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
         action: "put",
         attribute: "emailVerified",
         value: true
+    }, {
+        // Because this will log them in.
+        action: "put",
+        attribute: "lastLoginDate",
+        value: createdDateNow()
     });
     await TokenAction.del(tokenAction);
 
     log.info("User", userLogin.email, "has changed their password through forgotPassword");
+
+    const accountUser = await DbAccountUser.getForUserLogin(userLogin);
+    return getLoginResponse(userLogin, accountUser, true);
 }

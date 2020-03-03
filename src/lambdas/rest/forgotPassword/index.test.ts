@@ -8,6 +8,7 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUserLogin} from "../../../db/DbUserLogin";
+import {Account} from "../../../model/Account";
 
 describe("/v2/user/forgotPassword", () => {
 
@@ -66,6 +67,13 @@ describe("/v2/user/forgotPassword", () => {
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(completeResp.headers["Location"]);
+        chai.assert.match(completeResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
+        chai.assert.match(completeResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+
+        // Is logged in after completing.
+        const getAccountResp = await router.testPostLoginRequest<Account>(completeResp, "/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
 
         // Old password doesn't work.
         const badLoginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {

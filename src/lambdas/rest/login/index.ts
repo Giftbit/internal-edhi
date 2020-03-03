@@ -372,6 +372,17 @@ async function completeLoginFailure(userLogin: DbUserLogin, sourceIp: string): P
     throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
 }
 
+/**
+ * Get the cassava login response that includes the correct permissions or error status.
+ * At this point the user is fully authenticated, and the only question is what they're
+ * allowed to do with that authentication.
+ *
+ * @param userLogin The login of the user that has successfully logged in.
+ * @param accountUser The DbAccountUser of the Account to log in to.  If null then the
+ *                    user has no Account and can only create one.
+ * @param liveMode Whether to log in as live (or test) to the Account.
+ * @param additionalCookies Additional cookies that should be included in the response.
+ */
 export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     let body: LoginResult = {
         userId: userLogin.userId,
@@ -399,11 +410,6 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
         body.messageCode = "AccountMaxInactiveDays";
         badge = DbUserLogin.getOrphanBadge(userLogin);
     } else {
-        await DbAccountUser.update(accountUser, {
-            action: "put",
-            attribute: "lastLoginDate",
-            value: createdDateNow()
-        });
         badge = DbUserLogin.getBadge(accountUser, liveMode, true);
     }
 
