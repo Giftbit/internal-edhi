@@ -3,7 +3,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {dynamodb, objectDynameh, objectDynameh2, queryAll} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {DbObject} from "./DbObject";
-import {DbUserLogin} from "./DbUserLogin";
+import {DbUser} from "./DbUser";
 import log = require("loglevel");
 
 /**
@@ -19,7 +19,7 @@ export interface DbAccountUser {
     /**
      * The display name to use when this is representing a User.  This is
      * in fact an email address, but it's not the user's canonical email
-     * address which should always be fetched from the User or UserLogin.
+     * address which should always be fetched from the User.
      */
     userDisplayName: string;
 
@@ -49,7 +49,7 @@ export interface DbAccountUser {
      * The last date the User logged in to this Account specifically.
      */
     lastLoginDate?: string;
-    
+
     createdDate: string;
 
 }
@@ -167,19 +167,19 @@ export namespace DbAccountUser {
     /**
      * Get the AccountUser the given User should login as.
      */
-    export async function getForUserLogin(userLogin: DbUserLogin): Promise<DbAccountUser> {
-        if (userLogin.defaultLoginAccountId) {
-            const accountUser = await DbAccountUser.get(userLogin.defaultLoginAccountId, userLogin.userId);
+    export async function getForUser(user: DbUser): Promise<DbAccountUser> {
+        if (user.login.defaultLoginAccountId) {
+            const accountUser = await DbAccountUser.get(user.login.defaultLoginAccountId, user.userId);
             if (accountUser && !accountUser.pendingInvitation) {
-                log.info("Got login AccountUser", userLogin.defaultLoginAccountId, "for User", userLogin.email);
+                log.info("Got login AccountUser", user.login.defaultLoginAccountId, "for User", user.email);
                 return accountUser;
             }
         }
 
-        log.info("Could not find login AccountUser accountId=", userLogin.defaultLoginAccountId, "userId=", userLogin.userId, "for User", userLogin.email, "; falling back to one at random");
+        log.info("Could not find login AccountUser accountId=", user.login.defaultLoginAccountId, "userId=", user.userId, "for User", user.email, "; falling back to one at random");
 
         // Get any random AccountUser to log in as.
-        const queryReq = objectDynameh2.requestBuilder.buildQueryInput(userLogin.userId);
+        const queryReq = objectDynameh2.requestBuilder.buildQueryInput(user.userId);
         objectDynameh2.requestBuilder.addFilter(queryReq, {
             attribute: "pendingInvitation",
             operator: "attribute_not_exists"
@@ -188,9 +188,9 @@ export namespace DbAccountUser {
         const queryResp = await dynamodb.query(queryReq).promise();
         const accountUsers = objectDynameh2.responseUnwrapper.unwrapQueryOutput(queryResp).map(fromDbObject);
         if (accountUsers && accountUsers.length) {
-            await DbUserLogin.update(userLogin, {
+            await DbUser.update(user, {
                 action: "put",
-                attribute: "defaultLoginUserId",
+                attribute: "login.defaultLoginUserId",
                 value: accountUsers[0].accountId
             });
             return accountUsers[0];

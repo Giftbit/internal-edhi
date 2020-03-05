@@ -7,7 +7,7 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 
 describe("/v2/user/changeEmail", () => {
 
@@ -19,7 +19,7 @@ describe("/v2/user/changeEmail", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -57,7 +57,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailAddressEmail);
 
         const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -97,7 +97,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.notMatch(emailAddressChangedEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const cantLoginOldEmailResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(cantLoginOldEmailResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);

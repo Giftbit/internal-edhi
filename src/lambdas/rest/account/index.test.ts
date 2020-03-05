@@ -8,7 +8,7 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
@@ -20,7 +20,7 @@ import {createdDatePast} from "../../../db/dynamodb";
 import {LoginResult} from "../../../model/LoginResult";
 import {setUserIdTestMode} from "../../../utils/userUtils";
 import {ApiKey} from "../../../model/ApiKey";
-import {DbUser} from "../../../db/DbUser";
+import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 
 chai.use(chaiExclude);
 
@@ -34,7 +34,7 @@ describe("/v2/account", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
         initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
     });
 
@@ -49,7 +49,7 @@ describe("/v2/account", () => {
         const getAccountResp = await router.testWebAppRequest<Account>("/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
-        chai.assert.equal(getAccountResp.body.name, testUtils.defaultTestUser.accountDetails.name);
+        chai.assert.equal(getAccountResp.body.name, testUtils.defaultTestUser.account.name);
     });
 
     it("can update account name", async () => {
@@ -72,7 +72,7 @@ describe("/v2/account", () => {
     it("can create a brand new account and switch to it", async () => {
         const initialSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
         chai.assert.equal(initialSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isDefined(initialSwitchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.accountDetails.accountId), `looking for accountId ${testUtils.defaultTestUser.accountDetails.accountId} in ${initialSwitchableAccountsResp.bodyRaw}`);
+        chai.assert.isDefined(initialSwitchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.account.accountId), `looking for accountId ${testUtils.defaultTestUser.account.accountId} in ${initialSwitchableAccountsResp.bodyRaw}`);
 
         const createAccountResp = await router.testWebAppRequest<Account>("/v2/account", "POST", {
             name: "Totally Not a Drug Front"
@@ -191,13 +191,14 @@ describe("/v2/account", () => {
         chai.assert.equal(listKeysAfterDeleteResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysAfterDeleteResp.body, listKeysResp.body, "deleting the user should not delete their api key");
 
-        const dbUser = await DbUser.get(newUser.userId);
+        const dbUserUniqueness = await DbUserUniqueness.get(newUser.userId);
+        chai.assert.isNotNull(dbUserUniqueness, "does not delete the DbUserUniqueness");
+        chai.assert.equal(dbUserUniqueness.userId, newUser.userId);
+
+        const dbUser = await DbUser.getById(newUser.userId);
         chai.assert.isNotNull(dbUser, "does not delete the DbUser");
         chai.assert.equal(dbUser.userId, newUser.userId);
-
-        const dbUserLogin = await DbUserLogin.getById(newUser.userId);
-        chai.assert.isNotNull(dbUserLogin, "does not delete the DbUserLogin");
-        chai.assert.equal(dbUserLogin.userId, newUser.userId);
+        chai.assert.equal(dbUser.email, newUser.email);
     });
 
     describe("maxInactiveDays (tests are interdependent)", () => {
@@ -437,25 +438,25 @@ describe("/v2/account", () => {
 
     describe("maxPasswordAge (tests are interdependent)", () => {
 
-        const defaultTestUserPassword = testUtils.defaultTestUser.userLogin.password;
+        const defaultTestUserPassword = testUtils.defaultTestUser.user.login.password;
 
         beforeEach(async () => {
-            const expiredLoginDate = new Date(testUtils.defaultTestUser.userLogin.password.createdDate);
+            const expiredLoginDate = new Date(testUtils.defaultTestUser.user.login.password.createdDate);
             expiredLoginDate.setFullYear(expiredLoginDate.getFullYear() - 1);
 
-            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            await DbUserLogin.update(userLogin, {
+            const user = await DbUser.get(testUtils.defaultTestUser.email);
+            await DbUser.update(user, {
                 action: "put",
-                attribute: "password.createdDate",
+                attribute: "login.password.createdDate",
                 value: expiredLoginDate
             });
         });
 
         afterEach(async () => {
-            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            await DbUserLogin.update(userLogin, {
+            const user = await DbUser.get(testUtils.defaultTestUser.email);
+            await DbUser.update(user, {
                 action: "put",
-                attribute: "password",
+                attribute: "login.password",
                 value: defaultTestUserPassword
             });
         });
@@ -556,10 +557,10 @@ describe("/v2/account", () => {
 
         it("requires existing users newly invited with passwords older than maxPasswordAge update their password", async () => {
             const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
-            const newUserLogin = await DbUserLogin.get(newUser.email);
-            await DbUserLogin.update(newUserLogin, {
+            const nedDbUser = await DbUser.get(newUser.email);
+            await DbUser.update(nedDbUser, {
                 action: "put",
-                attribute: "password.createdDate",
+                attribute: "login.password.createdDate",
                 value: createdDatePast(1)
             });
 
@@ -617,10 +618,10 @@ describe("/v2/account", () => {
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
 
-            await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const switchAccountWithMfaResp = await router.testWebAppRequest<LoginResult>("/v2/account/switch", "POST", {
-                accountId: testUtils.defaultTestUser.accountDetails.accountId,
+                accountId: testUtils.defaultTestUser.account.accountId,
                 mode: "test"
             });
             chai.assert.equal(switchAccountWithMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountWithMfaResp.bodyRaw);
@@ -634,12 +635,12 @@ describe("/v2/account", () => {
         });
 
         it("requires existing users without mfa enabled to do so before logging into the account", async () => {
-            const dbUserLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            chai.assert.isNotNull(dbUserLogin);
-            chai.assert.equal(dbUserLogin.defaultLoginAccountId, setUserIdTestMode(testUtils.defaultTestUser.accountId), "make sure we're logging in to the right account");
+            const dbUser = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.isNotNull(dbUser);
+            chai.assert.equal(dbUser.login.defaultLoginAccountId, setUserIdTestMode(testUtils.defaultTestUser.accountId), "make sure we're logging in to the right account");
 
             const loginNoMfaResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.user.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
@@ -651,10 +652,10 @@ describe("/v2/account", () => {
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
 
-            const totpSecret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            const totpSecret = await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginWithMfaResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.userLogin.email,
+                email: testUtils.defaultTestUser.user.email,
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginWithMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
@@ -709,7 +710,7 @@ describe("/v2/account", () => {
             await router.testWebAppRequest("/v2/user/mfa", "DELETE");
 
             const switchAccountNoMfaResp = await router.testWebAppRequest("/v2/account/switch", "POST", {
-                accountId: testUtils.defaultTestUser.accountDetails.accountId,
+                accountId: testUtils.defaultTestUser.account.accountId,
                 mode: "test"
             });
             chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountNoMfaResp.bodyRaw);
@@ -749,7 +750,7 @@ describe("/v2/account", () => {
             chai.assert.equal(changePasswordResp.body.messageCode, "ReusedPassword");
         });
 
-        const passwords = Array(DbUserLogin.maxPasswordHistoryLength + 1).fill(0).map(() => generateId());
+        const passwords = Array(DbUser.maxPasswordHistoryLength + 1).fill(0).map(() => generateId());
         it("requires that users in the Account cannot reuse a recent password when changing passwords", async () => {
             for (let passwordIx = 0; passwordIx < passwords.length; passwordIx++) {
                 const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {

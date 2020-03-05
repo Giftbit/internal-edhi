@@ -5,7 +5,7 @@ import * as uuid from "uuid/v4";
 import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
@@ -85,9 +85,9 @@ export function installLoginAuthedRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:authenticate");
 
-            const userLogin = await DbUserLogin.getByAuth(auth);
-            if (userLogin.mfa && userLogin.mfa.smsDevice) {
-                await sendSmsMfaChallenge(userLogin);
+            const user = await DbUser.getByAuth(auth);
+            if (user.login.mfa && user.login.mfa.smsDevice) {
+                await sendSmsMfaChallenge(user);
             }
             return {
                 body: {}
@@ -123,103 +123,103 @@ export function installLoginAuthedRest(router: cassava.Router): void {
 }
 
 async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
-    const userLogin = await DbUserLogin.get(params.email);
+    const user = await DbUser.get(params.email);
 
-    if (!userLogin) {
+    if (!user) {
         log.warn("Could not log in user", params.email, "user not found");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!userLogin.emailVerified) {
+    if (!user.login.emailVerified) {
         log.warn("Could not log in user", params.email, "email is not verified");
-        await sendEmailAddressVerificationEmail(userLogin.email);
+        await sendEmailAddressVerificationEmail(user.email);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
-    if (userLogin.frozen) {
+    if (user.login.frozen) {
         log.warn("Could not log in user", params.email, "user is frozen");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (userLogin.lockedUntilDate && userLogin.lockedUntilDate >= createdDateNow()) {
-        log.warn("Could not log in user", params.email, "user is locked until", userLogin.lockedUntilDate);
+    if (user.login.lockedUntilDate && user.login.lockedUntilDate >= createdDateNow()) {
+        log.warn("Could not log in user", params.email, "user is locked until", user.login.lockedUntilDate);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!await validatePassword(params.plaintextPassword, userLogin.password)) {
+    if (!await validatePassword(params.plaintextPassword, user.login.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
-        await completeLoginFailure(userLogin, params.sourceIp);
+        await completeLoginFailure(user, params.sourceIp);
     }
 
-    if (userLogin.mfa) {
+    if (user.login.mfa) {
         if (params.trustedDeviceToken) {
-            if (userLogin.mfa.trustedDevices[params.trustedDeviceToken] && userLogin.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
+            if (user.login.mfa.trustedDevices[params.trustedDeviceToken] && user.login.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
                 log.info("User", params.email, "has a trusted device");
-                return await completeLoginSuccess(userLogin);
+                return await completeLoginSuccess(user);
             }
             log.info("User", params.email, "trusted device token is not trusted");
-            log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", userLogin.mfa.trustedDevices);
+            log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", user.login.mfa.trustedDevices);
         }
-        if (userLogin.mfa.smsDevice) {
+        if (user.login.mfa.smsDevice) {
             log.info("Partially logged in user", params.email, "sending SMS code");
 
-            await sendSmsMfaChallenge(userLogin);
-            return getLoginAdditionalAuthenticationRequiredResponse(userLogin);
+            await sendSmsMfaChallenge(user);
+            return getLoginAdditionalAuthenticationRequiredResponse(user);
         }
-        if (userLogin.mfa.totpSecret) {
+        if (user.login.mfa.totpSecret) {
             log.info("Partially logged in user", params.email, "awaiting TOTP code");
-            return getLoginAdditionalAuthenticationRequiredResponse(userLogin);
+            return getLoginAdditionalAuthenticationRequiredResponse(user);
         }
     }
 
-    return completeLoginSuccess(userLogin);
+    return completeLoginSuccess(user);
 }
 
 async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<cassava.RouterResponse> {
-    const userLogin = await DbUserLogin.getByAuth(auth);
+    const user = await DbUser.getByAuth(auth);
 
-    if (userLogin.frozen) {
-        log.warn("Could not log in user", auth.teamMemberId, "user is frozen");
+    if (user.login.frozen) {
+        log.warn("Could not log in user", user.userId, "user is frozen");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (userLogin.lockedUntilDate && userLogin.lockedUntilDate >= createdDateNow()) {
-        log.warn("Could not log in user", auth.teamMemberId, "user is locked until", userLogin.lockedUntilDate);
+    if (user.login.lockedUntilDate && user.login.lockedUntilDate >= createdDateNow()) {
+        log.warn("Could not log in user", user.userId, "user is locked until", user.login.lockedUntilDate);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
-    if (!userLogin.mfa) {
-        log.warn("Could not log in user", auth.teamMemberId, "MFA is not enabled");
+    if (!user.login.mfa) {
+        log.warn("Could not log in user", user.userId, "MFA is not enabled");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
     }
 
     const userUpdates: dynameh.UpdateExpressionAction[] = [];
     const userUpdateConditions: dynameh.Condition[] = [];
     const additionalCookies: { [key: string]: RouterResponseCookie } = {};
-    if (userLogin.mfa.smsAuthState
-        && userLogin.mfa.smsAuthState.action === "auth"
-        && userLogin.mfa.smsAuthState.expiresDate >= createdDateNow()
-        && userLogin.mfa.smsAuthState.code === params.code.toUpperCase()
+    if (user.login.mfa.smsAuthState
+        && user.login.mfa.smsAuthState.action === "auth"
+        && user.login.mfa.smsAuthState.expiresDate >= createdDateNow()
+        && user.login.mfa.smsAuthState.code === params.code.toUpperCase()
     ) {
         // SMS
         userUpdates.push({
             action: "remove",
-            attribute: "mfa.smsAuthState"
+            attribute: "login.mfa.smsAuthState"
         });
 
         // With this condition login will fail unless this code has not been used yet.
         // This prevents racing a quick replay of the login.
         userUpdateConditions.push({
             operator: "attribute_exists",
-            attribute: "mfa.smsAuthState"
+            attribute: "login.mfa.smsAuthState"
         });
-    } else if (userLogin.mfa.totpSecret && await validateOtpCode(userLogin.mfa.totpSecret, params.code)) {
+    } else if (user.login.mfa.totpSecret && await validateOtpCode(user.login.mfa.totpSecret, params.code)) {
         // TOTP
-        if (userLogin.mfa.totpUsedCodes[params.code]) {
+        if (user.login.mfa.totpUsedCodes[params.code]) {
             // This code has been used recently.  Login completion is not successful but this is not a serious failure.
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
         }
 
-        const totpUsedCode: DbUserLogin.TotpUsedCode = {
+        const totpUsedCode: DbUser.TotpUsedCode = {
             createdDate: createdDateNow()
         };
         userUpdates.push({
             action: "put",
-            attribute: `mfa.totpUsedCodes.${params.code}`,
+            attribute: `login.mfa.totpUsedCodes.${params.code}`,
             value: totpUsedCode
         });
 
@@ -227,46 +227,46 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         // This prevents racing a quick replay of the login.
         userUpdateConditions.push({
             operator: "attribute_not_exists",
-            attribute: `mfa.totpUsedCodes.${params.code}`
+            attribute: `login.mfa.totpUsedCodes.${params.code}`
         });
 
         // Remove previously used codes that have expired.
         const usedCodeExpiration = new Date(Date.now() + totpUsedCodeTimeoutMillis).toISOString();
-        for (const usedCode in userLogin.mfa.totpUsedCodes) {
-            if (userLogin.mfa.totpUsedCodes.hasOwnProperty(usedCode) && userLogin.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
+        for (const usedCode in user.login.mfa.totpUsedCodes) {
+            if (user.login.mfa.totpUsedCodes.hasOwnProperty(usedCode) && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `mfa.totpUsedCodes.${usedCode}`
                 });
             }
         }
-    } else if (userLogin.mfa.backupCodes && userLogin.mfa.backupCodes[params.code.toUpperCase()]) {
+    } else if (user.login.mfa.backupCodes && user.login.mfa.backupCodes[params.code.toUpperCase()]) {
         // Backup code
         userUpdates.push({
             action: "remove",
-            attribute: `mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
         });
 
         // With this condition login will fail unless this backup code is not yet deleted.
         // This prevents racing a quick replay of the login.
         userUpdateConditions.push({
             operator: "attribute_exists",
-            attribute: `mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-        await completeLoginFailure(userLogin, params.sourceIp);
+        await completeLoginFailure(user, params.sourceIp);
     }
 
     if (params.trustThisDevice) {
         const trustedDeviceToken = uuid().replace(/-/g, "");
-        const trustedDevice: DbUserLogin.TrustedDevice = {
+        const trustedDevice: DbUser.TrustedDevice = {
             createdDate: createdDateNow(),
             expiresDate: new Date(Date.now() + trustedDeviceExpirationDays * 24 * 60 * 60 * 1000).toISOString()
         };
         userUpdates.push({
             action: "put",
-            attribute: `mfa.trustedDevices.${trustedDeviceToken}`,
+            attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`,
             value: trustedDevice
         });
         additionalCookies["gb_ttd"] = {
@@ -280,7 +280,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         };
     }
 
-    const loginResponse = await completeLoginSuccess(userLogin, userUpdates, userUpdateConditions);
+    const loginResponse = await completeLoginSuccess(user, userUpdates, userUpdateConditions);
     if (additionalCookies) {
         loginResponse.cookies = {
             ...loginResponse.cookies,
@@ -290,83 +290,83 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     return loginResponse;
 }
 
-async function completeLoginSuccess(userLogin: DbUserLogin, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<cassava.RouterResponse> {
-    log.info("Logged in user", userLogin.email);
+async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<cassava.RouterResponse> {
+    log.info("Logged in user", user.email);
 
     // Store last login date.
-    const userLoginUpdates: dynameh.UpdateExpressionAction[] = [
+    const userUpdates: dynameh.UpdateExpressionAction[] = [
         {
             action: "put",
-            attribute: "lastLoginDate",
+            attribute: "login.lastLoginDate",
             value: createdDateNow()
         },
         ...additionalUpdates
     ];
 
-    if ((userLogin.failedLoginAttempts && userLogin.failedLoginAttempts.size > 0) || userLogin.lockedUntilDate) {
+    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0) || user.login.lockedUntilDate) {
         // Clear failed login attempts.
-        userLoginUpdates.push(
+        userUpdates.push(
             {
                 action: "remove",
-                attribute: "failedLoginAttempts"
+                attribute: "login.failedLoginAttempts"
             },
             {
                 action: "remove",
-                attribute: "lockedUntilDate"
+                attribute: "login.lockedUntilDate"
             }
         );
     }
 
-    if (userLogin.mfa && userLogin.mfa.trustedDevices) {
+    if (user.login.mfa && user.login.mfa.trustedDevices) {
         // Clear expired trusted devices.
         const now = createdDateNow();
-        for (const trustedDeviceToken in userLogin.mfa.trustedDevices) {
-            if (userLogin.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && userLogin.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
-                userLoginUpdates.push({
+        for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
+            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
+                userUpdates.push({
                     action: "remove",
-                    attribute: `mfa.trustedDevices.${trustedDeviceToken}`
+                    attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`
                 });
             }
         }
     }
 
-    await DbUserLogin.conditionalUpdate(userLogin, userLoginUpdates, updateConditions);
+    await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
 
-    const accountUser = await DbAccountUser.getForUserLogin(userLogin);
-    const liveMode = isTestModeUserId(userLogin.defaultLoginAccountId);
-    return getLoginResponse(userLogin, accountUser, liveMode);
+    const accountUser = await DbAccountUser.getForUser(user);
+    const liveMode = isTestModeUserId(user.login.defaultLoginAccountId);
+    return getLoginResponse(user, accountUser, liveMode);
 }
 
-async function completeLoginFailure(userLogin: DbUserLogin, sourceIp: string): Promise<never> {
+async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<never> {
     const failedAttempt = `${createdDateNow()}, ${sourceIp}`;
-    if (!userLogin.failedLoginAttempts) {
-        userLogin.failedLoginAttempts = new Set();
+    if (!user.login.failedLoginAttempts) {
+        user.login.failedLoginAttempts = new Set();
     }
-    userLogin.failedLoginAttempts.add(failedAttempt);
+    user.login.failedLoginAttempts.add(failedAttempt);
 
-    if (userLogin.failedLoginAttempts.size < maxFailedLoginAttempts) {
-        log.info("Storing failed login attempt for user", userLogin.email, "failedLoginAttempts.size=", userLogin.failedLoginAttempts.size);
-        await DbUserLogin.update(userLogin, {
+    if (user.login.failedLoginAttempts.size < maxFailedLoginAttempts) {
+        log.info("Storing failed login attempt for user", user.email, "failedLoginAttempts.size=", user.login.failedLoginAttempts.size);
+        await DbUser.update(user, {
             action: "set_add",
-            attribute: "failedLoginAttempts",
+            attribute: "login.failedLoginAttempts",
             values: new Set([failedAttempt])
         });
     } else {
-        log.info("Too many failed login attempts for user", userLogin.email, Array.from(userLogin.failedLoginAttempts));
+        log.info("Too many failed login attempts for user", user.email, Array.from(user.login.failedLoginAttempts));
 
         const lockedUntilDate = new Date();
         lockedUntilDate.setMinutes(lockedUntilDate.getMinutes() + failedLoginTimoutMinutes);
-        await DbUserLogin.update(userLogin,
+        await DbUser.update(user,
             {
                 action: "remove",
-                attribute: "failedLoginAttempts"
+                attribute: "login.failedLoginAttempts"
             },
             {
                 action: "put",
-                attribute: "lockedUntilDate",
+                attribute: "login.lockedUntilDate",
                 value: lockedUntilDate.toISOString()
             });
-        await sendFailedLoginTimeoutEmail(userLogin, failedLoginTimoutMinutes);
+        await sendFailedLoginTimeoutEmail(user, failedLoginTimoutMinutes);
     }
 
     throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -377,16 +377,16 @@ async function completeLoginFailure(userLogin: DbUserLogin, sourceIp: string): P
  * At this point the user is fully authenticated, and the only question is what they're
  * allowed to do with that authentication.
  *
- * @param userLogin The login of the user that has successfully logged in.
+ * @param user The user that has successfully logged in.
  * @param accountUser The DbAccountUser of the Account to log in to.  If null then the
  *                    user has no Account and can only create one.
  * @param liveMode Whether to log in as live (or test) to the Account.
  * @param additionalCookies Additional cookies that should be included in the response.
  */
-export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
+export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     let body: LoginResult = {
-        userId: userLogin.userId,
-        hasMfa: DbUserLogin.hasMfaActive(userLogin)
+        userId: user.userId,
+        hasMfa: DbUser.hasMfaActive(user)
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
@@ -396,21 +396,21 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
     if (!account) {
         body.message = "You have been removed from all Accounts.  You can create your own to continue.";
         body.messageCode = "NoAccount";
-        badge = DbUserLogin.getOrphanBadge(userLogin);
+        badge = DbUser.getOrphanBadge(user);
     } else if (account.requireMfa && !body.hasMfa) {
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
-        badge = DbUserLogin.getOrphanBadge(userLogin);
-    } else if (account.maxPasswordAge && userLogin.password.createdDate < createdDatePast(0, 0, account.maxPasswordAge)) {
+        badge = DbUser.getOrphanBadge(user);
+    } else if (account.maxPasswordAge && user.login.password.createdDate < createdDatePast(0, 0, account.maxPasswordAge)) {
         body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
         body.messageCode = "AccountMaxPasswordAge";
-        badge = DbUserLogin.getOrphanBadge(userLogin);
+        badge = DbUser.getOrphanBadge(user);
     } else if (account.maxInactiveDays && accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays)) {
         body.message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
         body.messageCode = "AccountMaxInactiveDays";
-        badge = DbUserLogin.getOrphanBadge(userLogin);
+        badge = DbUser.getOrphanBadge(user);
     } else {
-        badge = DbUserLogin.getBadge(accountUser, liveMode, true);
+        badge = DbUser.getBadge(accountUser, liveMode, true);
     }
 
     return {
@@ -420,17 +420,17 @@ export async function getLoginResponse(userLogin: DbUserLogin, accountUser: DbAc
             Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
         },
         cookies: {
-            ...await DbUserLogin.getBadgeCookies(badge),
+            ...await DbUser.getBadgeCookies(badge),
             ...additionalCookies
         }
     };
 }
 
-async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUserLogin): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    const badge = DbUserLogin.getAdditionalAuthenticationRequiredBadge(userLogin);
+async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
         userId: null,
-        hasMfa: DbUserLogin.hasMfaActive(userLogin),
+        hasMfa: DbUser.hasMfaActive(user),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
     };
@@ -441,6 +441,6 @@ async function getLoginAdditionalAuthenticationRequiredResponse(userLogin: DbUse
         headers: {
             Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
         },
-        cookies: await DbUserLogin.getBadgeCookies(badge)
+        cookies: await DbUser.getBadgeCookies(badge)
     };
 }

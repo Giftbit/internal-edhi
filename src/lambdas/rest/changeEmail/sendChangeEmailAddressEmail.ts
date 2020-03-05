@@ -11,7 +11,7 @@ export async function sendChangeEmailAddressEmail(userId: string, email: string)
     const confirmChangeLink = `https://${process.env["LIGHTRAIL_DOMAIN"]}/v2/user/changeEmail/complete?token=${encodeURIComponent(tokenAction.token)}`;
     const body = changeEmailAddressEmail.replace(/{{confirmChangeLink}}/g, confirmChangeLink);
 
-    log.info("Sending change email address email to", email, "teamMemberId=", userId, "token=", tokenAction.token);
+    log.info("Sending change email address email to", email, "userId=", userId, "token=", tokenAction.token);
     await sendEmail({
         toAddress: email,
         subject: "Change Your Lightrail Email Address",

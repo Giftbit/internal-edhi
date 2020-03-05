@@ -7,7 +7,7 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {Account} from "../../../model/Account";
 
 describe("/v2/user/forgotPassword", () => {
@@ -20,7 +20,7 @@ describe("/v2/user/forgotPassword", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -51,7 +51,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email
+            email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(resetPasswordEmail);
@@ -77,14 +77,14 @@ describe("/v2/user/forgotPassword", () => {
 
         // Old password doesn't work.
         const badLoginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(badLoginResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
         // New password works.
         const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -110,7 +110,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email
+            email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(resetPasswordEmail);
@@ -135,7 +135,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email
+            email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(resetPasswordEmail);
@@ -160,7 +160,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email
+            email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(resetPasswordEmail);

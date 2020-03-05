@@ -1,8 +1,8 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {DbUser} from "../../../db/DbUser";
 import {User} from "../../../model/User";
 import {hashIntercomUserId} from "../../../utils/intercomUtils";
+import {DbUser} from "../../../db/DbUser";
 
 export function installUserRest(router: cassava.Router): void {
     router.route("/v2/user")

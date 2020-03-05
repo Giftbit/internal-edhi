@@ -4,7 +4,6 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
-import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {AccountUser} from "../../../model/AccountUser";
@@ -351,14 +350,14 @@ async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, acc
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
     }
 
-    const userLogin = await DbUserLogin.getByAuth(auth);
-    await DbUserLogin.update(userLogin, {
+    const user = await DbUser.getByAuth(auth);
+    await DbUser.update(user, {
         action: "put",
-        attribute: "defaultLoginAccountId",
+        attribute: "login.defaultLoginAccountId",
         value: liveMode ? stripUserIdTestMode(accountId) : setUserIdTestMode(accountId)
     });
 
-    return getLoginResponse(userLogin, accountUser, liveMode);
+    return getLoginResponse(user, accountUser, liveMode);
 }
 
 export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedOnInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {

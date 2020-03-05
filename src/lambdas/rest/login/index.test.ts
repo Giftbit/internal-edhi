@@ -8,7 +8,7 @@ import {generateId} from "../../../utils/testUtils";
 import {ParsedProxyResponse, TestRouter} from "../../../utils/testUtils/TestRouter";
 import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
 import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
@@ -25,7 +25,7 @@ describe("/v2/user/login", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
         initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
     });
 
@@ -154,10 +154,10 @@ describe("/v2/user/login", () => {
         const pastLockedDate = new Date();
         pastLockedDate.setMinutes(pastLockedDate.getMinutes() - 65);
         const updateLockedDateReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbUserLogin.getKeys(testUtils.defaultTestUser.userLogin),
+            DbUser.getKeys(testUtils.defaultTestUser.user),
             {
                 action: "put",
-                attribute: "lockedUntilDate",
+                attribute: "login.lockedUntilDate",
                 value: pastLockedDate.toISOString()
             }
         );
@@ -231,7 +231,7 @@ describe("/v2/user/login", () => {
 
     describe("SMS MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -256,7 +256,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct SMS code", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -292,7 +292,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a case-insensitive code", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -318,7 +318,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can send a new code (invalidating the old one)", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -362,7 +362,7 @@ describe("/v2/user/login", () => {
         });
 
         it("is secure against replay attack (using the same code a second time)", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms1: smsUtils.SendSmsParams;
             let sms2: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -405,7 +405,7 @@ describe("/v2/user/login", () => {
 
     describe("TOTP MFA login", () => {
         it("starts login with an auth token that can only complete authentication", async () => {
-            await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -427,7 +427,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with the correct TOTP code", async () => {
-            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            const secret = await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -449,7 +449,7 @@ describe("/v2/user/login", () => {
         });
 
         it("can complete login with a 30-second-old code", async () => {
-            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            const secret = await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -465,7 +465,7 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot complete with a 60-second-old code", async () => {
-            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            const secret = await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -480,7 +480,7 @@ describe("/v2/user/login", () => {
         });
 
         it("does not allow reusing a code even if it was valid", async () => {
-            const secret = await testUtils.enableTotpMfa(testUtils.defaultTestUser.email);
+            const secret = await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
 
             const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -511,7 +511,7 @@ describe("/v2/user/login", () => {
 
     describe("backup code login", () => {
         it("can complete login with a backup code", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -538,7 +538,7 @@ describe("/v2/user/login", () => {
         });
 
         it("cannot use the same backup code twice", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                 });
@@ -572,7 +572,7 @@ describe("/v2/user/login", () => {
 
     describe("trust this device", () => {
         it("allows skipping the MFA step with the correct token", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -626,7 +626,7 @@ describe("/v2/user/login", () => {
         });
 
         it("expires trusted devices even if they have the correct token", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -655,13 +655,13 @@ describe("/v2/user/login", () => {
             chai.assert.isString(ttdToken);
 
             // Manually adjust DB to expire token
-            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            chai.assert.isDefined(userLogin.mfa.trustedDevices[ttdToken]);
-            userLogin.mfa.trustedDevices[ttdToken].expiresDate = new Date(Date.now() - 1000).toISOString();
-            await DbUserLogin.update(userLogin, {
+            const user = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.isDefined(user.login.mfa.trustedDevices[ttdToken]);
+            user.login.mfa.trustedDevices[ttdToken].expiresDate = new Date(Date.now() - 1000).toISOString();
+            await DbUser.update(user, {
                 action: "put",
-                attribute: "mfa",
-                value: userLogin.mfa
+                attribute: "login.mfa",
+                value: user.login.mfa
             });
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
@@ -677,7 +677,7 @@ describe("/v2/user/login", () => {
         });
 
         it("forgets trusted devices when MFA is disabled and re-enabled", async () => {
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
                 .onFirstCall()
@@ -708,7 +708,7 @@ describe("/v2/user/login", () => {
             const disableMfaResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/user/mfa", "DELETE");
             chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
 
-            await testUtils.enableSmsMfa(testUtils.defaultTestUser.email);
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
 
             const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
                 {

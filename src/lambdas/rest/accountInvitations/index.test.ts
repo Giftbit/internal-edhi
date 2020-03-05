@@ -8,7 +8,7 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {Invitation} from "../../../model/Invitation";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
@@ -27,7 +27,7 @@ describe("/v2/account/invitations", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
