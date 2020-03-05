@@ -15,12 +15,41 @@ export interface DbAccountUser {
 
     accountId: string;
     userId: string;
+
+    /**
+     * The display name to use when this is representing a User.  This is
+     * in fact an email address, but it's not the user's canonical email
+     * address which should always be fetched from the User or UserLogin.
+     */
     userDisplayName: string;
+
+    /**
+     * The display name to use when this is representing an Account.
+     */
     accountDisplayName: string;
+
+    /**
+     * Invitation details.  When this is set the user is invited but has not
+     * accepted.  They must accept the invitation before they can do anything
+     * in the system.
+     */
     pendingInvitation?: DbAccountUser.Invitation;
+
+    /**
+     * Roles the User will have access to in this Account.
+     */
     roles: string[];
+
+    /**
+     * Scopes the User will have access to in this Account.
+     */
     scopes: string[];
+
+    /**
+     * The last date the User logged in to this Account specifically.
+     */
     lastLoginDate?: string;
+    
     createdDate: string;
 
 }
