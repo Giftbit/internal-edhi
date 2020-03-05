@@ -3,8 +3,7 @@ import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
 import {DbUser} from "../../../db/DbUser";
-import {DbAccount} from "../../../db/DbAccount";
-import {DbAccountUser} from "../../../db/DbAccountUser";
+import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -54,72 +53,58 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The old password is incorrect.", "IncorrectPassword");
     }
 
-    const requirePasswordHistory = await userRequiresPasswordHistory(user);
-    if (requirePasswordHistory && await passwordIsInHistory(params.newPlaintextPassword, user)) {
+    const userPasswordHistory = await DbUserPasswordHistory.get(user.userId);
+    if (await passwordIsInHistory(params.newPlaintextPassword, user, userPasswordHistory)) {
         log.warn("Can't change user password for", user.email, "the new password is in the history");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The new password is being reused.", "ReusedPassword");
     }
 
     const userPassword: DbUser.Password = await hashPassword(params.newPlaintextPassword);
-    const userUpdates: dynameh.UpdateExpressionAction[] = [
-        {
-            action: "put",
-            attribute: "login.password",
-            value: userPassword
-        }
-    ];
+    await DbUser.update(user, {
+        action: "put",
+        attribute: "login.password",
+        value: userPassword
+    });
 
-    if (requirePasswordHistory) {
-        if (user.login.passwordHistory) {
-            userUpdates.push({
+    if (userPasswordHistory) {
+        const updates: dynameh.UpdateExpressionAction[] = [
+            {
                 action: "put",
-                attribute: `login.passwordHistory.${getHistoricalPasswordKey(user.login.password)}`,
+                attribute: `passwordHistory.${getHistoricalPasswordKey(user.login.password)}`,
                 value: user.login.password
-            });
-
-            if (Object.values(user.login.passwordHistory).length > DbUser.maxPasswordHistoryLength - 1) {
-                userUpdates.push({
-                    action: "remove",
-                    attribute: `login.passwordHistory.${getOldestHistoricalPasswordKey(user.login.passwordHistory)}`
-                });
             }
-        } else {
-            userUpdates.push({
-                action: "put",
-                attribute: "login.passwordHistory",
-                value: {
-                    [getHistoricalPasswordKey(user.login.password)]: user.login.password
-                }
+        ];
+        while (Object.values(userPasswordHistory.passwordHistory).length > DbUserPasswordHistory.maxPasswordHistoryLength - 1) {
+            const keyToRemove = getOldestHistoricalPasswordKey(userPasswordHistory.passwordHistory);
+            delete userPasswordHistory.passwordHistory[keyToRemove];
+            updates.push({
+                action: "remove",
+                attribute: `passwordHistory.${keyToRemove}`
             });
         }
-    } else if (user.login.passwordHistory) {
-        userUpdates.push({
-            action: "put",
-            attribute: "login.passwordHistory",
-            value: null
-        });
+        await DbUserPasswordHistory.update(userPasswordHistory, ...updates);
+    } else {
+        const newUserPasswordHistory: DbUserPasswordHistory = {
+            userId: user.userId,
+            passwordHistory: {
+                [getHistoricalPasswordKey(user.login.password)]: user.login.password
+            }
+        };
+        await DbUserPasswordHistory.put(newUserPasswordHistory);
     }
 
-    await DbUser.update(user, ...userUpdates);
     log.info("User", user.email, "has changed their password");
 }
 
-async function userRequiresPasswordHistory(user: DbUser): Promise<boolean> {
-    const accountUsers = await DbAccountUser.getAllForUser(user.userId);
-    const accounts = await DbAccount.getMany(accountUsers.map(accountUser => accountUser.accountId));
-    return !!accounts.find(account => account.preventPasswordReuse);
-}
-
-async function passwordIsInHistory(plaintextPassword: string, user: DbUser): Promise<boolean> {
+async function passwordIsInHistory(plaintextPassword: string, user: DbUser, userPasswordHistory: DbUserPasswordHistory | null): Promise<boolean> {
     if (await validatePassword(plaintextPassword, user.login.password)) {
         return true;
     }
-    if (!user.login.passwordHistory) {
-        return false;
-    }
-    for (const historicalPassword of Object.values(user.login.passwordHistory)) {
-        if (await validatePassword(plaintextPassword, historicalPassword)) {
-            return true;
+    if (userPasswordHistory) {
+        for (const historicalPassword of Object.values(userPasswordHistory.passwordHistory)) {
+            if (await validatePassword(plaintextPassword, historicalPassword)) {
+                return true;
+            }
         }
     }
     return false;

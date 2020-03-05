@@ -6,6 +6,7 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
+import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
 
 describe("/v2/user/changePassword", () => {
 
@@ -111,11 +112,47 @@ describe("/v2/user/changePassword", () => {
     });
 
     it("requires the oldPassword to validate", async () => {
-        const newPassword = generateId();
         const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
             oldPassword: generateId(),
             newPassword: generateId()
         });
         chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
     });
+
+    it("requires that users cannot reuse the last password when changing passwords", async () => {
+        const changePasswordResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+            oldPassword: testUtils.defaultTestUser.password,
+            newPassword: testUtils.defaultTestUser.password
+        });
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, changePasswordResp.bodyRaw);
+        chai.assert.equal(changePasswordResp.body.messageCode, "ReusedPassword");
+    });
+
+    it("requires that users in the Account cannot reuse a recent password when changing passwords", async () => {
+        const passwordHistoryPasswords = Array(DbUserPasswordHistory.maxPasswordHistoryLength + 1).fill(0).map(() => generateId());
+
+        for (let passwordIx = 0; passwordIx < passwordHistoryPasswords.length; passwordIx++) {
+            const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
+                oldPassword: passwordIx === 0 ? testUtils.defaultTestUser.password : passwordHistoryPasswords[passwordIx - 1],
+                newPassword: passwordHistoryPasswords[passwordIx]
+            });
+            chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, `Password ix=${passwordIx} password=${passwordHistoryPasswords[passwordIx]} should be able to change, response=${changePasswordResp.bodyRaw}`);
+
+            // For all but the last password it should be impossible to change back to the original.
+            if (passwordIx < passwordHistoryPasswords.length - 1) {
+                const changePasswordBackFailResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                    oldPassword: passwordHistoryPasswords[passwordIx],
+                    newPassword: testUtils.defaultTestUser.password
+                });
+                chai.assert.equal(changePasswordBackFailResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, `Password ix=${passwordIx} should not be changed back to default, response=${changePasswordResp.bodyRaw}`);
+                chai.assert.equal(changePasswordBackFailResp.body.messageCode, "ReusedPassword", `Password ix=${passwordIx} should not be changed back to default, response=${changePasswordResp.bodyRaw}`);
+            } else {
+                const changePasswordBackSuccessResp = await router.testWebAppRequest<any>("/v2/user/changePassword", "POST", {
+                    oldPassword: passwordHistoryPasswords[passwordIx],
+                    newPassword: testUtils.defaultTestUser.password
+                });
+                chai.assert.equal(changePasswordBackSuccessResp.statusCode, cassava.httpStatusCode.success.OK, `Password ix=${passwordIx} should change back to default, response=${changePasswordResp.bodyRaw}`);
+            }
+        }
+    }).timeout(30000);  // Validating passwords takes a long time and this test does *a lot* of that.
 });

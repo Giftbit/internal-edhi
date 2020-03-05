@@ -36,11 +36,6 @@ export interface DbUser {
 export namespace DbUser {
 
     /**
-     * The maximum number of passwords to store in passwordHistory.
-     */
-    export const maxPasswordHistoryLength = 5;
-
-    /**
      * If we migrate to another password hashing algorithm it should be given
      * an identifier here.
      */
@@ -52,11 +47,6 @@ export namespace DbUser {
          * go through password reset flow to set a password.
          */
         password?: DbUser.Password;
-
-        /**
-         * History of recent passwords stored in a dictionary.
-         */
-        passwordHistory?: { [key: string]: DbUser.Password };
 
         /**
          * Whether the email address has been verified.  If not the user
