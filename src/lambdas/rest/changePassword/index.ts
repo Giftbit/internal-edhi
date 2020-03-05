@@ -77,11 +77,10 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
                 value: user.login.password
             });
 
-            const passwordHistoryValues = Object.values(user.login.passwordHistory);
-            if (passwordHistoryValues.length > DbUser.maxPasswordHistoryLength - 1) {
+            if (Object.values(user.login.passwordHistory).length > DbUser.maxPasswordHistoryLength - 1) {
                 userUpdates.push({
                     action: "remove",
-                    attribute: `login.passwordHistory.${getOldestHistoricalPasswordKey(passwordHistoryValues)}`
+                    attribute: `login.passwordHistory.${getOldestHistoricalPasswordKey(user.login.passwordHistory)}`
                 });
             }
         } else {
@@ -127,10 +126,10 @@ async function passwordIsInHistory(plaintextPassword: string, user: DbUser): Pro
 }
 
 function getHistoricalPasswordKey(historicalPassword: DbUser.Password): string {
-    return historicalPassword.createdDate.replace(/\./g, "");
+    return historicalPassword.createdDate.replace(/[-:.TZ]/g, "");
 }
 
-function getOldestHistoricalPasswordKey(passwordHistory: DbUser.Password[]): string {
-    const oldestHistoricalPassword = passwordHistory.reduce((previousValue, currentValue) => previousValue == null || previousValue.createdDate < currentValue.createdDate ? previousValue : currentValue);
-    return getHistoricalPasswordKey(oldestHistoricalPassword);
+function getOldestHistoricalPasswordKey(passwordHistory: { [key: string]: DbUser.Password }): string {
+    return Object.keys(passwordHistory)
+        .reduce((prevKey, curKey) => prevKey == null || passwordHistory[prevKey].createdDate < passwordHistory[curKey].createdDate ? prevKey : curKey);
 }

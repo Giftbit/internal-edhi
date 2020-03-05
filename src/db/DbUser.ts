@@ -38,7 +38,7 @@ export namespace DbUser {
     /**
      * The maximum number of passwords to store in passwordHistory.
      */
-    export const maxPasswordHistoryLength = 12;
+    export const maxPasswordHistoryLength = 5;
 
     /**
      * If we migrate to another password hashing algorithm it should be given
