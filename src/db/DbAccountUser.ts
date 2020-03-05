@@ -1,6 +1,6 @@
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, objectDynameh, objectDynameh2, queryAll} from "./dynamodb";
+import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {DbObject} from "./DbObject";
 import {DbUserLogin} from "./DbUserLogin";
@@ -49,7 +49,7 @@ export interface DbAccountUser {
      * The last date the User logged in to this Account specifically.
      */
     lastLoginDate?: string;
-    
+
     createdDate: string;
 
 }
@@ -132,7 +132,7 @@ export namespace DbAccountUser {
             operator: "attribute_not_exists"
         });
 
-        const dbObjects = await queryAll(req);
+        const dbObjects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return dbObjects.map(fromDbObject);
     }
 
@@ -146,7 +146,7 @@ export namespace DbAccountUser {
             operator: "attribute_exists"
         });
 
-        const dbObjects = await queryAll(req);
+        const dbObjects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return dbObjects.map(fromDbObject);
     }
 
@@ -160,7 +160,7 @@ export namespace DbAccountUser {
             operator: "attribute_not_exists"
         });
 
-        const dbObjects = await queryAll(req);
+        const dbObjects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return dbObjects.map(fromDbObject);
     }
 

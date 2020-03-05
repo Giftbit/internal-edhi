@@ -18,20 +18,6 @@ export function createdDatePast(years?: number, months?: number, days?: number):
     return date.toISOString();
 }
 
-export async function queryAll(req: aws.DynamoDB.QueryInput): Promise<any[]> {
-    let resp = await dynamodb.query(req).promise();
-    const results = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
-
-    // TODO this should be a utility in dynameh
-    while (resp.LastEvaluatedKey) {
-        req.ExclusiveStartKey = resp.LastEvaluatedKey;
-        resp = await dynamodb.query(req).promise();
-        results.push(...objectDynameh.responseUnwrapper.unwrapQueryOutput(resp));
-    }
-
-    return results;
-}
-
 /**
  * Execute the TransactWriteItems request and get a response.
  * If an error is thrown it will include the CancellationReasons
