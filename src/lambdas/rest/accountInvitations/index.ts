@@ -130,7 +130,8 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         updates.push(putUserReq);
 
         const userUniqueness: DbUserUniqueness = {
-            userId
+            userId,
+            createdDate: createdDateNow()
         };
         const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
         objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {

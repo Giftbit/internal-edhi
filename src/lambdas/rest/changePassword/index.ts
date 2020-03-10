@@ -4,6 +4,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
 import {DbUser} from "../../../db/DbUser";
 import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
+import {createdDateNow} from "../../../db/dynamodb";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -88,7 +89,8 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
             userId: user.userId,
             passwordHistory: {
                 [getHistoricalPasswordKey(user.login.password)]: user.login.password
-            }
+            },
+            createdDate: createdDateNow()
         };
         await DbUserPasswordHistory.put(newUserPasswordHistory);
     }

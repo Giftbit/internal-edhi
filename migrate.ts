@@ -4,8 +4,8 @@ import * as logPrefix from "loglevel-plugin-prefix";
 import {DbAccount} from "./src/db/DbAccount";
 import {DbUser} from "./src/db/DbUser";
 import {DbAccountUser} from "./src/db/DbAccountUser";
-import {DbUserLogin} from "./src/db/DbUserLogin";
 import {DbApiKey} from "./src/db/DbApiKey";
+import {DbUserUniqueness} from "./src/db/DbUserUniqueness";
 import log = require("loglevel");
 import mysql = require("mysql2/promise");
 import readline = require("readline");
@@ -65,18 +65,17 @@ async function main(): Promise<void> {
     const dbAccountMap = getMap(dbAccounts, "accountId");
     log.debug("dbAccounts=", dbAccounts);
 
-    log.info("Calculating DbUsers...");
-    const dbUsers: DbUser[] = userRows
+    log.info("Calculating DbUserUniquenesses...");
+    const dbUserUniquenesses: DbUserUniqueness[] = userRows
         .map(row => {
-            const user: DbUser = {
+            const user: DbUserUniqueness = {
                 userId: row.team_member_id,
-                email: row.username,
                 createdDate: row.date_created.toISOString()
             };
             return user;
         });
-    const dbUserMap = getMap(dbUsers, "userId");
-    log.debug("dbUsers=", dbUsers);
+    const dbUserUniquenessesMap = getMap(dbUserUniquenesses, "userId");
+    log.debug("dbUserUniquenesses=", dbUserUniquenesses);
 
     log.info("Fetching roles...");
     const rolesRows: {
@@ -99,13 +98,12 @@ async function main(): Promise<void> {
         .map(row => {
             const account = dbAccountMap[row.giftbit_user_id];
             if (!account) {
-                console.warn(`Can't find Account ${row.giftbit_user_id} for User ${row.team_member_id}.  Account may be expired, locked or disabled.`);
+                log.warn(`Can't find Account ${row.giftbit_user_id} for User ${row.team_member_id}.  Account may be expired, locked or disabled.`);
                 return null;
             }
 
-            const user = dbUserMap[row.team_member_id];
-            if (!user) {
-                throw new Error(`Can't find User ${row.team_member_id}`);
+            if (!dbUserUniquenessesMap[row.team_member_id]) {
+                throw new Error(`Can't find DbUserUniqueness ${row.team_member_id}`);
             }
 
             const roles = rolesMap[row.team_member_id]?.roleString ?? "";
@@ -114,7 +112,7 @@ async function main(): Promise<void> {
             const accountUser: DbAccountUser = {
                 accountId: row.giftbit_user_id,
                 userId: row.team_member_id,
-                userDisplayName: user.email,
+                userDisplayName: row.username,
                 accountDisplayName: account.name,
                 roles: roles.split(",").map(r => r.trim()).filter(r => !!r),
                 scopes: scopes.split(",").map(s => s.trim()).filter(s => !!s),
@@ -134,14 +132,14 @@ async function main(): Promise<void> {
     const backupCodesMap = getMapOfLists(backupCodesRows, "team_member_id");
 
     log.info("Calculating DbUserLogins...");
-    const dbUserLogins = userRows
+    const dbUsers = userRows
         .map(row => {
             const email = row.username;
             if (email.indexOf("@") === -1) {
                 throw new Error(`User ${row.team_member_id} username ${email} was expected to be an email address.`);
             }
 
-            let backupCodes: { [code: string]: DbUserLogin.BackupCode } | undefined = undefined;
+            let backupCodes: { [code: string]: DbUser.BackupCode } | undefined = undefined;
             if (backupCodesMap[row.team_member_id]) {
                 backupCodes = {};
                 backupCodesMap[row.team_member_id].forEach(codeRow => {
@@ -151,28 +149,30 @@ async function main(): Promise<void> {
                 })
             }
 
-            const userLogin: DbUserLogin = {
+            const user: DbUser = {
                 email: email,
                 userId: row.team_member_id,
-                password: {
-                    algorithm: "BCRYPT",
-                    hash: row.password,
-                    createdDate: row.date_created.toISOString()
+                login: {
+                    password: {
+                        algorithm: "BCRYPT",
+                        hash: row.password,
+                        createdDate: row.date_created.toISOString()
+                    },
+                    emailVerified: !row.account_locked.readUInt8(0),
+                    frozen: false,
+                    mfa: row.two_factor_authentication_device ? {
+                        smsDevice: row.two_factor_authentication_device,
+                        backupCodes: backupCodes,
+                        trustedDevices: {}
+                    } : undefined,
+                    defaultLoginAccountId: row.giftbit_user_id,
                 },
-                emailVerified: !row.account_locked.readUInt8(0),
-                frozen: false,
-                mfa: row.two_factor_authentication_device ? {
-                    smsDevice: row.two_factor_authentication_device,
-                    backupCodes: backupCodes,
-                    trustedDevices: {}
-                } : undefined,
-                defaultLoginAccountId: row.giftbit_user_id,
                 createdDate: row.date_created.toISOString()
             };
 
-            return userLogin;
+            return user;
         });
-    log.debug("dbUserLogins=", dbUserLogins);
+    log.debug("dbUsers=", dbUsers);
 
     log.info("Fetching api keys...");
     const apiKeyRows: {
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
     }[] = (await mysqlConnection.execute("select giftbit_user_id, team_member_id, name, token_id, token_version, token_body_json, date_created from stored_json_web_token where soft_deleted_date is null"))[0];
     log.debug("apiKeyRows=", apiKeyRows);
 
-    console.log("Calculating DbApiKeys...");
+    log.info("Calculating DbApiKeys...");
     const dbApiKeys = apiKeyRows.map(row => {
         const apiKeyBody = JSON.parse(row.token_body_json);
         const dbApiKey: DbApiKey = {
@@ -213,7 +213,7 @@ async function main(): Promise<void> {
     const tableRes = await dynamodb.listTables().promise();
     const edhiObjectTable = tableRes.TableNames.find(name => name.indexOf("-Edhi-ObjectTable-") !== -1);
     if (!edhiObjectTable) {
-        throw new Error("Could not find ")
+        throw new Error("Could not find DynamoDB table");
     }
 
     const tableSchema: dynameh.TableSchema = {
@@ -226,9 +226,9 @@ async function main(): Promise<void> {
 
     const putItems = [
         ...dbAccounts.map(DbAccount.toDbObject),
-        ...dbUsers.map(DbUser.toDbObject),
+        ...dbUserUniquenesses.map(DbUserUniqueness.toDbObject),
         ...dbAccountUsers.map(DbAccountUser.toDbObject),
-        ...dbUserLogins.map(DbUserLogin.toDbObject),
+        ...dbUsers.map(DbUser.toDbObject),
         ...dbApiKeys.map(DbApiKey.toDbObject)
     ];
     const batchWriteItemInput = dynameh.requestBuilder.buildBatchPutInput(tableSchema, putItems);
@@ -308,10 +308,19 @@ function readLine(prompt: string, defaultValue?: string): Promise<string> {
     });
 }
 
+const colors = {
+    "TRACE": "\u001b[0;32m",    // green
+    "DEBUG": "\u001b[0;36m",    // cyan
+    "INFO": "\u001b[0;34m",     // blue
+    "WARN": "\u001b[0;33m",     // yellow
+    "ERROR": "\u001b[0;31m"     // red
+};
+
+// Prefix log messages with the level.
 logPrefix.reg(log);
 logPrefix.apply(log, {
     format: (level, name, timestamp) => {
-        return `[${level}]`;
+        return `[${colors[level]}${level}\u001b[0m]`;
     },
 });
 log.setLevel(process.env["DEBUG"] ? log.levels.DEBUG : log.levels.INFO);

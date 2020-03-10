@@ -65,11 +65,13 @@ export namespace defaultTestUser {
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userUniqueness: DbUserUniqueness = {
-        userId: userId
+        userId: userId,
+        createdDate: "2019-04-08T21:09:21.127Z"
     };
     export const account: DbAccount = {
         accountId: accountId,
-        name: "Test Account"
+        name: "Test Account",
+        createdDate: "2019-04-08T21:09:21.127Z"
     };
     export const accountUser: DbAccountUser = {
         accountId: accountId,
@@ -125,7 +127,8 @@ export namespace defaultTestUser {
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userUniqueness: DbUserUniqueness = {
-            userId: userId
+            userId: userId,
+            createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const accountUser: DbAccountUser = {
             accountId: accountId,

@@ -113,7 +113,8 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
     });
 
     const userUniqueness: DbUserUniqueness = {
-        userId: userId
+        userId: userId,
+        createdDate
     };
     const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
     objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
@@ -123,7 +124,8 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
 
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account"
+        name: params.name ?? "Account",
+        createdDate
     };
     const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
     objectDynameh.requestBuilder.addCondition(putAccountReq, {
@@ -206,7 +208,8 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
 
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account"
+        name: params.name ?? "Account",
+        createdDate
     };
     const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
     objectDynameh.requestBuilder.addCondition(putAccountReq, {
