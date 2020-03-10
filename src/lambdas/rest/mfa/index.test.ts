@@ -8,7 +8,7 @@ import * as testUtils from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
 
 describe("/v2/user/mfa", () => {
@@ -21,7 +21,7 @@ describe("/v2/user/mfa", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
         initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
     });
 
@@ -184,9 +184,9 @@ describe("/v2/user/mfa", () => {
             chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
 
             // Manually move back expiresDate
-            await DbUserLogin.update(await DbUserLogin.get(testUtils.defaultTestUser.email), {
+            await DbUser.update(await DbUser.get(testUtils.defaultTestUser.email), {
                 action: "put",
-                attribute: "mfa.smsAuthState.expiresDate",
+                attribute: "login.mfa.smsAuthState.expiresDate",
                 value: new Date(Date.now() - 60 * 1000).toISOString()
             });
 
@@ -314,12 +314,12 @@ describe("/v2/user/mfa", () => {
             chai.assert.isString(enableMfaResp.body.secret);
 
             // Manually adjust DB to time it out.
-            const userLogin = await DbUserLogin.get(testUtils.defaultTestUser.email);
-            userLogin.mfa.totpSetup.expiresDate = new Date(Date.now() - 1000).toISOString();
-            await DbUserLogin.update(userLogin, {
+            const user = await DbUser.get(testUtils.defaultTestUser.email);
+            user.login.mfa.totpSetup.expiresDate = new Date(Date.now() - 1000).toISOString();
+            await DbUser.update(user, {
                 action: "put",
-                attribute: "mfa",
-                value: userLogin.mfa
+                attribute: "login.mfa",
+                value: user.login.mfa
             });
 
             const setFirstCodeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {

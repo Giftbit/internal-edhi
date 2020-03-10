@@ -6,8 +6,8 @@ import {Invitation} from "../../../model/Invitation";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbAccount} from "../../../db/DbAccount";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
-import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
+import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {sendAccountUserInvitation} from "./sendAccountUserInvitation";
 import log = require("loglevel");
@@ -107,29 +107,20 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const createdDate = createdDateNow();
 
-    let userLogin = await DbUserLogin.get(params.email);
-    if (userLogin) {
-        log.info("Inviting existing User", userLogin.userId);
+    let user = await DbUser.get(params.email);
+    if (user) {
+        log.info("Inviting existing User", user.userId);
     } else {
         const userId = DbUser.generateUserId();
-        userLogin = {
+        user = {
             email: params.email,
             userId,
-            emailVerified: false,
-            frozen: false,
-            defaultLoginAccountId: accountId,
+            login: {
+                emailVerified: false,
+                frozen: false,
+                defaultLoginAccountId: accountId
+            },
             createdDate
-        };
-        const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
-        objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putUserLoginReq);
-
-        const user: DbUser = {
-            userId,
-            email: params.email
         };
         const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
         objectDynameh.requestBuilder.addCondition(putUserReq, {
@@ -138,10 +129,20 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         });
         updates.push(putUserReq);
 
-        log.info("Inviting new User", userLogin.userId);
+        const userUniqueness: DbUserUniqueness = {
+            userId
+        };
+        const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
+        objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        updates.push(putUserUniquenessReq);
+
+        log.info("Inviting new User", user.userId);
     }
 
-    let accountUser = await DbAccountUser.get(accountId, userLogin.userId);
+    let accountUser = await DbAccountUser.get(accountId, user.userId);
     if (accountUser) {
         log.info("Inviting existing AccountUser", accountUser.accountId, accountUser.userId);
         if (accountUser.pendingInvitation) {
@@ -171,7 +172,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         expiresDate.setDate(expiresDate.getDate() + 5);
         accountUser = {
             accountId: accountId,
-            userId: userLogin.userId,
+            userId: user.userId,
             userDisplayName: params.email,
             accountDisplayName: account.name,
             pendingInvitation: {
@@ -195,7 +196,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    await sendAccountUserInvitation({email: params.email, accountId: accountId, userId: userLogin.userId});
+    await sendAccountUserInvitation({email: params.email, accountId: accountId, userId: user.userId});
 
     return Invitation.fromDbAccountUser(accountUser);
 }

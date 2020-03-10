@@ -12,8 +12,8 @@ import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {TokenAction} from "../../../db/TokenAction";
+import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbUser} from "../../../db/DbUser";
-import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
@@ -95,27 +95,28 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
 
     log.info("Registering new account and user, email=", params.email, "accountId=", accountId, "userId=", userId);
 
-    const userLogin: DbUserLogin = {
+    const user: DbUser = {
         email: params.email,
         userId: userId,
-        password: await hashPassword(params.plaintextPassword),
-        emailVerified: false,
-        frozen: false,
-        defaultLoginAccountId: accountId,
+        login: {
+            password: await hashPassword(params.plaintextPassword),
+            emailVerified: false,
+            frozen: false,
+            defaultLoginAccountId: accountId
+        },
         createdDate
     };
-    const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
-    objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
+    const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
+    objectDynameh.requestBuilder.addCondition(putUserReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
-    const user: DbUser = {
-        userId: userId,
-        email: params.email
+    const userUniqueness: DbUserUniqueness = {
+        userId: userId
     };
-    const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
-    objectDynameh.requestBuilder.addCondition(putUserReq, {
+    const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
+    objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
@@ -145,7 +146,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserReq, putAccountReq, putAccountUserReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putUserUniquenessReq, putAccountReq, putAccountUserReq);
     try {
         await transactWriteItemsFixed(writeReq);
     } catch (error) {
@@ -155,12 +156,12 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
             && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
             // The registration failed because a user with that email address already exists.
-            const existingUserLogin = await DbUserLogin.get(params.email);
-            if (!existingUserLogin.emailVerified && !existingUserLogin.password) {
+            const existingUser = await DbUser.get(params.email);
+            if (!existingUser.login.emailVerified && !existingUser.login.password) {
                 // This can happen if the user was previously invited to an account but hasn't accepted.
                 // That invitation may or may not still be valid.
                 log.info("User", params.email, "exists with unverified email and no password");
-                return await registerExistingUserLogin(existingUserLogin, accountId, params);
+                return await registerExistingUser(existingUser, accountId, params);
             } else {
                 // Silently claim success but send an email notifying of the attempted registration.
                 // We do this to not leak information on what email addresses are in use to a potential attacker;
@@ -176,29 +177,29 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
     await sendEmailAddressVerificationEmail(params.email);
 }
 
-async function registerExistingUserLogin(userLogin: DbUserLogin, accountId: string, params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
-    if (userLogin.password || userLogin.emailVerified) {
-        throw new Error("This flow is only suitable for UserLogins that happen to exist but have never registered before.")
+async function registerExistingUser(user: DbUser, accountId: string, params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+    if (user.login.password || user.login.emailVerified) {
+        throw new Error("This flow is only suitable for Users that happen to exist but have never registered before.")
     }
 
     const createdDate = createdDateNow();
 
-    log.info("Registering new account for existing user, email=", params.email, "accountId=", accountId, "userId=", userLogin.userId);
+    log.info("Registering new account for existing user, email=", params.email, "accountId=", accountId, "userId=", user.userId);
 
-    const updateUserLoginReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUserLogin.toDbObject(userLogin), {
+    const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.toDbObject(user), {
         action: "put",
-        attribute: "password",
+        attribute: "login.password",
         value: await hashPassword(params.plaintextPassword)
     }, {
         action: "put",
-        attribute: "defaultLoginAccountId",
+        attribute: "login.defaultLoginAccountId",
         value: accountId
     });
-    objectDynameh.requestBuilder.addCondition(updateUserLoginReq, {
-        attribute: "password",
+    objectDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "login.password",
         operator: "attribute_not_exists"
     }, {
-        attribute: "emailVerified",
+        attribute: "login.emailVerified",
         operator: "=",
         values: [false]
     });
@@ -215,7 +216,7 @@ async function registerExistingUserLogin(userLogin: DbUserLogin, accountId: stri
 
     const accountUser: DbAccountUser = {
         accountId: accountId,
-        userId: userLogin.userId,
+        userId: user.userId,
         userDisplayName: params.email,
         accountDisplayName: account.name,
         roles: getRolesForUserPrivilege("OWNER"),
@@ -228,7 +229,7 @@ async function registerExistingUserLogin(userLogin: DbUserLogin, accountId: stri
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserLoginReq, putAccountReq, putAccountUserReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, putAccountReq, putAccountUserReq);
     await transactWriteItemsFixed(writeReq);
 
     await sendEmailAddressVerificationEmail(params.email);
@@ -241,14 +242,14 @@ async function verifyEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
-    const userLogin = await DbUserLogin.get(tokenAction.email);
-    if (!userLogin) {
-        throw new Error(`Could not find DbUserLogin for TokenAction with email '${tokenAction.email}'.`);
+    const user = await DbUser.get(tokenAction.email);
+    if (!user) {
+        throw new Error(`Could not find DbUser for TokenAction with email '${tokenAction.email}'.`);
     }
 
-    await DbUserLogin.update(userLogin, {
+    await DbUser.update(user, {
         action: "put",
-        attribute: "emailVerified",
+        attribute: "login.emailVerified",
         value: true
     });
 
@@ -267,17 +268,17 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInvitationTokenAction)
     ];
 
-    const userLogin = await DbUserLogin.getById(acceptInvitationTokenAction.userId);
-    if (!userLogin) {
-        throw new Error(`Cannot accept account invitation: can't find UserLogin with id ${acceptInvitationTokenAction.userId}`);
+    const user = await DbUser.getById(acceptInvitationTokenAction.userId);
+    if (!user) {
+        throw new Error(`Cannot accept account invitation: can't find User with id ${acceptInvitationTokenAction.userId}`);
     }
-    if (!userLogin.emailVerified) {
+    if (!user.login.emailVerified) {
         // Accepting the invite verifies the email address.
         const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbUserLogin.getKeys(userLogin),
+            DbUser.getKeys(user),
             {
                 action: "put",
-                attribute: "emailVerified",
+                attribute: "login.emailVerified",
                 value: true
             }
         );
@@ -313,7 +314,7 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
     await dynamodb.transactWriteItems(writeReq).promise();
     log.info("User", acceptInvitationTokenAction.email, "has accepted an account invitation");
 
-    if (!userLogin.password) {
+    if (!user.login.password) {
         log.info("User", acceptInvitationTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
@@ -326,5 +327,5 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return getLoginResponse(userLogin, accountUser, true);
+    return getLoginResponse(user, accountUser, true);
 }

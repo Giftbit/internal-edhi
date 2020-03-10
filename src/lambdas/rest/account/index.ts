@@ -4,7 +4,6 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
-import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbUser} from "../../../db/DbUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {AccountUser} from "../../../model/AccountUser";
@@ -52,9 +51,6 @@ export function installAccountRest(router: cassava.Router): void {
                         maxLength: 1023
                     },
                     requireMfa: {
-                        type: "boolean"
-                    },
-                    preventPasswordReuse: {
                         type: "boolean"
                     }
                 },
@@ -217,7 +213,6 @@ interface UpdateAccountParams {
     maxPasswordAge?: number | null;
     name?: string;
     requireMfa?: boolean;
-    preventPasswordReuse?: boolean;
 }
 
 async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: UpdateAccountParams): Promise<DbAccount> {
@@ -267,14 +262,6 @@ async function updateAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
             value: params.requireMfa
         });
         account.requireMfa = params.requireMfa;
-    }
-    if (params.preventPasswordReuse != null) {
-        updates.push({
-            action: "put",
-            attribute: "preventPasswordReuse",
-            value: params.preventPasswordReuse
-        });
-        account.preventPasswordReuse = params.preventPasswordReuse;
     }
 
     if (!updates.length) {
@@ -351,14 +338,14 @@ async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, acc
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
     }
 
-    const userLogin = await DbUserLogin.getByAuth(auth);
-    await DbUserLogin.update(userLogin, {
+    const user = await DbUser.getByAuth(auth);
+    await DbUser.update(user, {
         action: "put",
-        attribute: "defaultLoginAccountId",
+        attribute: "login.defaultLoginAccountId",
         value: liveMode ? stripUserIdTestMode(accountId) : setUserIdTestMode(accountId)
     });
 
-    return getLoginResponse(userLogin, accountUser, liveMode);
+    return getLoginResponse(user, accountUser, liveMode);
 }
 
 export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedOnInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
