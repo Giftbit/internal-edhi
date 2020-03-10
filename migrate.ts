@@ -308,7 +308,7 @@ function readLine(prompt: string, defaultValue?: string): Promise<string> {
     });
 }
 
-const colors = {
+const logColors = {
     "TRACE": "\u001b[0;32m",    // green
     "DEBUG": "\u001b[0;36m",    // cyan
     "INFO": "\u001b[0;34m",     // blue
@@ -320,7 +320,7 @@ const colors = {
 logPrefix.reg(log);
 logPrefix.apply(log, {
     format: (level, name, timestamp) => {
-        return `[${colors[level]}${level}\u001b[0m]`;
+        return `[${logColors[level]}${level}\u001b[0m]`;
     },
 });
 log.setLevel(process.env["DEBUG"] ? log.levels.DEBUG : log.levels.INFO);
