@@ -11,11 +11,12 @@ import mysql = require("mysql2/promise");
 import readline = require("readline");
 
 // SSH tunnel should be established first.
-// dev:  ssh -L localhost:3307:lightrail-mysql.vpc:3306 jeff.g@52.42.17.208
-// prod: ssh -L localhost:3309:lightrail-mysql.vpc:3306 jeff.g@34.211.158.64
-
-// Open a command line session
-// mysql -v -h 127.0.0.1 -P $MYSQL_PORT -u $MYSQL_USER
+// Add your ssh key: ssh-add /Volumes/credentials/ssh/AWSKey.pem
+// Then the ssh tunnel:
+//     dev:     ssh -L localhost:3307:lightrail-mysql.vpc:3306 jeff.g@52.42.17.208
+//     staging: ssh -L localhost:3308:lightrail-mysql.vpc:3306 jeff.g@34.211.59.235
+//     prod:    ssh -L localhost:3309:lightrail-mysql.vpc:3306 jeff.g@34.211.158.64
+// If you get "Permission denied" maybe restart the bastion host in the web console.
 
 async function main(): Promise<void> {
     const mysqlHost = "localhost";
