@@ -6,7 +6,7 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {PaymentCreditCard} from "../../../model/PaymentCreditCard";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 
 describe("/v2/account/payments/cards", () => {
 
@@ -18,7 +18,7 @@ describe("/v2/account/payments/cards", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -27,13 +27,12 @@ describe("/v2/account/payments/cards", () => {
 
     it("can set, get and delete the card", async () => {
         // Use a new user to test the code path creating a Stripe customer.
-        const user = await testUtils.createNewAccountNewUser(router, sinonSandbox);
-        const userLogin = user.loginResp;
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
-        const getUnsetCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "GET");
+        const getUnsetCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "GET");
         chai.assert.equal(getUnsetCardResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
 
-        const setCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "POST", {
+        const setCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "POST", {
             cardToken: "tok_visa"
         });
         chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -41,14 +40,14 @@ describe("/v2/account/payments/cards", () => {
         chai.assert.deepEqual(setCardResp.body.brand, "Visa");
         chai.assert.deepEqual(setCardResp.body.last4, "4242");
 
-        const getCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "GET");
+        const getCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "GET");
         chai.assert.equal(getCardResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getCardResp.body, setCardResp.body);
 
-        const deleteCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "DELETE");
+        const deleteCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "DELETE");
         chai.assert.equal(deleteCardResp.statusCode, cassava.httpStatusCode.success.OK);
 
-        const getDeletedCardResp = await router.testPostLoginRequest<PaymentCreditCard>(userLogin, "/v2/account/payments/card", "GET");
+        const getDeletedCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "GET");
         chai.assert.equal(getDeletedCardResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
     }).timeout(20000);
 });

@@ -3,7 +3,10 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {getLoginResponse} from "../login";
+import {DbAccountUser} from "../../../db/DbAccountUser";
+import {createdDateNow} from "../../../db/dynamodb";
+import {DbUser} from "../../../db/DbUser";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -46,45 +49,45 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await completeForgotPassword({
+            return await completeForgotPassword({
                 token: evt.body.token,
                 plaintextPassword: evt.body.password
             });
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
-                }
-            };
         });
 }
 
-async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<void> {
+async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<cassava.RouterResponse> {
     const tokenAction = await TokenAction.get(params.token);
     if (!tokenAction || tokenAction.action !== "resetPassword") {
         log.warn("Could not find resetPassword TokenAction for token", params.token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error resetting the password.  Maybe the email link timed out.");
     }
 
-    const userLogin = await DbUserLogin.get(tokenAction.email);
-    if (!userLogin) {
-        throw new Error(`Could not find UserLogin for user '${tokenAction.email}'.`);
+    const user = await DbUser.get(tokenAction.email);
+    if (!user) {
+        throw new Error(`Could not find User with email '${tokenAction.email}'.`);
     }
 
-    const userPassword: DbUserLogin.Password = await hashPassword(params.plaintextPassword);
-    await DbUserLogin.update(userLogin, {
+    const userPassword: DbUser.Password = await hashPassword(params.plaintextPassword);
+    await DbUser.update(user, {
         action: "put",
-        attribute: "password",
+        attribute: "login.password",
         value: userPassword
     }, {
         // Because you can get here through recovering an account, which does require an email.
         action: "put",
-        attribute: "emailVerified",
+        attribute: "login.emailVerified",
         value: true
+    }, {
+        // Because this will log them in.
+        action: "put",
+        attribute: "login.lastLoginDate",
+        value: createdDateNow()
     });
     await TokenAction.del(tokenAction);
 
-    log.info("User", userLogin.email, "has changed their password through forgotPassword");
+    log.info("User", user.email, "has changed their password through forgotPassword");
+
+    const accountUser = await DbAccountUser.getForUser(user);
+    return getLoginResponse(user, accountUser, true);
 }

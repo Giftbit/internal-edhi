@@ -2,13 +2,13 @@ import * as bcrypt from "bcryptjs";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {createdDateNow} from "../db/dynamodb";
-import {DbUserLogin} from "../db/DbUserLogin";
+import {DbUser} from "../db/DbUser";
 
 // Derived from https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10-million-password-list-top-100000.txt
 // with length < 8 and all digits removed then sorted case-sensitive.
 const commonPasswords: string[] = require("./commonPasswords.json");
 
-export async function hashPassword(plaintextPassword: string): Promise<DbUserLogin.Password> {
+export async function hashPassword(plaintextPassword: string): Promise<DbUser.Password> {
     if (typeof plaintextPassword !== "string") {
         throw new Error("password must be a string");
     }
@@ -47,7 +47,7 @@ function findInSortedList(needle: string, haystack: string[]): boolean {
     return false;
 }
 
-export function validatePassword(plaintextPassword: string, userPassword: DbUserLogin.Password): Promise<boolean> {
+export function validatePassword(plaintextPassword: string, userPassword: DbUser.Password): Promise<boolean> {
     if (!userPassword) {
         return Promise.resolve(false);
     }
@@ -60,6 +60,6 @@ export function validatePassword(plaintextPassword: string, userPassword: DbUser
     }
 }
 
-async function validateBcrypt10Password(plaintextPassword: string, userPassword: DbUserLogin.Password): Promise<boolean> {
+async function validateBcrypt10Password(plaintextPassword: string, userPassword: DbUser.Password): Promise<boolean> {
     return await bcrypt.compare(plaintextPassword, userPassword.hash);
 }

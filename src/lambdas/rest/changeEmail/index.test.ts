@@ -7,7 +7,7 @@ import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 
 describe("/v2/user/changeEmail", () => {
 
@@ -19,7 +19,7 @@ describe("/v2/user/changeEmail", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -57,7 +57,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailAddressEmail);
 
         const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
@@ -84,6 +84,8 @@ describe("/v2/user/changeEmail", () => {
         });
         chai.assert.equal(changeEmailResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(changeEmailAddressEmail);
+        chai.assert.include(changeEmailAddressEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(changeEmailAddressEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(changeEmailAddressEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
         chai.assert.equal(changeEmailAddressEmail.toAddress, email);
         chai.assert.isUndefined(emailAddressChangedEmail);
@@ -94,10 +96,12 @@ describe("/v2/user/changeEmail", () => {
         const completeResp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken}`, "GET");
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(emailAddressChangedEmail);
+        chai.assert.include(emailAddressChangedEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(emailAddressChangedEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(emailAddressChangedEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const cantLoginOldEmailResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: testUtils.defaultTestUser.userLogin.email,
+            email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
         chai.assert.equal(cantLoginOldEmailResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);

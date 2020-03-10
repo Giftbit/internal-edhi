@@ -2,11 +2,11 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendChangeEmailAddressEmail} from "./sendChangeEmailAddressEmail";
 import {TokenAction} from "../../../db/TokenAction";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
-import {DbUser} from "../../../db/DbUser";
 import {DbAccountUser} from "../../../db/DbAccountUser";
+import {stripUserIdTestMode} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -28,12 +28,12 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const existingLogin = await DbUserLogin.get(evt.body.email);
-            if (!existingLogin) {
+            const existingUser = await DbUser.get(evt.body.email);
+            if (!existingUser) {
                 // Don't initiate the process if the email address is already in use
                 // but don't acknowledge it either.  We don't want to expose an attack
                 // on determining who has an account.
-                await sendChangeEmailAddressEmail(auth.teamMemberId, evt.body.email);
+                await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), evt.body.email);
             }
 
             return {
@@ -69,51 +69,36 @@ export async function completeChangeEmail(token: string): Promise<void> {
 
     log.info("Changing email address for", tokenAction.userId, "to", tokenAction.email);
 
-    const userDetails = await DbUser.get(tokenAction.userId);
-    if (!userDetails) {
-        throw new Error(`Could not find UserDetails for '${tokenAction.userId}'.`);
+    const user = await DbUser.getById(tokenAction.userId);
+    if (!user) {
+        throw new Error(`Could not find User with id '${tokenAction.userId}'.`);
     }
 
-    const userLogin = await DbUserLogin.get(userDetails.email);
-    if (!userLogin) {
-        throw new Error(`Could not find UserLogin for '${userDetails.email}'.  Did find UserDetails for '${tokenAction.userId}' so the DB is inconsistent.`);
-    }
-
-    const updateUserDetailsReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(userDetails), {
-        attribute: "email",
-        action: "put",
-        value: tokenAction.email
-    });
-    objectDynameh.requestBuilder.addCondition(updateUserDetailsReq, {
-        attribute: "pk",
-        operator: "attribute_exists"
-    });
-
-    // Can't update the keys on an item in DynamoDB.  Gotta delete the old and make a new.
-    const deleteOldUserLoginReq = objectDynameh.requestBuilder.buildDeleteInput(DbUserLogin.getKeys(userLogin));
-    objectDynameh.requestBuilder.addCondition(deleteOldUserLoginReq, {
-        attribute: "pk",
-        operator: "attribute_exists"
-    });
-
-    const newUserLogin: DbUserLogin = {
-        ...userLogin,
+    const newUser: DbUser = {
+        ...user,
         email: tokenAction.email
     };
-    const putNewUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(newUserLogin));
-    objectDynameh.requestBuilder.addCondition(putNewUserLoginReq, {
+    const putNewUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(newUser));
+    objectDynameh.requestBuilder.addCondition(putNewUserReq, {
         attribute: "pk",
         operator: "attribute_not_exists"
     });
 
+    // Can't update the keys on an item in DynamoDB.  Gotta delete the old and make a new.
+    const deleteOldUserReq = objectDynameh.requestBuilder.buildDeleteInput(DbUser.getKeys(user));
+    objectDynameh.requestBuilder.addCondition(deleteOldUserReq, {
+        attribute: "pk",
+        operator: "attribute_exists"
+    });
+
     try {
-        const txReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserDetailsReq, deleteOldUserLoginReq, putNewUserLoginReq);
+        const txReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putNewUserReq, deleteOldUserReq);
         await transactWriteItemsFixed(txReq);
     } catch (error) {
         if (error.code === "TransactionCanceledException"
             && error.CancellationReasons
-            && error.CancellationReasons.length === 3
-            && error.CancellationReasons[2].Code === "ConditionalCheckFailed"
+            && error.CancellationReasons.length === 2
+            && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
             // This can only happen if there email address wasn't taken before the confirmation
             // email was sent out, making this an edge case.
@@ -127,7 +112,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
     // At this point there's no going back.  If we die here some data in the DB will be inconsistent.
     // Such is life in a de-normalized DB.  The good news is nothing below is considered authoritative.
 
-    await sendEmailAddressChangedEmail(userLogin.email);
+    await sendEmailAddressChangedEmail(user.email);
     await TokenAction.del(tokenAction);
 
     const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);

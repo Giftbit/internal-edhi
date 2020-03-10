@@ -7,11 +7,11 @@ import {generateId} from "../../../utils/testUtils";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import {AccountUser} from "../../../model/AccountUser";
 import {Invitation} from "../../../model/Invitation";
 import {LoginResult} from "../../../model/LoginResult";
-import {Account} from "../../../model/Account";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 
 describe("/v2/user/register", () => {
 
@@ -23,7 +23,7 @@ describe("/v2/user/register", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -46,6 +46,8 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isString(verifyEmail.htmlBody);
+        chai.assert.include(verifyEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(verifyEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(verifyEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const verifyUrl = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
@@ -132,6 +134,8 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isDefined(recoverEmail);
+        chai.assert.include(recoverEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(recoverEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(recoverEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(recoverEmail.htmlBody)[1];
@@ -147,18 +151,18 @@ describe("/v2/user/register", () => {
         chai.assert.isString(completeResp.headers["Location"]);
     });
 
-    it("sends an account recovery email to someone who was previously invited but then the invitation was deleted (which can then only create an account which is kinda lame but too endge-casey to optimize)", async () => {
-        let invitationEmail: emailUtils.SendEmailParams;
-        let recoverEmail: emailUtils.SendEmailParams;
+    it("sends a verify email to someone who was previously invited but then the invitation was deleted", async () => {
+        let inviteEmail: emailUtils.SendEmailParams;
+        let verifyEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .onFirstCall()
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                invitationEmail = params;
+                inviteEmail = params;
                 return null;
             })
             .onSecondCall()
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                recoverEmail = params;
+                verifyEmail = params;
                 return null;
             });
 
@@ -174,38 +178,30 @@ describe("/v2/user/register", () => {
         const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invitations/${inviteResp.body.userId}`, "DELETE");
         chai.assert.equal(deleteInvitationResp.statusCode, cassava.httpStatusCode.success.OK);
 
-        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
-            email: email,
-            password: generateId()
-        });
-        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.isDefined(recoverEmail);
-        chai.assert.notMatch(recoverEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
-
-        // Because the user gets a recover password email rather than standard registration.
-        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(recoverEmail.htmlBody)[1];
-        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
-
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<void>(`/v2/user/forgotPassword/complete`, "POST", {
-            token: resetPasswordToken,
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(verifyEmail);
+        chai.assert.notMatch(verifyEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
+
+        const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
+        const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
+        chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
         const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginResp.bodyRaw);
-        chai.assert.equal(loginResp.body.messageCode, "NoAccount");
+        chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
 
-        const createAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "POST", {
-            name: "Totally Not a Drug Front"
-        });
-        chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
-        chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
+        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
     });
 });

@@ -46,7 +46,7 @@
     "chai": "^4.2.0",
     "chai-exclude": "^2.0.2",
     "dotenv-safe": "^8.2.0",
-    "dynameh": "^4.0.0",
+    "dynameh": "^4.1.0",
     "file-loader": "^5.0.2",
     "giftbit-cassava-routes": "git+ssh://git@github.com/Giftbit/giftbit-cassava-routes.git#semver:^10.4.1",
     "giftbit-lambda-metricslib": "git+ssh://git@github.com/Giftbit/giftbit-lambda-metricslib.git#semver:^3.0.0",

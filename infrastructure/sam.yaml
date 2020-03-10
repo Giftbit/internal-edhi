@@ -70,6 +70,8 @@ Resources:
       KeySchema:
         - AttributeName: token
           KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
       BillingMode: PAY_PER_REQUEST
       TimeToLiveSpecification:
         AttributeName: ttl
@@ -95,6 +97,7 @@ Resources:
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
           OBJECT_TABLE: !Ref ObjectTable
           SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
+          SECURE_CONFIG_KEY_ASSUME_STORAGE_SCOPE_TOKEN: assumeStorageScopeToken.json
           SECURE_CONFIG_KEY_INTERCOM_SECRET: intercom_secrets.json
           SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
           SECURE_CONFIG_KEY_OTP: otp.json
@@ -110,6 +113,7 @@ Resources:
               Action:
                 - s3:GetObject
               Resource:
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/assumeStorageScopeToken.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/intercom_secrets.json"
                 - !Sub "arn:aws:s3:::${SecureConfigBucket}/otp.json"
@@ -147,4 +151,4 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(4 minutes)
-            Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/ping\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
+            Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/healthCheck\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"

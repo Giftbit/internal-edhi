@@ -8,11 +8,12 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {Invitation} from "../../../model/Invitation";
-import {DbUserLogin} from "../../../db/DbUserLogin";
+import {DbUser} from "../../../db/DbUser";
 import chaiExclude from "chai-exclude";
 import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
+import {LoginResult} from "../../../model/LoginResult";
 
 chai.use(chaiExclude);
 
@@ -26,7 +27,7 @@ describe("/v2/account/invitations", () => {
         installUnauthedRestRoutes(router);
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
-        DbUserLogin.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     afterEach(() => {
@@ -51,6 +52,8 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(inviteResp.body.email, email);
         chai.assert.isObject(invitationEmail, "invitation email sent");
         chai.assert.equal(invitationEmail.toAddress, email);
+        chai.assert.include(invitationEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(invitationEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(invitationEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const listInvitationsResp = await router.testApiRequest<Invitation[]>("/v2/account/invitations", "GET");
@@ -80,11 +83,12 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(completeResp.headers["Location"]);
 
-        const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
@@ -210,7 +214,7 @@ describe("/v2/account/invitations", () => {
         // Reset the DB because we're going to count users.
         await testUtils.resetDb();
 
-        const newUser = await testUtils.createNewAccountNewUser(router, sinonSandbox);
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
         const firstAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(newUser.loginResp, "/v2/account/users", "GET");
         chai.assert.equal(firstAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -262,5 +266,95 @@ describe("/v2/account/invitations", () => {
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getAccountResp.body.id, testUtils.defaultTestUser.accountId);
+    });
+
+    it("lets a user accept an invitation if they register for their own account after being invited but before accepting", async () => {
+        let inviteEmail: emailUtils.SendEmailParams;
+        let verifyEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                inviteEmail = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                verifyEmail = params;
+                return null;
+            });
+
+        const email = generateId() + "@example.com";
+
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(inviteResp.body.email, email);
+
+        const password = generateId();
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+
+        chai.assert.isDefined(verifyEmail);
+        const token = /https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=([a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
+        const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
+        chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
+
+        const acceptInvitationToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvitation\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
+        chai.assert.isString(acceptInvitationToken);
+
+        const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
+        chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
+        chai.assert.isString(acceptInvitationResp.headers["Location"]);
+
+        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(loginResp, "/v2/account/switch", "GET");
+        chai.assert.lengthOf(listAccountsResp.body, 2);
+    });
+
+    it("can cancel an invitation of user to an account that already has its own account, without deleting that user", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+
+        let inviteEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                inviteEmail = params;
+                return null;
+            });
+
+        // Default test user invites the new user to their account.
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: newUser.email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
+        chai.assert.equal(inviteResp.body.email, newUser.email);
+
+        // And then cancels it.
+        const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invitations/${inviteResp.body.userId}`, "DELETE");
+        chai.assert.equal(deleteInvitationResp.statusCode, cassava.httpStatusCode.success.OK);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: newUser.email,
+            password: newUser.password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
+
+        const getAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "GET");
+        chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.notEqual(getAccountResp.body.id, testUtils.defaultTestUser.accountId, "should not be logged in to the account that deleted the invitation");
     });
 });

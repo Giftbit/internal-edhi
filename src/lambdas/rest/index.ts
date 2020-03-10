@@ -4,7 +4,6 @@ import * as logPrefix from "loglevel-plugin-prefix";
 import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
 import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
-import {DbUserLogin} from "../../db/DbUserLogin";
 import {initializeOtpEncryptionSecrets} from "../../utils/otpUtils";
 import {initializeTwilioCredentials, TwilioCredentialsConfig} from "../../utils/smsUtils";
 import {initializeIntercomSecrets, IntercomSecrets} from "../../utils/intercomUtils";
@@ -39,6 +38,8 @@ router.route(new giftbitRoutes.MetricsRoute({
     logFunction: log.info
 }));
 
+router.route(new giftbitRoutes.HealthCheckRoute("/v2/user/healthCheck"));
+
 installUnauthedRestRoutes(router);
 
 const authConfigPromise = giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.AuthenticationConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_JWT");
@@ -50,7 +51,7 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     infoLogFunction: log.info,
     errorLogFunction: log.error
 }));
-DbUserLogin.initializeBadgeSigningSecrets(authConfigPromise);
+DbUser.initializeBadgeSigningSecrets(authConfigPromise);
 
 initializeLightrailStripeConfig(
     giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.StripeConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_STRIPE")

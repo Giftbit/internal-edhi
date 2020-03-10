@@ -5,8 +5,8 @@ import * as sinon from "sinon";
 import * as emailUtils from "../emailUtils";
 import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
 import {DbAccountUser} from "../../db/DbAccountUser";
-import {DbUserLogin} from "../../db/DbUserLogin";
 import {DbUser} from "../../db/DbUser";
+import {DbUserUniqueness} from "../../db/DbUserUniqueness";
 import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import {generateOtpSecret} from "../otpUtils";
@@ -49,34 +49,33 @@ export namespace defaultTestUser {
     export const jwt = auth.sign("secret");
     export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
     export const password = "Lw0^d8Sx";
-    export const userLogin: DbUserLogin = {
+    export const user: DbUser = {
         userId: userId,
         email: email,
-        password: {
-            algorithm: "BCRYPT",
-            hash: "$2a$10$Q74mZB7vTMSlGTEbBwa71eqFjJt3zswf4.Vnhxx8t89QaM2vSCi5y",
-            createdDate: "2017-03-07T18:34:06.603Z"
+        login: {
+            password: {
+                algorithm: "BCRYPT",
+                hash: "$2a$10$Q74mZB7vTMSlGTEbBwa71eqFjJt3zswf4.Vnhxx8t89QaM2vSCi5y",
+                createdDate: "2017-03-07T18:34:06.603Z"
+            },
+            emailVerified: true,
+            frozen: false,
+            defaultLoginAccountId: accountId + "-TEST"
         },
-        emailVerified: true,
-        frozen: false,
-        defaultLoginAccountId: accountId + "-TEST",
         createdDate: "2017-03-07T18:34:06.603Z"
     };
-    export const userDetails: DbUser = {
-        userId: userId,
-        email: email,
-        createdDate: "2017-03-07T18:34:06.603Z"
+    export const userUniqueness: DbUserUniqueness = {
+        userId: userId
     };
-    export const accountDetails: DbAccount = {
+    export const account: DbAccount = {
         accountId: accountId,
-        name: "Test Account",
-        createdDate: "2017-03-07T18:34:06.603Z"
+        name: "Test Account"
     };
-    export const teamMember: DbAccountUser = {
+    export const accountUser: DbAccountUser = {
         accountId: accountId,
         userId: userId,
         userDisplayName: email,
-        accountDisplayName: accountDetails.name,
+        accountDisplayName: account.name,
         roles: auth.roles,
         scopes: [],
         createdDate: "2017-03-07T18:34:06.603Z"
@@ -110,25 +109,25 @@ export namespace defaultTestUser {
         export const jwt = auth.sign("secret");
         export const cookie = `gb_jwt_session=${/([^.]+\.[^.]+)/.exec(jwt)[1]}; gb_jwt_signature=${/[^.]+\.[^.]+\.([^.]+)/.exec(jwt)[1]}`;
         export const password = "0Gb1@KN$";
-        export const userLogin: DbUserLogin = {
+        export const user: DbUser = {
             userId: userId,
             email: email,
-            password: {
-                algorithm: "BCRYPT",
-                hash: "$2a$10$SOOnWX/DibG7SosygSsagOSJ1ddouwhkkrnqMVJGicnEYJLmbdpUC",
-                createdDate: "2019-04-08T21:09:21.127Z"
+            login: {
+                password: {
+                    algorithm: "BCRYPT",
+                    hash: "$2a$10$SOOnWX/DibG7SosygSsagOSJ1ddouwhkkrnqMVJGicnEYJLmbdpUC",
+                    createdDate: "2019-04-08T21:09:21.127Z"
+                },
+                emailVerified: true,
+                frozen: false,
+                defaultLoginAccountId: accountId + "-TEST"
             },
-            emailVerified: true,
-            frozen: false,
-            defaultLoginAccountId: accountId + "-TEST",
             createdDate: "2019-04-08T21:09:21.127Z"
         };
-        export const userDetails: DbUser = {
-            userId: userId,
-            email: email,
-            createdDate: "2019-04-08T21:09:21.127Z"
+        export const userUniqueness: DbUserUniqueness = {
+            userId: userId
         };
-        export const teamMember: DbAccountUser = {
+        export const accountUser: DbAccountUser = {
             accountId: accountId,
             userId: userId,
             userDisplayName: email,
@@ -168,13 +167,13 @@ export async function resetDb(): Promise<void> {
     await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
 
     log.trace("adding default data");
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.userLogin))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.userDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(defaultTestUser.accountDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMember))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(defaultTestUser.teamMate.userLogin))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.teamMate.userDetails))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMate.teamMember))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.user))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(defaultTestUser.userUniqueness))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(defaultTestUser.account))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.accountUser))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.teamMate.user))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(defaultTestUser.teamMate.userUniqueness))).promise();
+    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMate.accountUser))).promise();
 }
 
 /**
@@ -184,7 +183,7 @@ export async function resetDb(): Promise<void> {
  * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
-export async function createNewAccountNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
+export async function testRegisterNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string }> {
     let verifyEmail: emailUtils.SendEmailParams;
     const emailStub = sinonSandbox.stub(emailUtils, "sendEmail")
         .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -205,11 +204,12 @@ export async function createNewAccountNewUser(router: TestRouter, sinonSandbox: 
     const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
     chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-    const loginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+    const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
         email,
         password
     });
     chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+    chai.assert.isUndefined(loginResp.body.messageCode);
 
     return {
         loginResp: loginResp,
@@ -218,7 +218,7 @@ export async function createNewAccountNewUser(router: TestRouter, sinonSandbox: 
     };
 }
 
-export async function inviteExistingUser(email: string, router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ acceptInvitationResp: ParsedProxyResponse<LoginResult> }> {
+export async function testInviteExistingUser(email: string, router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ acceptInvitationResp: ParsedProxyResponse<LoginResult> }> {
     let invitationEmail: emailUtils.SendEmailParams;
     const emailStub = sinonSandbox.stub(emailUtils, "sendEmail")
         .callsFake(async (params: emailUtils.SendEmailParams) => {
@@ -250,9 +250,9 @@ export async function inviteExistingUser(email: string, router: TestRouter, sino
  * @param sinonSandbox a sinon sandbox for the test in which emailUtils.sendEmail() can be mocked
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
-export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
+export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
     const email = generateId() + "@example.com";
-    const invite = await inviteExistingUser(email, router, sinonSandbox);
+    const invite = await testInviteExistingUser(email, router, sinonSandbox);
     const acceptInvitationResp = invite.acceptInvitationResp;
 
     chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
@@ -287,17 +287,17 @@ export async function inviteNewUser(router: TestRouter, sinonSandbox: sinon.Sino
  * Shortcut to enable TOTP MFA.  Enabling is properly tested elsewhere.
  * @param email
  */
-export async function enableTotpMfa(email: string): Promise<string> {
-    const userLogin = await DbUserLogin.get(email);
+export async function testEnableTotpMfa(email: string): Promise<string> {
+    const user = await DbUser.get(email);
     const secret = await generateOtpSecret();
-    const mfaSettings: DbUserLogin.Mfa = {
+    const mfaSettings: DbUser.Mfa = {
         totpSecret: secret,
         totpUsedCodes: {},
         trustedDevices: {}
     };
-    await DbUserLogin.update(userLogin, {
+    await DbUser.update(user, {
         action: "put",
-        attribute: "mfa",
+        attribute: "login.mfa",
         value: mfaSettings
     });
     return secret;
@@ -307,15 +307,15 @@ export async function enableTotpMfa(email: string): Promise<string> {
  * Shortcut to enable SMS MFA.  Enabling is properly tested elsewhere.
  * @param email
  */
-export async function enableSmsMfa(email: string): Promise<void> {
-    const userLogin = await DbUserLogin.get(email);
-    const mfaSettings: DbUserLogin.Mfa = {
+export async function testEnableSmsMfa(email: string): Promise<void> {
+    const user = await DbUser.get(email);
+    const mfaSettings: DbUser.Mfa = {
         smsDevice: "+15558675309",
         trustedDevices: {}
     };
-    await DbUserLogin.update(userLogin, {
+    await DbUser.update(user, {
         action: "put",
-        attribute: "mfa",
+        attribute: "login.mfa",
         value: mfaSettings
     });
 }

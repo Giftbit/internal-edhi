@@ -3,8 +3,8 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {getStripeClient} from "../../../utils/stripeUtils";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
 import {PaymentCreditCard} from "../../../model/PaymentCreditCard";
-import {DbUser} from "../../../db/DbUser";
 import {DbAccount} from "../../../db/DbAccount";
+import {DbUser} from "../../../db/DbUser";
 import log = require("loglevel");
 import Stripe = require("stripe");
 

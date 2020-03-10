@@ -12,8 +12,8 @@ import {hashPassword} from "../../../utils/passwordUtils";
 import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {TokenAction} from "../../../db/TokenAction";
+import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbUser} from "../../../db/DbUser";
-import {DbUserLogin} from "../../../db/DbUserLogin";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
@@ -45,7 +45,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await createUserAndAccount({
+            await registerNewUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 name: evt.body.name
@@ -86,7 +86,7 @@ export function installRegistrationRest(router: cassava.Router): void {
         });
 }
 
-async function createUserAndAccount(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+async function registerNewUser(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
     const accountId = DbAccount.generateAccountId();
@@ -95,25 +95,16 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
 
     log.info("Registering new account and user, email=", params.email, "accountId=", accountId, "userId=", userId);
 
-    const userLogin: DbUserLogin = {
-        email: params.email,
-        userId: userId,
-        password: await hashPassword(params.plaintextPassword),
-        emailVerified: false,
-        frozen: false,
-        defaultLoginAccountId: accountId,
-        createdDate
-    };
-    const putUserLoginReq = objectDynameh.requestBuilder.buildPutInput(DbUserLogin.toDbObject(userLogin));
-    objectDynameh.requestBuilder.addCondition(putUserLoginReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
-
     const user: DbUser = {
-        userId: userId,
         email: params.email,
-        createdDate: createdDateNow()
+        userId: userId,
+        login: {
+            password: await hashPassword(params.plaintextPassword),
+            emailVerified: false,
+            frozen: false,
+            defaultLoginAccountId: accountId
+        },
+        createdDate
     };
     const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
     objectDynameh.requestBuilder.addCondition(putUserReq, {
@@ -121,10 +112,18 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
+    const userUniqueness: DbUserUniqueness = {
+        userId: userId
+    };
+    const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
+    objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
+        attribute: "pk",
+        operator: "attribute_not_exists"
+    });
+
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account",
-        createdDate: createdDateNow()
+        name: params.name ?? "Account"
     };
     const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
     objectDynameh.requestBuilder.addCondition(putAccountReq, {
@@ -147,7 +146,7 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
         operator: "attribute_not_exists"
     });
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserLoginReq, putUserReq, putAccountReq, putAccountUserReq);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putUserUniquenessReq, putAccountReq, putAccountUserReq);
     try {
         await transactWriteItemsFixed(writeReq);
     } catch (error) {
@@ -157,14 +156,81 @@ async function createUserAndAccount(params: { email: string, plaintextPassword: 
             && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
             // The registration failed because a user with that email address already exists.
-            // Silently claim success but send an email notifying of the attempted registration.
-            // We do this to not leak information on what email addresses are in use to a potential attacker;
-            // while reminding innocent users of their existing account.
-            await sendEmailAddressAlreadyRegisteredEmail(params.email);
+            const existingUser = await DbUser.get(params.email);
+            if (!existingUser.login.emailVerified && !existingUser.login.password) {
+                // This can happen if the user was previously invited to an account but hasn't accepted.
+                // That invitation may or may not still be valid.
+                log.info("User", params.email, "exists with unverified email and no password");
+                return await registerExistingUser(existingUser, accountId, params);
+            } else {
+                // Silently claim success but send an email notifying of the attempted registration.
+                // We do this to not leak information on what email addresses are in use to a potential attacker;
+                // while reminding innocent users of their existing account.
+                log.info("User", params.email, "exists and has already verified their email");
+                await sendEmailAddressAlreadyRegisteredEmail(params.email);
+            }
             return;
         }
         throw error;
     }
+
+    await sendEmailAddressVerificationEmail(params.email);
+}
+
+async function registerExistingUser(user: DbUser, accountId: string, params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+    if (user.login.password || user.login.emailVerified) {
+        throw new Error("This flow is only suitable for Users that happen to exist but have never registered before.")
+    }
+
+    const createdDate = createdDateNow();
+
+    log.info("Registering new account for existing user, email=", params.email, "accountId=", accountId, "userId=", user.userId);
+
+    const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.toDbObject(user), {
+        action: "put",
+        attribute: "login.password",
+        value: await hashPassword(params.plaintextPassword)
+    }, {
+        action: "put",
+        attribute: "login.defaultLoginAccountId",
+        value: accountId
+    });
+    objectDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "login.password",
+        operator: "attribute_not_exists"
+    }, {
+        attribute: "login.emailVerified",
+        operator: "=",
+        values: [false]
+    });
+
+    const account: DbAccount = {
+        accountId: accountId,
+        name: params.name ?? "Account"
+    };
+    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
+    objectDynameh.requestBuilder.addCondition(putAccountReq, {
+        attribute: "pk",
+        operator: "attribute_not_exists"
+    });
+
+    const accountUser: DbAccountUser = {
+        accountId: accountId,
+        userId: user.userId,
+        userDisplayName: params.email,
+        accountDisplayName: account.name,
+        roles: getRolesForUserPrivilege("OWNER"),
+        scopes: [],
+        createdDate
+    };
+    const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
+    objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
+        attribute: "pk",
+        operator: "attribute_not_exists"
+    });
+
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, putAccountReq, putAccountUserReq);
+    await transactWriteItemsFixed(writeReq);
 
     await sendEmailAddressVerificationEmail(params.email);
 }
@@ -176,14 +242,14 @@ async function verifyEmail(token: string): Promise<void> {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
     }
 
-    const userLogin = await DbUserLogin.get(tokenAction.email);
-    if (!userLogin) {
-        throw new Error(`Could not find DbUserLogin for TokenAction with email '${tokenAction.email}'.`);
+    const user = await DbUser.get(tokenAction.email);
+    if (!user) {
+        throw new Error(`Could not find DbUser for TokenAction with email '${tokenAction.email}'.`);
     }
 
-    await DbUserLogin.update(userLogin, {
+    await DbUser.update(user, {
         action: "put",
-        attribute: "emailVerified",
+        attribute: "login.emailVerified",
         value: true
     });
 
@@ -202,17 +268,17 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInvitationTokenAction)
     ];
 
-    const userLogin = await DbUserLogin.getById(acceptInvitationTokenAction.userId);
-    if (!userLogin) {
-        throw new Error(`Cannot accept account invitation: can't find UserLogin with id ${acceptInvitationTokenAction.userId}`);
+    const user = await DbUser.getById(acceptInvitationTokenAction.userId);
+    if (!user) {
+        throw new Error(`Cannot accept account invitation: can't find User with id ${acceptInvitationTokenAction.userId}`);
     }
-    if (!userLogin.emailVerified) {
+    if (!user.login.emailVerified) {
         // Accepting the invite verifies the email address.
         const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbUserLogin.getKeys(userLogin),
+            DbUser.getKeys(user),
             {
                 action: "put",
-                attribute: "emailVerified",
+                attribute: "login.emailVerified",
                 value: true
             }
         );
@@ -248,7 +314,7 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
     await dynamodb.transactWriteItems(writeReq).promise();
     log.info("User", acceptInvitationTokenAction.email, "has accepted an account invitation");
 
-    if (!userLogin.password) {
+    if (!user.login.password) {
         log.info("User", acceptInvitationTokenAction.email, "has no password, setting up password reset");
         const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
         await TokenAction.put(setPasswordTokenAction);
@@ -261,5 +327,5 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return getLoginResponse(userLogin, accountUser, true);
+    return getLoginResponse(user, accountUser, true);
 }
