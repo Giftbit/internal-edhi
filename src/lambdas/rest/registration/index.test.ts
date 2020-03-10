@@ -46,6 +46,8 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isString(verifyEmail.htmlBody);
+        chai.assert.include(verifyEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(verifyEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(verifyEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const verifyUrl = /(https:\/\/[a-z.]+\/v2\/user\/register\/verifyEmail\?token=[a-zA-Z0-9]*)/.exec(verifyEmail.htmlBody)[1];
@@ -132,6 +134,8 @@ describe("/v2/user/register", () => {
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isDefined(recoverEmail);
+        chai.assert.include(recoverEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(recoverEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(recoverEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(recoverEmail.htmlBody)[1];

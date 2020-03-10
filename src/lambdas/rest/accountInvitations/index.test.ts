@@ -52,6 +52,8 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(inviteResp.body.email, email);
         chai.assert.isObject(invitationEmail, "invitation email sent");
         chai.assert.equal(invitationEmail.toAddress, email);
+        chai.assert.include(invitationEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(invitationEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(invitationEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const listInvitationsResp = await router.testApiRequest<Invitation[]>("/v2/account/invitations", "GET");

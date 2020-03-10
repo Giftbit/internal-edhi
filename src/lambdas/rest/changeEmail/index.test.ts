@@ -84,6 +84,8 @@ describe("/v2/user/changeEmail", () => {
         });
         chai.assert.equal(changeEmailResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(changeEmailAddressEmail);
+        chai.assert.include(changeEmailAddressEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(changeEmailAddressEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(changeEmailAddressEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
         chai.assert.equal(changeEmailAddressEmail.toAddress, email);
         chai.assert.isUndefined(emailAddressChangedEmail);
@@ -94,6 +96,8 @@ describe("/v2/user/changeEmail", () => {
         const completeResp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken}`, "GET");
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(emailAddressChangedEmail);
+        chai.assert.include(emailAddressChangedEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(emailAddressChangedEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(emailAddressChangedEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const cantLoginOldEmailResp = await router.testUnauthedRequest("/v2/user/login", "POST", {

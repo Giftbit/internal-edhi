@@ -55,6 +55,8 @@ describe("/v2/user/forgotPassword", () => {
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(resetPasswordEmail);
+        chai.assert.include(resetPasswordEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+        chai.assert.match(resetPasswordEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
         chai.assert.notMatch(resetPasswordEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
 
         const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(resetPasswordEmail.htmlBody)[1];

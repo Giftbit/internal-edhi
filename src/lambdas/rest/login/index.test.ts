@@ -123,10 +123,10 @@ describe("/v2/user/login", () => {
     });
 
     it("locks the user for an hour after 10 unsuccessful login attempts", async () => {
-        let lockedEmail: string;
+        let lockedEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
             .callsFake(async (params: emailUtils.SendEmailParams) => {
-                lockedEmail = params.htmlBody;
+                lockedEmail = params;
                 return null;
             });
 
@@ -139,8 +139,10 @@ describe("/v2/user/login", () => {
             if (i < 9) {
                 chai.assert.isUndefined(lockedEmail, `Did not get locked email on attempt ${i}`);
             } else {
-                chai.assert.isString(lockedEmail, "Got locked account warning email after the last attempt.");
-                chai.assert.notMatch(lockedEmail, /{{.*}}/, "No unreplaced tokens.");
+                chai.assert.isDefined(lockedEmail, "Got locked account warning email after the last attempt.");
+                chai.assert.include(lockedEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
+                chai.assert.match(lockedEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
+                chai.assert.notMatch(lockedEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
             }
         }
 
