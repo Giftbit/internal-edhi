@@ -33,16 +33,10 @@ async function main(): Promise<void> {
     const scanInput = dynemeh.requestBuilder.buildScanInput(objectSchema);
     let deleteCount = 0;
     await dynemeh.scanHelper.scanByCallback(dynamodb, scanInput, async items => {
-        try {
-            for (const item of items) {
-                const delInput = dynemeh.requestBuilder.buildDeleteInput(objectSchema, item);
-                await dynamodb.deleteItem(delInput).promise();
-                log.info("deleted", ++deleteCount, "items");
-            }
-        } catch (err) {
-            log.error(err);
-            return false;
-        }
+        const keysToDelete = items.map(item => objectSchema.sortKeyField ? [item[objectSchema.partitionKeyField], item[objectSchema.sortKeyField]] : item[objectSchema.partitionKeyField]);
+        const batchDeleteInput = dynemeh.requestBuilder.buildBatchDeleteInput(objectSchema, keysToDelete);
+        await dynemeh.batchHelper.batchWriteAll(dynamodb, batchDeleteInput);
+        log.info("deleted", (deleteCount += keysToDelete.length), "items");
         return true;
     });
 }
