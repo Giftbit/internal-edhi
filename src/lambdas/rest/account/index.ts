@@ -167,7 +167,7 @@ export function installAccountRest(router: cassava.Router): void {
 
             evt.validateBody({
                 properties: {
-                    lockedOnInactivity: {
+                    lockedByInactivity: {
                         type: "boolean"
                     },
                     roles: {
@@ -348,7 +348,7 @@ async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, acc
     return getLoginResponse(user, accountUser, liveMode);
 }
 
-export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedOnInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
+export async function updateAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string, params: { lockedByInactivity?: boolean, roles?: string[], scopes?: string[] }): Promise<DbAccountUser> {
     auth.requireIds("userId");
     log.info("Updating AccountUser", userId, "in Account", auth.userId, "\n", params);
 
@@ -358,8 +358,10 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
-    if (params.lockedOnInactivity !== undefined) {
-        const lastLoginDate = params.lockedOnInactivity ? new Date(0).toISOString() : createdDateNow();
+    if (params.lockedByInactivity !== undefined) {
+        // lockedByInactivity is not a flag that is set but is instead calculated.
+        // Set the lastLoginDate to a magic number so it is calculated to match the patched value.
+        const lastLoginDate = params.lockedByInactivity ? new Date(0).toISOString() : createdDateNow();
         updates.push({
             action: "put",
             attribute: "lastLoginDate",
@@ -390,17 +392,18 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     return accountUser;
 }
 
-export async function removeAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, teamMemberId: string): Promise<void> {
+export async function removeAccountUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, userId: string): Promise<void> {
     auth.requireIds("userId");
-    log.info("Removing TeamMember", teamMemberId, "from Account", auth.userId);
+    const accountId = auth.userId;
+    log.info("Removing AccountUser", userId, "from Account", accountId);
 
-    const accountUser = await DbAccountUser.get(auth.userId, teamMemberId);
+    const accountUser = await DbAccountUser.get(accountId, userId);
     if (!accountUser) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
     }
     if (accountUser.pendingInvitation) {
         log.info("The user is invited but not a full member");
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
     }
 
     try {
@@ -411,7 +414,7 @@ export async function removeAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     } catch (error) {
         if (error.code === "ConditionalCheckFailedException") {
             log.info("The user is invited but not a full member");
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${teamMemberId}'.`, "UserNotFound");
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
         }
         throw error;
     }

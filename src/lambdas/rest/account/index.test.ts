@@ -155,12 +155,12 @@ describe("/v2/account", () => {
         const newRoles = [...getAccountUsersResp.body.roles, "AssistantToTheManager"];
         const newScopes = [...getAccountUsersResp.body.scopes, "foobar"];
 
-        const patchTeamMemberResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
+        const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
             roles: newRoles,
             scopes: newScopes
         });
-        chai.assert.equal(patchTeamMemberResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(patchTeamMemberResp.body, {
+        chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.deepEqual(patchAccountUserResp.body, {
             ...getAccountUsersResp.body,
             roles: newRoles,
             scopes: newScopes
@@ -168,7 +168,7 @@ describe("/v2/account", () => {
 
         const getUpdatedAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
         chai.assert.equal(getUpdatedAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.deepEqual(getUpdatedAccountUserResp.body, patchTeamMemberResp.body);
+        chai.assert.deepEqual(getUpdatedAccountUserResp.body, patchAccountUserResp.body);
     });
 
     it("can remove the user from the account", async () => {
@@ -344,19 +344,19 @@ describe("/v2/account", () => {
 
             const accountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "GET");
             chai.assert.equal(accountUserResp.statusCode, cassava.httpStatusCode.success.OK, accountUserResp.bodyRaw);
-            chai.assert.isTrue(accountUserResp.body.lockedOnInactivity);
+            chai.assert.isTrue(accountUserResp.body.lockedByInactivity);
 
             const otherAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "GET");
             chai.assert.equal(otherAccountUserResp.statusCode, cassava.httpStatusCode.success.OK, accountUserResp.bodyRaw);
-            chai.assert.isFalse(otherAccountUserResp.body.lockedOnInactivity);
+            chai.assert.isFalse(otherAccountUserResp.body.lockedByInactivity);
 
             const accountUsersResp = await router.testWebAppRequest<AccountUser[]>("/v2/account/users", "GET");
             chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, accountUsersResp.bodyRaw);
-            chai.assert.isTrue(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.userId).lockedOnInactivity);
-            chai.assert.isFalse(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.teamMate.userId).lockedOnInactivity);
+            chai.assert.isTrue(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.userId).lockedByInactivity);
+            chai.assert.isFalse(accountUsersResp.body.find(user => user.userId === testUtils.defaultTestUser.teamMate.userId).lockedByInactivity);
         });
 
-        it("can lock active users out if lockedOnInactivity is PATCHed to true", async () => {
+        it("can lock active users out if lockedByInactivity is PATCHed to true", async () => {
             const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
             await DbAccountUser.update(accountUser, {
                 action: "put",
@@ -372,10 +372,10 @@ describe("/v2/account", () => {
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
 
             const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
-                lockedOnInactivity: true
+                lockedByInactivity: true
             });
             chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isTrue(patchAccountUserResp.body.lockedOnInactivity);
+            chai.assert.isTrue(patchAccountUserResp.body.lockedByInactivity);
 
             const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
@@ -385,7 +385,7 @@ describe("/v2/account", () => {
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
         });
 
-        it("can allow inactive users back in if lockedOnInactivity is PATCHed to false", async () => {
+        it("can allow inactive users back in if lockedByInactivity is PATCHed to false", async () => {
             const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
             await DbAccountUser.update(accountUser, {
                 action: "put",
@@ -401,10 +401,10 @@ describe("/v2/account", () => {
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
 
             const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
-                lockedOnInactivity: false
+                lockedByInactivity: false
             });
             chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isFalse(patchAccountUserResp.body.lockedOnInactivity);
+            chai.assert.isFalse(patchAccountUserResp.body.lockedByInactivity);
 
             const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,

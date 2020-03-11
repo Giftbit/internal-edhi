@@ -405,7 +405,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
         body.messageCode = "AccountMaxPasswordAge";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.maxInactiveDays && accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays)) {
+    } else if (DbAccountUser.isLockedByInactivity(accountUser, account)) {
         body.message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
         body.messageCode = "AccountMaxInactiveDays";
         badge = DbUser.getOrphanBadge(user);

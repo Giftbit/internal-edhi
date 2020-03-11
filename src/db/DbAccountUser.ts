@@ -1,9 +1,10 @@
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
+import {createdDatePast, dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
 import {stripUserIdTestMode} from "../utils/userUtils";
 import {DbObject} from "./DbObject";
 import {DbUser} from "./DbUser";
+import {DbAccount} from "./DbAccount";
 import log = require("loglevel");
 
 /**
@@ -185,8 +186,8 @@ export namespace DbAccountUser {
             operator: "attribute_not_exists"
         });
         queryReq.Limit = 1;
-        const queryResp = await dynamodb.query(queryReq).promise();
-        const accountUsers = objectDynameh2.responseUnwrapper.unwrapQueryOutput(queryResp).map(fromDbObject);
+        const dbAccountUsers = await objectDynameh2.queryHelper.queryAll(dynamodb, queryReq);
+        const accountUsers = dbAccountUsers.map(fromDbObject);
         if (accountUsers && accountUsers.length) {
             await DbUser.update(user, {
                 action: "put",
@@ -197,5 +198,17 @@ export namespace DbAccountUser {
         }
 
         return null;
+    }
+
+    /**
+     * Check if the AccountUser should be locked for this Account because the last
+     * login was older than `DbAccount.maxInactiveDays`.
+     *
+     * This isn't a flag on DbAccountUser because setting that would require a regular
+     * scan of DbAccountUsers looking for those that should be locked.  Calculating it
+     * on the fly when needed is much cheaper.
+     */
+    export function isLockedByInactivity(accountUser: DbAccountUser, account: DbAccount | null): boolean {
+        return !!account?.maxInactiveDays && !!accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays);
     }
 }

@@ -98,8 +98,7 @@ export namespace DbApiKey {
 
     export async function getAllForAccount(accountId: string): Promise<DbApiKey[]> {
         const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "ApiKey/");
-        const resp = await dynamodb.query(req).promise();
-        const objects = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+        const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
     }
 
@@ -110,8 +109,7 @@ export namespace DbApiKey {
             operator: "=",
             values: ["User/" + stripUserIdTestMode(userId)]
         });
-        const resp = await dynamodb.query(req).promise();
-        const objects = objectDynameh.responseUnwrapper.unwrapQueryOutput(resp);
+        const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
     }
 

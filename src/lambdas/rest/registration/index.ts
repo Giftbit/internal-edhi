@@ -295,19 +295,19 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invitation expired.");
     }
     if (accountUser.pendingInvitation) {
-        const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+        const updateAccountUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
             DbAccountUser.getKeys(accountUser),
             {
                 action: "remove",
                 attribute: "pendingInvitation"
             }
         );
-        objectDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
+        objectDynameh.requestBuilder.addCondition(updateAccountUserReq, {
                 attribute: "userId",
                 operator: "attribute_exists"
             }
         );
-        updates.push(updateTeamMemberReq);
+        updates.push(updateAccountUserReq);
     }
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
