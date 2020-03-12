@@ -1,8 +1,12 @@
 import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
-import {stripUserIdTestMode} from "../utils/userUtils";
+import {isTestModeUserId} from "../utils/userUtils";
 
+/**
+ * ApiKeys are unusual in Edhi: there are separate live and test mode versions.
+ * For test mode both the accountId and userId must be in test mode.
+ */
 export interface DbApiKey {
 
     accountId: string;
@@ -71,14 +75,17 @@ export namespace DbApiKey {
     }
 
     export async function getByAccount(accountId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(accountId), "ApiKey/" + tokenId));
+        return fromDbObject(await DbObject.get("Account/" + accountId, "ApiKey/" + tokenId));
     }
 
     export async function getByUser(userId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.getSecondary("User/" + stripUserIdTestMode(userId), "ApiKey/" + tokenId));
+        return fromDbObject(await DbObject.getSecondary("User/" + userId, "ApiKey/" + tokenId));
     }
 
     export async function put(apiKey: DbApiKey): Promise<void> {
+        if (isTestModeUserId(apiKey.accountId) !== isTestModeUserId(apiKey.userId)) {
+            throw new Error(`accountId and userId must both be live or both be test mode accountId=${apiKey.accountId} userId=${apiKey.userId}`);
+        }
         await DbObject.put(toDbObject(apiKey));
     }
 
@@ -97,17 +104,21 @@ export namespace DbApiKey {
     }
 
     export async function getAllForAccount(accountId: string): Promise<DbApiKey[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "ApiKey/");
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + accountId, "begins_with", "ApiKey/");
         const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
     }
 
     export async function getAllForAccountUser(accountId: string, userId: string): Promise<DbApiKey[]> {
-        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + stripUserIdTestMode(accountId), "begins_with", "ApiKey/");
+        if (isTestModeUserId(accountId) !== isTestModeUserId(userId)) {
+            throw new Error(`accountId and userId must both be live or both be test mode accountId=${accountId} userId=${userId}`);
+        }
+
+        const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + accountId, "begins_with", "ApiKey/");
         objectDynameh.requestBuilder.addFilter(req, {
             attribute: "pk2",
             operator: "=",
-            values: ["User/" + stripUserIdTestMode(userId)]
+            values: ["User/" + userId]
         });
         const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);

@@ -3,7 +3,6 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbApiKey} from "../../../db/DbApiKey";
 import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
-import {isTestModeUserId, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbUser} from "../../../db/DbUser";
 import log = require("loglevel");
@@ -79,8 +78,8 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
 
     const accountUser = await DbAccountUser.getByAuth(auth);
     const apiKey: DbApiKey = {
-        accountId: stripUserIdTestMode(auth.userId),
-        userId: stripUserIdTestMode(auth.teamMemberId),
+        accountId: auth.userId,
+        userId: auth.teamMemberId,
         name: name,
         tokenId: DbApiKey.generateTokenId(),
         tokenVersion: 3,
@@ -90,7 +89,7 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
     };
     await DbApiKey.put(apiKey);
 
-    const badge = DbUser.getBadge(accountUser, isTestModeUserId(auth.userId), false);
+    const badge = DbUser.getBadge(accountUser, !auth.isTestUser(), false);
     badge.uniqueIdentifier = apiKey.tokenId;
     const apiToken = await DbUser.getBadgeApiToken(badge);
 

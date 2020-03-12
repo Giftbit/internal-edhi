@@ -75,6 +75,22 @@ export class TestRouter extends cassava.Router {
         };
     }
 
+    async testApiKeyRequest<T>(apiKey: string, url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
+        const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
+            headers: {
+                Authorization: `Bearer ${apiKey}`
+            },
+            body: body && JSON.stringify(body) || undefined
+        }));
+
+        return {
+            statusCode: resp.statusCode,
+            headers: resp.headers,
+            bodyRaw: resp.body,
+            body: resp.body && JSON.parse(resp.body) || undefined
+        };
+    }
+
     async testWebAppRequest<T>(url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
         const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
             headers: {
