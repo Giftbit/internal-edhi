@@ -63,14 +63,14 @@ describe("/v2/account", () => {
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(getAccountResp.body, patchAccountResp.body);
 
-        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
         chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
         chai.assert.equal(getSwitchableAccountsResp.body[0].accountDisplayName, "Worlds Okayest Account");
     });
 
     it("can create a brand new account and switch to it", async () => {
-        const initialSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        const initialSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
         chai.assert.equal(initialSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isDefined(initialSwitchableAccountsResp.body.find(a => a.accountId === testUtils.defaultTestUser.account.accountId), `looking for accountId ${testUtils.defaultTestUser.account.accountId} in ${initialSwitchableAccountsResp.bodyRaw}`);
 
@@ -80,7 +80,7 @@ describe("/v2/account", () => {
         chai.assert.equal(createAccountResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createAccountResp.body.name, "Totally Not a Drug Front");
 
-        const switchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        const switchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
         chai.assert.equal(switchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(switchableAccountsResp.body, initialSwitchableAccountsResp.body.length + 1, switchableAccountsResp.bodyRaw);
         chai.assert.isDefined(switchableAccountsResp.body.find(a => a.accountId === createAccountResp.body.id), `looking for accountId ${createAccountResp.body.id} in ${switchableAccountsResp.bodyRaw}`);

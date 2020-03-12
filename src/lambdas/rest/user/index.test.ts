@@ -7,6 +7,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {User} from "../../../model/User";
 import {initializeIntercomSecrets} from "../../../utils/intercomUtils";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 
 describe("/v2/user", () => {
 
@@ -28,6 +29,15 @@ describe("/v2/user", () => {
         chai.assert.equal(getUserResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getUserResp.body.email, testUtils.defaultTestUser.email);
         chai.assert.equal(getUserResp.body.id, testUtils.defaultTestUser.userId);
+    });
+
+    describe("/v2/user/accounts", () => {
+        it("lists Accounts the user can switch to (SwitchableAccounts)", async () => {
+            const resp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
+            chai.assert.lengthOf(resp.body, 1);
+            chai.assert.equal(resp.body[0].accountId, testUtils.defaultTestUser.accountId);
+            chai.assert.equal(resp.body[0].isCurrentAccount, true);
+        })
     });
 
     describe("/v2/user/intercom", () => {
