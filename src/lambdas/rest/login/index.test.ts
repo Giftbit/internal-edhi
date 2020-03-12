@@ -36,7 +36,9 @@ describe("/v2/user/login", () => {
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
     });
 
-    async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
+    async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<LoginResult>): Promise<void> {
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
@@ -45,7 +47,7 @@ describe("/v2/user/login", () => {
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, "prove we're logged in");
     }
 
-    async function assertNotFullyLoggedIn(loginResp: ParsedProxyResponse<any>): Promise<void> {
+    async function assertNotFullyLoggedIn(loginResp: ParsedProxyResponse<LoginResult>): Promise<void> {
         const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
         chai.assert.oneOf(accountUsersResp.statusCode, [cassava.httpStatusCode.clientError.FORBIDDEN, cassava.httpStatusCode.clientError.UNAUTHORIZED], "prove we're not logged in");
     }
@@ -85,13 +87,6 @@ describe("/v2/user/login", () => {
             email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
-        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isUndefined(resp.body.messageCode);
-        chai.assert.isString(resp.headers["Location"]);
-        chai.assert.isString(resp.headers["Set-Cookie"]);
-        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
-
         await assertFullyLoggedIn(resp);
     });
 
@@ -281,15 +276,9 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(wrongCodeLoginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-            chai.assert.isString(loginCompleteResp.headers["Location"]);
-            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
-
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -311,11 +300,9 @@ describe("/v2/user/login", () => {
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code.toLowerCase()
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -355,11 +342,9 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(oldCodeLoginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code2
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -443,10 +428,9 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(wrongCodeLoginCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: await generateSkewedOtpCode(secret, -2000)
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -459,10 +443,9 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: await generateSkewedOtpCode(secret, -30000)
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -491,10 +474,9 @@ describe("/v2/user/login", () => {
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
             const code = await generateSkewedOtpCode(secret, -2000);
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(loginCompleteResp);
 
             const loginAgainResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
@@ -503,7 +485,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const loginAgainCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginAgainCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code
             });
             chai.assert.equal(loginAgainCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -527,15 +509,9 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
-            const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: backupCodesResp.body[0]
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-            chai.assert.isString(loginCompleteResp.headers["Location"]);
-            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
-
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
@@ -602,7 +578,7 @@ describe("/v2/user/login", () => {
             const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
             chai.assert.isString(ttdToken);
 
-            const badTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+            const badTtdTokenLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
                 {
                     email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
@@ -614,7 +590,7 @@ describe("/v2/user/login", () => {
             chai.assert.equal(badTtdTokenLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertNotFullyLoggedIn(badTtdTokenLoginResp);
 
-            const goodTtdTokenLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+            const goodTtdTokenLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
                 {
                     email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
@@ -623,8 +599,18 @@ describe("/v2/user/login", () => {
                     Cookie: `gb_ttd=${ttdToken}`
                 }
             );
-            chai.assert.equal(goodTtdTokenLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
             await assertFullyLoggedIn(goodTtdTokenLoginResp);
+
+            const goodTtdTokenLoginAgainResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
+                {
+                    email: testUtils.defaultTestUser.email,
+                    password: testUtils.defaultTestUser.password
+                },
+                {
+                    Cookie: `gb_ttd=${ttdToken}`
+                }
+            );
+            await assertFullyLoggedIn(goodTtdTokenLoginAgainResp);
         });
 
         it("expires trusted devices even if they have the correct token", async () => {
@@ -636,7 +622,7 @@ describe("/v2/user/login", () => {
                     sms = params;
                 });
 
-            const firstLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+            const firstLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
@@ -666,7 +652,7 @@ describe("/v2/user/login", () => {
                 value: user.login.mfa
             });
 
-            const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+            const secondLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
                 {
                     email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password
@@ -674,7 +660,8 @@ describe("/v2/user/login", () => {
                 {
                     Cookie: `gb_ttd=${ttdToken}`
                 });
-            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(secondLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(secondLoginResp.body.messageCode, "MfaAuthRequired");
             await assertNotFullyLoggedIn(secondLoginResp);
         });
 
@@ -712,7 +699,7 @@ describe("/v2/user/login", () => {
 
             await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
 
-            const secondLoginResp = await router.testUnauthedRequest("/v2/user/login", "POST",
+            const secondLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
                 {
                     email: testUtils.defaultTestUser.email,
                     password: testUtils.defaultTestUser.password

@@ -321,7 +321,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
-            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
+            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`
