@@ -4,7 +4,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
 import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
-import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
+import {sendRegistrationVerificationEmail} from "../registration/sendRegistrationVerificationEmail";
 import {DbUser} from "../../../db/DbUser";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
@@ -18,7 +18,7 @@ import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
 const failedLoginTimoutMinutes = 60;
-const trustedDeviceExpirationDays = 14;
+const trustedDeviceExpirationSeconds = 14 * 24 * 60 * 60;
 const totpUsedCodeTimeoutMillis = 3 * 60 * 1000;
 
 export function installLoginUnauthedRest(router: cassava.Router): void {
@@ -131,7 +131,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     }
     if (!user.login.emailVerified) {
         log.warn("Could not log in user", params.email, "email is not verified");
-        await sendEmailAddressVerificationEmail(user.email);
+        await sendRegistrationVerificationEmail(user.email);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
     if (user.login.frozen) {
@@ -262,7 +262,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         const trustedDeviceToken = uuid().replace(/-/g, "");
         const trustedDevice: DbUser.TrustedDevice = {
             createdDate: createdDateNow(),
-            expiresDate: new Date(Date.now() + trustedDeviceExpirationDays * 24 * 60 * 60 * 1000).toISOString()
+            expiresDate: new Date(Date.now() + trustedDeviceExpirationSeconds * 1000).toISOString()
         };
         userUpdates.push({
             action: "put",
@@ -273,7 +273,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             value: trustedDeviceToken,
             options: {
                 httpOnly: true,
-                maxAge: trustedDeviceExpirationDays * 24 * 60 * 60, // 14 days
+                maxAge: trustedDeviceExpirationSeconds,
                 path: "/",
                 secure: true
             }

@@ -9,13 +9,13 @@ import {
     transactWriteItemsFixed
 } from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
-import {sendEmailAddressVerificationEmail} from "./sendEmailAddressVerificationEmail";
+import {sendRegistrationVerificationEmail} from "./sendRegistrationVerificationEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {TokenAction} from "../../../db/TokenAction";
 import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbUser} from "../../../db/DbUser";
 import {DbAccount} from "../../../db/DbAccount";
-import {sendEmailAddressAlreadyRegisteredEmail} from "./sendEmailAddressAlreadyRegisteredEmail";
+import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import {getLoginResponse} from "../login";
 import log = require("loglevel");
@@ -151,14 +151,14 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
                 // We do this to not leak information on what email addresses are in use to a potential attacker;
                 // while reminding innocent users of their existing account.
                 log.info("User", params.email, "exists and has already verified their email");
-                await sendEmailAddressAlreadyRegisteredEmail(params.email);
+                await sendRegistrationRecoveryEmail(params.email);
             }
             return;
         }
         throw error;
     }
 
-    await sendEmailAddressVerificationEmail(params.email);
+    await sendRegistrationVerificationEmail(params.email);
 }
 
 async function registerExistingUser(user: DbUser, accountId: string, params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
@@ -208,7 +208,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, putAccountReq, putAccountUserReq);
     await transactWriteItemsFixed(writeReq);
 
-    await sendEmailAddressVerificationEmail(params.email);
+    await sendRegistrationVerificationEmail(params.email);
 }
 
 async function verifyEmail(token: string): Promise<void> {
