@@ -242,7 +242,6 @@ describe("/v2/account", () => {
         });
 
         it("prevents users with inactive accounts from switching", async () => {
-            const inactiveDate = new Date();
             const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
             await DbAccountUser.update(accountUser, {
                 action: "put",
