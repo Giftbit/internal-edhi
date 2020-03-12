@@ -1,12 +1,12 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
-import {hashPassword} from "../../../utils/passwordUtils";
 import {TokenAction} from "../../../db/TokenAction";
 import {getLoginResponse} from "../login";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow} from "../../../db/dynamodb";
 import {DbUser} from "../../../db/DbUser";
+import {completeChangePassword} from "../changePassword";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -42,7 +42,8 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                     },
                     password: {
                         type: "string",
-                        minLength: 8
+                        minLength: 8,
+                        maxLength: 255
                     }
                 },
                 required: ["token", "password"],
@@ -68,12 +69,7 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
         throw new Error(`Could not find User with email '${tokenAction.email}'.`);
     }
 
-    const userPassword: DbUser.Password = await hashPassword(params.plaintextPassword);
-    await DbUser.update(user, {
-        action: "put",
-        attribute: "login.password",
-        value: userPassword
-    }, {
+    await completeChangePassword(params.plaintextPassword, user, {
         // Because you can get here through recovering an account, which does require an email.
         action: "put",
         attribute: "login.emailVerified",

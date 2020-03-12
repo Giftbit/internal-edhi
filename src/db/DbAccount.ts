@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
@@ -70,7 +71,7 @@ export namespace DbAccount {
     }
 
     export async function getMany(accountIds: string[]): Promise<DbAccount[]> {
-        const dbObjects = await DbObject.getMany(accountIds.map(accountId => ["Account/" + accountId, "Account/" + accountId]));
+        const dbObjects = await DbObject.getMany(accountIds.map(stripUserIdTestMode).map(accountId => ["Account/" + accountId, "Account/" + accountId]));
         return dbObjects.map(fromDbObject);
     }
 
@@ -84,16 +85,31 @@ export namespace DbAccount {
     }
 
     export async function put(account: DbAccount): Promise<void> {
-        await DbObject.put(toDbObject(account));
+        const req = buildPutInput(account);
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(account: DbAccount): aws.DynamoDB.PutItemInput {
+        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(account));
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        return req;
     }
 
     export async function update(account: DbAccount, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(account), ...actions);
+        const req = buildUpdateInput(account, ...actions);
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export function buildUpdateInput(account: DbAccount, ...actions: dynameh.UpdateExpressionAction[]): aws.DynamoDB.UpdateItemInput {
+        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbAccount.getKeys(account), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
         });
-        await dynamodb.updateItem(req).promise();
+        return req;
     }
 
     export function generateAccountId(): string {

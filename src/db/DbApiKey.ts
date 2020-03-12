@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as uuid from "uuid/v4";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
@@ -86,7 +87,17 @@ export namespace DbApiKey {
         if (isTestModeUserId(apiKey.accountId) !== isTestModeUserId(apiKey.userId)) {
             throw new Error(`accountId and userId must both be live or both be test mode accountId=${apiKey.accountId} userId=${apiKey.userId}`);
         }
-        await DbObject.put(toDbObject(apiKey));
+        const req = buildPutInput(apiKey);
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(apiKey: DbApiKey): aws.DynamoDB.PutItemInput {
+        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(apiKey));
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        return req;
     }
 
     export async function del(apiKey: DbApiKey): Promise<void> {

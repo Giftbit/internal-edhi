@@ -305,11 +305,7 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         accountId: accountId,
         name: params.name
     };
-    const createAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
-    objectDynameh.requestBuilder.addCondition(createAccountReq, {
-        operator: "attribute_not_exists",
-        attribute: "pk"
-    });
+    const createAccountReq = DbAccount.buildPutInput(account);
 
     const accountUser: DbAccountUser = {
         accountId: accountId,
@@ -320,13 +316,9 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
         accountDisplayName: account.name,
         createdDate: createdDateNow()
     };
-    const createAccountUser = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
-    objectDynameh.requestBuilder.addCondition(createAccountUser, {
-        operator: "attribute_not_exists",
-        attribute: "pk"
-    });
+    const createAccountUserReq = DbAccountUser.buildPutInput(accountUser);
 
-    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(createAccountReq, createAccountUser);
+    const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(createAccountReq, createAccountUserReq);
     await dynamodb.transactWriteItems(writeReq).promise();
 
     return account;

@@ -78,21 +78,13 @@ export async function completeChangeEmail(token: string): Promise<void> {
         ...user,
         email: tokenAction.email
     };
-    const putNewUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(newUser));
-    objectDynameh.requestBuilder.addCondition(putNewUserReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putNewUserReq = DbUser.buildPutInput(newUser);
 
     // Can't update the keys on an item in DynamoDB.  Gotta delete the old and make a new.
-    const deleteOldUserReq = objectDynameh.requestBuilder.buildDeleteInput(DbUser.getKeys(user));
-    objectDynameh.requestBuilder.addCondition(deleteOldUserReq, {
-        attribute: "pk",
-        operator: "attribute_exists"
-    });
+    const deleteOldUserReq = DbUser.buildDeleteInput(user);
 
     const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);
-    const updateAccountUsersReqs = accountUsers.map(accountUser => objectDynameh.requestBuilder.buildUpdateInputFromActions(DbAccountUser.toDbObject(accountUser), {
+    const updateAccountUsersReqs = accountUsers.map(accountUser => DbAccountUser.buildUpdateInput(accountUser, {
         attribute: "userDisplayName",
         action: "put",
         value: tokenAction.email

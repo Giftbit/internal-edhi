@@ -122,21 +122,13 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
             },
             createdDate
         };
-        const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
-        objectDynameh.requestBuilder.addCondition(putUserReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
+        const putUserReq = DbUser.buildPutInput(user);
         updates.push(putUserReq);
 
         const userUniqueness: DbUserUniqueness = {
             userId
         };
-        const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
-        objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
-            attribute: "pk",
-            operator: "attribute_not_exists"
-        });
+        const putUserUniquenessReq = DbUserUniqueness.buildPutInput(userUniqueness);
         updates.push(putUserUniquenessReq);
 
         log.info("Inviting new User", user.userId);
@@ -146,14 +138,11 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     if (accountUser) {
         log.info("Inviting existing AccountUser", accountUser.accountId, accountUser.userId);
         if (accountUser.pendingInvitation) {
-            const updateAccountUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-                DbAccountUser.getKeys(accountUser),
-                {
-                    action: "put",
-                    attribute: "pendingInvitation.createdDate",
-                    value: createdDate
-                });
-            updates.push(updateAccountUserReq);
+            updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                action: "put",
+                attribute: "pendingInvitation.createdDate",
+                value: createdDate
+            }));
             log.info("Resending invitation to invited AccountUser", accountUser.accountId, accountUser.userId);
         } else {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
@@ -184,12 +173,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
             scopes,
             createdDate
         };
-        const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
-        objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
-            attribute: "userId",
-            operator: "attribute_not_exists"
-        });
-        updates.push(putAccountUserReq);
+        updates.push(DbAccountUser.buildPutInput(accountUser));
         log.info("Inviting new AccountUser", accountUser.accountId, accountUser.userId);
     }
 

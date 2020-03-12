@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {createdDatePast, dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
@@ -101,13 +102,32 @@ export namespace DbAccountUser {
         return fromDbObject(await DbObject.get("Account/" + stripUserIdTestMode(accountId), "AccountUser/" + stripUserIdTestMode(userId)));
     }
 
+    export async function put(accountUser: DbAccountUser): Promise<void> {
+        const req = buildPutInput(accountUser);
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(user: DbAccountUser): aws.DynamoDB.PutItemInput {
+        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(user));
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        return req;
+    }
+
     export async function update(accountUser: DbAccountUser, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+        const req = buildUpdateInput(accountUser, ...actions);
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export function buildUpdateInput(accountUser: DbAccountUser, ...actions: dynameh.UpdateExpressionAction[]): aws.DynamoDB.UpdateItemInput {
         const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(getKeys(accountUser), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
         });
-        await dynamodb.updateItem(req).promise();
+        return req;
     }
 
     export async function del(accountUser: DbAccountUser, ...conditions: dynameh.Condition[]): Promise<void> {

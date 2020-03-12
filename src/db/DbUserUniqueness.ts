@@ -1,5 +1,7 @@
+import * as aws from "aws-sdk";
 import {DbObject} from "./DbObject";
 import {stripUserIdTestMode} from "../utils/userUtils";
+import {dynamodb, objectDynameh} from "./dynamodb";
 
 /**
  * Is stored in the database to guarantee that when users are created that they
@@ -49,5 +51,19 @@ export namespace DbUserUniqueness {
     export async function get(userId: string): Promise<DbUserUniqueness> {
         userId = stripUserIdTestMode(userId);
         return fromDbObject(await DbObject.get("User/" + userId, "User/" + userId));
+    }
+
+    export async function put(userUniqueness: DbUserUniqueness): Promise<void> {
+        const req = buildPutInput(userUniqueness);
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(userUniqueness: DbUserUniqueness): aws.DynamoDB.PutItemInput {
+        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(userUniqueness));
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        return req;
     }
 }

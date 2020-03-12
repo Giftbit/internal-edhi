@@ -1,9 +1,11 @@
+import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
 import {DbUser} from "../../../db/DbUser";
 import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
+import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -53,20 +55,37 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The old password is incorrect.", "IncorrectPassword");
     }
 
+    return await completeChangePassword(params.newPlaintextPassword, user);
+}
+
+export async function completeChangePassword(newPlaintextPassword: string, user: DbUser, ...additionalUserUpdates: dynameh.UpdateExpressionAction[]): Promise<void> {
     const userPasswordHistory = await DbUserPasswordHistory.get(user.userId);
-    if (await passwordIsInHistory(params.newPlaintextPassword, user, userPasswordHistory)) {
+    if (await passwordIsInHistory(newPlaintextPassword, user, userPasswordHistory)) {
         log.warn("Can't change user password for", user.email, "the new password is in the history");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The new password is being reused.", "ReusedPassword");
     }
 
-    const userPassword: DbUser.Password = await hashPassword(params.newPlaintextPassword);
-    await DbUser.update(user, {
-        action: "put",
-        attribute: "login.password",
-        value: userPassword
-    });
+    const userNewPassword: DbUser.Password = await hashPassword(newPlaintextPassword);
+    const userUpdateReq = DbUser.buildUpdateInput(
+        user,
+        {
+            action: "put",
+            attribute: "login.password",
+            value: userNewPassword
+        },
+        ...additionalUserUpdates
+    );
+    const userPasswordHistoryReq = getUpdatePasswordHistoryInput(user, userPasswordHistory);
+    const tx = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...[userUpdateReq, userPasswordHistoryReq].filter(i => !!i));
+    await dynamodb.transactWriteItems(tx).promise();
 
-    if (userPasswordHistory) {
+    log.info("User", user.email, "has changed their password");
+}
+
+function getUpdatePasswordHistoryInput(user: DbUser, userPasswordHistory: DbUserPasswordHistory | null): aws.DynamoDB.PutItemInput | aws.DynamoDB.UpdateItemInput {
+    if (!user.login.password) {
+        return null;
+    } else if (userPasswordHistory) {
         const updates: dynameh.UpdateExpressionAction[] = [
             {
                 action: "put",
@@ -82,7 +101,7 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
                 attribute: `passwordHistory.${keyToRemove}`
             });
         }
-        await DbUserPasswordHistory.update(userPasswordHistory, ...updates);
+        return DbUserPasswordHistory.buildUpdateInput(userPasswordHistory, ...updates);
     } else {
         const newUserPasswordHistory: DbUserPasswordHistory = {
             userId: user.userId,
@@ -90,10 +109,8 @@ async function changePassword(params: { auth: giftbitRoutes.jwtauth.Authorizatio
                 [getHistoricalPasswordKey(user.login.password)]: user.login.password
             }
         };
-        await DbUserPasswordHistory.put(newUserPasswordHistory);
+        return DbUserPasswordHistory.buildPutInput(newUserPasswordHistory);
     }
-
-    log.info("User", user.email, "has changed their password");
 }
 
 async function passwordIsInHistory(plaintextPassword: string, user: DbUser, userPasswordHistory: DbUserPasswordHistory | null): Promise<boolean> {

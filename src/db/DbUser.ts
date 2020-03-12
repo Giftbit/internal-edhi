@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid/v4";
@@ -219,25 +220,48 @@ export namespace DbUser {
     }
 
     export async function put(user: DbUser): Promise<void> {
-        await DbObject.put(toDbObject(user));
+        const req = buildPutInput(user);
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(user: DbUser): aws.DynamoDB.PutItemInput {
+        const req = objectDynameh.requestBuilder.buildPutInput(toDbObject(user));
+        objectDynameh.requestBuilder.addCondition(req, {
+            attribute: "pk",
+            operator: "attribute_not_exists"
+        });
+        return req;
     }
 
     export async function update(user: DbUser, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+        const req = buildUpdateInput(user, ...actions);
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export async function conditionalUpdate(user: DbUser, actions: dynameh.UpdateExpressionAction[], conditions: dynameh.Condition[]): Promise<void> {
+        const req = buildUpdateInput(user, ...actions);
+        if (conditions.length) {
+            objectDynameh.requestBuilder.addCondition(req, ...conditions);
+        }
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export function buildUpdateInput(user: DbUser, ...actions: dynameh.UpdateExpressionAction[]): aws.DynamoDB.UpdateItemInput {
         const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(user), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
         });
-        await dynamodb.updateItem(req).promise();
+        return req;
     }
 
-    export async function conditionalUpdate(user: DbUser, actions: dynameh.UpdateExpressionAction[], conditions: dynameh.Condition[]): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.getKeys(user), ...actions);
+    export function buildDeleteInput(user: DbUser): aws.DynamoDB.DeleteItemInput {
+        const req = objectDynameh.requestBuilder.buildDeleteInput(DbUser.getKeys(user));
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
-        }, ...conditions);
-        await dynamodb.updateItem(req).promise();
+        });
+        return req;
     }
 
     export async function getById(userId: string): Promise<DbUser> {

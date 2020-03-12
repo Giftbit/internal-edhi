@@ -1,3 +1,4 @@
+import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import {DbUser} from "./DbUser";
 import {DbObject} from "./DbObject";
@@ -63,15 +64,25 @@ export namespace DbUserPasswordHistory {
     }
 
     export async function put(userPasswordHistory: DbUserPasswordHistory): Promise<void> {
-        await DbObject.put(toDbObject(userPasswordHistory));
+        const req = buildPutInput(toDbObject(userPasswordHistory));
+        await dynamodb.putItem(req).promise();
+    }
+
+    export function buildPutInput(userPasswordHistory: DbUserPasswordHistory): aws.DynamoDB.PutItemInput {
+        return objectDynameh.requestBuilder.buildPutInput(toDbObject(userPasswordHistory));
     }
 
     export async function update(userPasswordHistory: DbUserPasswordHistory, ...actions: dynameh.UpdateExpressionAction[]): Promise<void> {
+        const req = buildUpdateInput(userPasswordHistory, ...actions);
+        await dynamodb.updateItem(req).promise();
+    }
+
+    export function buildUpdateInput(userPasswordHistory: DbUserPasswordHistory, ...actions: dynameh.UpdateExpressionAction[]): aws.DynamoDB.UpdateItemInput {
         const req = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUserPasswordHistory.getKeys(userPasswordHistory), ...actions);
         objectDynameh.requestBuilder.addCondition(req, {
             attribute: "pk",
             operator: "attribute_exists"
         });
-        await dynamodb.updateItem(req).promise();
+        return req;
     }
 }

@@ -28,9 +28,4 @@ export namespace DbObject {
         const req = objectDynameh.requestBuilder.buildBatchGetInput(keys);
         return await objectDynameh.batchHelper.batchGetAll(dynamodb, req);
     }
-
-    export async function put(o: DbObject): Promise<void> {
-        const req = objectDynameh.requestBuilder.buildPutInput(o);
-        await dynamodb.putItem(req).promise();
-    }
 }

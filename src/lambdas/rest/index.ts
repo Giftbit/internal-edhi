@@ -7,6 +7,7 @@ import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
 import {initializeOtpEncryptionSecrets} from "../../utils/otpUtils";
 import {initializeTwilioCredentials, TwilioCredentialsConfig} from "../../utils/smsUtils";
 import {initializeIntercomSecrets, IntercomSecrets} from "../../utils/intercomUtils";
+import {DbUser} from "../../db/DbUser";
 import log = require("loglevel");
 
 // Wrapping console.log instead of binding (default behaviour for loglevel)

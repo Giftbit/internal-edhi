@@ -128,6 +128,33 @@ describe("/v2/user/forgotPassword", () => {
         chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
+    it("can't reset to a ridiculously long password", async () => {
+        let resetPasswordEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                resetPasswordEmail = params;
+                return null;
+            });
+
+        const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+            email: testUtils.defaultTestUser.user.email
+        });
+        chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isDefined(resetPasswordEmail);
+        chai.assert.notMatch(resetPasswordEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
+
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(resetPasswordEmail.htmlBody)[1];
+        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
+
+        const newPassword = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in";
+        chai.assert.lengthOf(newPassword, 256);
+        const badCompleteResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+            token: resetPasswordToken,
+            password: newPassword
+        });
+        chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("can't reset to a password of just digits", async () => {
         let resetPasswordEmail: emailUtils.SendEmailParams;
         sinonSandbox.stub(emailUtils, "sendEmail")
@@ -176,6 +203,41 @@ describe("/v2/user/forgotPassword", () => {
             password: "baseball"
         });
         chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, badCompleteResp.bodyRaw);
+    });
+
+    it("can't reset to a recently-used password", async () => {
+        const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
+
+        const newUserNewPassword = generateId();
+        const changePasswordResp = await router.testPostLoginRequest(newUser.loginResp, "/v2/user/changePassword", "POST", {
+            oldPassword: newUser.password,
+            newPassword: newUserNewPassword
+        });
+        chai.assert.equal(changePasswordResp.statusCode, cassava.httpStatusCode.success.OK, changePasswordResp.bodyRaw);
+
+        let resetPasswordEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                resetPasswordEmail = params;
+                return null;
+            });
+
+        const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+            email: newUser.email
+        });
+        chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isDefined(resetPasswordEmail);
+        chai.assert.notMatch(resetPasswordEmail.htmlBody, /{{.*}}/, "No unreplaced tokens.");
+
+        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(resetPasswordEmail.htmlBody)[1];
+        chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
+
+        const badCompleteResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+            token: resetPasswordToken,
+            password: newUser.password
+        });
+        chai.assert.equal(badCompleteResp.body.messageCode, "ReusedPassword", badCompleteResp.bodyRaw);
+        chai.assert.equal(badCompleteResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, badCompleteResp.bodyRaw);
     });
 
     it("requires a non-empty email address", async () => {
