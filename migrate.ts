@@ -131,7 +131,7 @@ async function main(): Promise<void> {
     }[] = (await mysqlConnection.execute("select team_member_id, code, date_created from two_factor_authentication_backup_code where active = 1"))[0];
     const backupCodesMap = getMapOfLists(backupCodesRows, "team_member_id");
 
-    log.info("Calculating DbUserLogins...");
+    log.info("Calculating DbUsers...");
     const dbUsers = userRows
         .map(row => {
             const email = row.username;
@@ -163,6 +163,10 @@ async function main(): Promise<void> {
                     mfa: row.two_factor_authentication_device ? {
                         smsDevice: row.two_factor_authentication_device,
                         backupCodes: backupCodes,
+
+                        // Trusted devices cannot be migrated from v1.  In v1 the trusted device code was a
+                        // hash of user identifiers and the same for all devices.  Its expiration was left
+                        // entirely to the cookie expiration.  v2 generates unique codes for each device.
                         trustedDevices: {}
                     } : undefined,
                     defaultLoginAccountId: row.giftbit_user_id,
