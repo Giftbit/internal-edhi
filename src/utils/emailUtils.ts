@@ -7,12 +7,6 @@ const ses = new aws.SES({
     region: process.env["AWS_REGION"]
 });
 
-const VALID_EMAIL_ADDRESS_REGEX = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-
-export function isValidEmailAddress(email: string): boolean {
-    return VALID_EMAIL_ADDRESS_REGEX.test(email);
-}
-
 export interface SendEmailParams {
     toAddress: string;
     subject: string;

@@ -168,13 +168,13 @@ export async function resetDb(): Promise<void> {
     await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
 
     log.trace("adding default data");
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.user))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(defaultTestUser.userUniqueness))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(defaultTestUser.account))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.accountUser))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(defaultTestUser.teamMate.user))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(defaultTestUser.teamMate.userUniqueness))).promise();
-    await dynamodb.putItem(objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(defaultTestUser.teamMate.accountUser))).promise();
+    await DbUser.put(defaultTestUser.user);
+    await DbUserUniqueness.put(defaultTestUser.userUniqueness);
+    await DbAccount.put(defaultTestUser.account);
+    await DbAccountUser.put(defaultTestUser.accountUser);
+    await DbUser.put(defaultTestUser.teamMate.user);
+    await DbUserUniqueness.put(defaultTestUser.teamMate.userUniqueness);
+    await DbAccountUser.put(defaultTestUser.teamMate.accountUser);
 }
 
 /**

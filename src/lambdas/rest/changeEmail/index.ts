@@ -78,26 +78,32 @@ export async function completeChangeEmail(token: string): Promise<void> {
         ...user,
         email: tokenAction.email
     };
-    const putNewUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(newUser));
-    objectDynameh.requestBuilder.addCondition(putNewUserReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putNewUserReq = DbUser.buildPutInput(newUser);
 
     // Can't update the keys on an item in DynamoDB.  Gotta delete the old and make a new.
-    const deleteOldUserReq = objectDynameh.requestBuilder.buildDeleteInput(DbUser.getKeys(user));
-    objectDynameh.requestBuilder.addCondition(deleteOldUserReq, {
-        attribute: "pk",
-        operator: "attribute_exists"
-    });
+    const deleteOldUserReq = DbUser.buildDeleteInput(user);
+
+    const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);
+    const updateAccountUsersReqs = accountUsers.map(accountUser => DbAccountUser.buildUpdateInput(accountUser, {
+        attribute: "userDisplayName",
+        action: "put",
+        value: tokenAction.email
+    }));
+    if (updateAccountUsersReqs.length > 23) {
+        // The maximum number of items in a transaction is 25.  Minus the 2 items above is 23.
+        // see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html#limits-dynamodb-transactions
+        log.error("Unable to change email address for user because they have a crazy huge number of AccountUsers. userId=", user.userId, "existing email=", user.email, "\nDbAccountUsers=", JSON.stringify(accountUsers, null, 2));
+        giftbitRoutes.sentry.sendErrorNotification(new Error(`Unable to change email address for user because they have a crazy huge number of AccountUsers. userId=${user.userId} existing email=${user.email}`));
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Unable to change email address.  Contact support for more info.");
+    }
 
     try {
-        const txReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putNewUserReq, deleteOldUserReq);
+        const txReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putNewUserReq, deleteOldUserReq, ...updateAccountUsersReqs);
         await transactWriteItemsFixed(txReq);
     } catch (error) {
         if (error.code === "TransactionCanceledException"
             && error.CancellationReasons
-            && error.CancellationReasons.length === 2
+            && error.CancellationReasons.length >= 1
             && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
             // This can only happen if there email address wasn't taken before the confirmation
@@ -109,22 +115,6 @@ export async function completeChangeEmail(token: string): Promise<void> {
 
     log.info("Changed (authoritative data) email address for", tokenAction.userId, "to", tokenAction.email);
 
-    // At this point there's no going back.  If we die here some data in the DB will be inconsistent.
-    // Such is life in a de-normalized DB.  The good news is nothing below is considered authoritative.
-
     await sendEmailAddressChangedEmail(user.email);
     await TokenAction.del(tokenAction);
-
-    const accountUsers = await DbAccountUser.getAllForUser(tokenAction.userId);
-    for (const accountUser of accountUsers) {
-        try {
-            await DbAccountUser.update(accountUser, {
-                attribute: "userDisplayName",
-                action: "put",
-                value: tokenAction.email
-            });
-        } catch (error) {
-            log.error("Unable to change displayName for AccountUser", accountUser.accountId, accountUser.userId, "\n", error);
-        }
-    }
 }

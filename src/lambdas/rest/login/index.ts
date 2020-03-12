@@ -321,7 +321,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
-            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate > now) {
+            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`
@@ -405,7 +405,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
         body.messageCode = "AccountMaxPasswordAge";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.maxInactiveDays && accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays)) {
+    } else if (DbAccountUser.isLockedByInactivity(accountUser, account)) {
         body.message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
         body.messageCode = "AccountMaxInactiveDays";
         badge = DbUser.getOrphanBadge(user);

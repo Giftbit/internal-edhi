@@ -1,6 +1,5 @@
 import {DbAccountUser} from "../db/DbAccountUser";
 import {DbAccount} from "../db/DbAccount";
-import {createdDatePast} from "../db/dynamodb";
 
 /**
  * Details of a User in the context of an Account.
@@ -9,7 +8,7 @@ export interface AccountUser {
     accountId: string;
     userId: string;
     userDisplayName: string;
-    lockedOnInactivity: boolean;
+    lockedByInactivity: boolean;
     roles: string[];
     scopes: string[];
 }
@@ -20,7 +19,7 @@ export namespace AccountUser {
             accountId: accountUser.accountId,
             userId: accountUser.userId,
             userDisplayName: accountUser.userDisplayName,
-            lockedOnInactivity: !!account.maxInactiveDays && !!accountUser.lastLoginDate && accountUser.lastLoginDate < createdDatePast(0, 0, account.maxInactiveDays),
+            lockedByInactivity: DbAccountUser.isLockedByInactivity(accountUser, account),
             roles: accountUser.roles,
             scopes: accountUser.scopes
         };

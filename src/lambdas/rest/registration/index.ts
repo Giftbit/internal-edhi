@@ -106,31 +106,19 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
         },
         createdDate
     };
-    const putUserReq = objectDynameh.requestBuilder.buildPutInput(DbUser.toDbObject(user));
-    objectDynameh.requestBuilder.addCondition(putUserReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putUserReq = DbUser.buildPutInput(user);
 
     const userUniqueness: DbUserUniqueness = {
         userId: userId
     };
-    const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
-    objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putUserUniquenessReq = DbUserUniqueness.buildPutInput(userUniqueness);
 
     const account: DbAccount = {
         accountId: accountId,
         name: params.name ?? "Account",
         createdDate
     };
-    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
-    objectDynameh.requestBuilder.addCondition(putAccountReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putAccountReq = DbAccount.buildPutInput(account);
 
     const accountUser: DbAccountUser = {
         accountId: accountId,
@@ -141,11 +129,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
         scopes: [],
         createdDate
     };
-    const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
-    objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putAccountUserReq = DbAccountUser.buildPutInput(accountUser);
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(putUserReq, putUserUniquenessReq, putAccountReq, putAccountUserReq);
     try {
@@ -187,7 +171,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
 
     log.info("Registering new account for existing user, email=", params.email, "accountId=", accountId, "userId=", user.userId);
 
-    const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(DbUser.toDbObject(user), {
+    const updateUserReq = DbUser.buildUpdateInput(user, {
         action: "put",
         attribute: "login.password",
         value: await hashPassword(params.plaintextPassword)
@@ -210,11 +194,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
         name: params.name ?? "Account",
         createdDate
     };
-    const putAccountReq = objectDynameh.requestBuilder.buildPutInput(DbAccount.toDbObject(account));
-    objectDynameh.requestBuilder.addCondition(putAccountReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putAccountReq = DbAccount.buildPutInput(account);
 
     const accountUser: DbAccountUser = {
         accountId: accountId,
@@ -225,11 +205,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
         scopes: [],
         createdDate
     };
-    const putAccountUserReq = objectDynameh.requestBuilder.buildPutInput(DbAccountUser.toDbObject(accountUser));
-    objectDynameh.requestBuilder.addCondition(putAccountUserReq, {
-        attribute: "pk",
-        operator: "attribute_not_exists"
-    });
+    const putAccountUserReq = DbAccountUser.buildPutInput(accountUser);
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(updateUserReq, putAccountReq, putAccountUserReq);
     await transactWriteItemsFixed(writeReq);
@@ -297,19 +273,16 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invitation expired.");
     }
     if (accountUser.pendingInvitation) {
-        const updateTeamMemberReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbAccountUser.getKeys(accountUser),
-            {
-                action: "remove",
-                attribute: "pendingInvitation"
-            }
-        );
-        objectDynameh.requestBuilder.addCondition(updateTeamMemberReq, {
+        const updateAccountUserReq = DbAccountUser.buildUpdateInput(accountUser, {
+            action: "remove",
+            attribute: "pendingInvitation"
+        });
+        objectDynameh.requestBuilder.addCondition(updateAccountUserReq, {
                 attribute: "userId",
                 operator: "attribute_exists"
             }
         );
-        updates.push(updateTeamMemberReq);
+        updates.push(updateAccountUserReq);
     }
 
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
