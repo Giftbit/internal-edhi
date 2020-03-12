@@ -70,8 +70,7 @@ async function main(): Promise<void> {
     const dbUserUniquenesses: DbUserUniqueness[] = userRows
         .map(row => {
             const user: DbUserUniqueness = {
-                userId: row.team_member_id,
-                createdDate: row.date_created.toISOString()
+                userId: row.team_member_id
             };
             return user;
         });

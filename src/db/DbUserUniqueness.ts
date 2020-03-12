@@ -12,8 +12,6 @@ export interface DbUserUniqueness {
      * The primary key.
      */
     userId: string;
-
-    createdDate: string;
 }
 
 export namespace DbUserUniqueness {

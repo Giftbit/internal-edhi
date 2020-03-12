@@ -113,8 +113,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
     });
 
     const userUniqueness: DbUserUniqueness = {
-        userId: userId,
-        createdDate
+        userId: userId
     };
     const putUserUniquenessReq = objectDynameh.requestBuilder.buildPutInput(DbUserUniqueness.toDbObject(userUniqueness));
     objectDynameh.requestBuilder.addCondition(putUserUniquenessReq, {
