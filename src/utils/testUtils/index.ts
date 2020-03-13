@@ -2,6 +2,7 @@ import * as cassava from "cassava";
 import * as chai from "chai";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
+import * as uuid from "uuid";
 import * as emailUtils from "../emailUtils";
 import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
 import {DbAccountUser} from "../../db/DbAccountUser";
@@ -13,7 +14,6 @@ import {generateOtpSecret} from "../otpUtils";
 import {LoginResult} from "../../model/LoginResult";
 import {Invitation} from "../../model/Invitation";
 import log = require("loglevel");
-import uuid = require("uuid/v4");
 
 if (!process.env["TEST_ENV"]) {
     log.error("Env var TEST_ENV is undefined.  This is not a test environment!");
@@ -321,5 +321,5 @@ export async function testEnableSmsMfa(email: string): Promise<void> {
 }
 
 export function generateId(length?: number): string {
-    return (uuid() + uuid()).substring(0, length != null ? length : 20);
+    return (uuid.v4() + uuid.v4()).substring(0, length != null ? length : 20);
 }

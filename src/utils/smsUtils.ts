@@ -72,5 +72,5 @@ function getTwilioErrorCodeMessage(code: number): string {
 }
 
 function sanitizePhoneNumber(phoneNumber: string): string {
-    return phoneNumber.replace(/[. \-\(\)]/g, "");
+    return phoneNumber.replace(/[. \-()]/g, "");
 }

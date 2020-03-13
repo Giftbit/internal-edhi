@@ -37,7 +37,7 @@ describe("/v2/user", () => {
             chai.assert.lengthOf(resp.body, 1);
             chai.assert.equal(resp.body[0].accountId, testUtils.defaultTestUser.accountId);
             chai.assert.equal(resp.body[0].isCurrentAccount, true);
-        })
+        });
     });
 
     describe("/v2/user/intercom", () => {
@@ -48,7 +48,7 @@ describe("/v2/user", () => {
                 .update(testId)
                 .digest("hex");
 
-            const resp = await router.testWebAppRequest<{ userHash: string; teamMemberId: string; }>("/v2/user/intercom", "GET");
+            const resp = await router.testWebAppRequest<{ userHash: string, teamMemberId: string }>("/v2/user/intercom", "GET");
             chai.assert.equal(resp.statusCode, 200);
             chai.assert.equal(expectedOutput, resp.body.userHash);
             chai.assert.equal(testId, resp.body.teamMemberId);

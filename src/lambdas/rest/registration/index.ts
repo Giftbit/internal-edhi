@@ -163,7 +163,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
 
 async function registerExistingUser(user: DbUser, accountId: string, params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
     if (user.login.password || user.login.emailVerified) {
-        throw new Error("This flow is only suitable for Users that happen to exist but have never registered before.")
+        throw new Error("This flow is only suitable for Users that happen to exist but have never registered before.");
     }
 
     const createdDate = createdDateNow();

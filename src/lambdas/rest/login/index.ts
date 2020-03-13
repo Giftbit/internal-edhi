@@ -1,7 +1,7 @@
 import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import * as uuid from "uuid/v4";
+import * as uuid from "uuid";
 import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendRegistrationVerificationEmail} from "../registration/sendRegistrationVerificationEmail";
@@ -233,7 +233,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         // Remove previously used codes that have expired.
         const usedCodeExpiration = new Date(Date.now() + totpUsedCodeTimeoutMillis).toISOString();
         for (const usedCode in user.login.mfa.totpUsedCodes) {
-            if (user.login.mfa.totpUsedCodes.hasOwnProperty(usedCode) && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
+            if (user.login.mfa.totpUsedCodes[usedCode] && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `mfa.totpUsedCodes.${usedCode}`
@@ -259,7 +259,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     }
 
     if (params.trustThisDevice) {
-        const trustedDeviceToken = uuid().replace(/-/g, "");
+        const trustedDeviceToken = uuid.v4().replace(/-/g, "");
         const trustedDevice: DbUser.TrustedDevice = {
             createdDate: createdDateNow(),
             expiresDate: new Date(Date.now() + trustedDeviceExpirationSeconds * 1000).toISOString()
@@ -321,7 +321,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
-            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
+            if (user.login.mfa.trustedDevices[trustedDeviceToken] && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`
@@ -384,7 +384,7 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  * @param additionalCookies Additional cookies that should be included in the response.
  */
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    let body: LoginResult = {
+    const body: LoginResult = {
         userId: user.userId,
         hasMfa: DbUser.hasMfaActive(user)
     };

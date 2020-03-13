@@ -27,7 +27,7 @@ export class TestRouter extends cassava.Router {
     }
 
     async testPostLoginRequest<T>(loginResp: ParsedProxyResponse<any>, url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
-        let cookie: string = "";
+        let cookie = "";
         const setCookies = loginResp.headers["Set-Cookie"].split(";");
         for (const setCookie of setCookies) {
             const keyValueMatcher = /([^=$]+)+=([^ ;]+)/.exec(setCookie);

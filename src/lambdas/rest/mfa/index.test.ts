@@ -3,7 +3,6 @@ import * as chai from "chai";
 import * as crypto from "crypto";
 import * as sinon from "sinon";
 import * as smsUtils from "../../../utils/smsUtils";
-import {sendSms} from "../../../utils/smsUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";

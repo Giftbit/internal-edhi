@@ -1,7 +1,7 @@
 import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import * as uuid from "uuid/v4";
+import * as uuid from "uuid";
 import {DbObject} from "./DbObject";
 import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
@@ -373,6 +373,6 @@ export namespace DbUser {
     }
 
     export function generateUserId(): string {
-        return "user-" + uuid().replace(/-/g, "");
+        return "user-" + uuid.v4().replace(/-/g, "");
     }
 }
