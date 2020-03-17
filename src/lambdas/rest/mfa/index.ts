@@ -1,6 +1,7 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import * as otpUtils from "../../../utils/otpUtils";
+import * as otpUtils from "../../../utils/secretsUtils";
+import {decryptSecret, encryptSecret} from "../../../utils/secretsUtils";
 import {DbUser} from "../../../db/DbUser";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {createdDateNow} from "../../../db/dynamodb";
@@ -154,9 +155,9 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     log.info("Beginning TOTP MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
-    const secret = await otpUtils.generateOtpSecret();
+    const secret = await otpUtils.generateTotpSecret();
     const totpSetup: DbUser.TotpSetup = {
-        secret: secret,
+        secret: secret.encryptedTotpSecret,
         lastCodes: [],
         createdDate: createdDateNow(),
         expiresDate: new Date(Date.now() + 5 * 60 * 1000).toISOString()
@@ -181,7 +182,7 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     }
 
     return {
-        secret
+        secret: secret.totpSecret
     };
 }
 
@@ -237,7 +238,7 @@ async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Pr
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "You have already entered this code.  Please enter the next code.");
     }
 
-    if (!(await otpUtils.validateOtpCode(user.login.mfa.totpSetup.secret, params.code))) {
+    if (!(await otpUtils.validateTotpCode(user.login.mfa.totpSetup.secret, params.code))) {
         log.info("TOTP MFA not enabled for", user.userId, "code is invalid");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
@@ -332,24 +333,39 @@ function generateCode(length: number = 6): string {
     return Array(length).fill(null).map(() => alphabet[(Math.random() * alphabet.length) | 0]).join("");
 }
 
+/**
+ * Generate a number of codes with no duplicates.
+ */
+function generateUniqueCodes(count: number, length: number = 6): string[] {
+    const codes = new Array(count).fill(null).map(() => generateCode(length));
+    if (codes.some((code, ix) => codes.indexOf(code) !== ix)) {
+        // Has duplicate.
+        return generateUniqueCodes(count, length);
+    }
+    return codes;
+}
+
 async function getOrCreateBackupCodes(user: DbUser): Promise<string[]> {
     if (!user.login.mfa) {
         throw new Error("MFA is not enabled");
     }
 
-    if (!user.login.mfa.backupCodes) {
-        const backupCodes: { [code: string]: DbUser.BackupCode } = {};
+    if (!user.login.mfa.backupCodes || !Object.keys(user.login.mfa.backupCodes).length) {
+        const unencryptedCodes = generateUniqueCodes(10);
         const createdDate = createdDateNow();
-        for (let i = 0; i < 10; i++) {
-            backupCodes[generateCode()] = {createdDate};
+
+        const backupCodes: { [code: string]: DbUser.BackupCode } = {};
+        for (const code of unencryptedCodes) {
+            backupCodes[await encryptSecret(code)] = {createdDate};
         }
         await DbUser.update(user, {
             action: "put",
             attribute: "login.mfa.backupCodes",
             value: backupCodes
         });
-        return Object.keys(backupCodes);
+
+        return unencryptedCodes;
     }
 
-    return Object.keys(user.login.mfa.backupCodes);
+    return Promise.all(Object.keys(user.login.mfa.backupCodes).map(decryptSecret));
 }

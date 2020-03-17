@@ -14,7 +14,7 @@ import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 import {Invitation} from "../../../model/Invitation";
 import chaiExclude from "chai-exclude";
-import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDatePast} from "../../../db/dynamodb";
 import {LoginResult} from "../../../model/LoginResult";
@@ -35,7 +35,7 @@ describe("/v2/account", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
-        initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
+        initializeEncryptionSecret(Promise.resolve(crypto.randomBytes(32).toString("hex")));
     });
 
     afterEach(async () => {

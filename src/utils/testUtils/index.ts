@@ -10,7 +10,7 @@ import {DbUser} from "../../db/DbUser";
 import {DbUserUniqueness} from "../../db/DbUserUniqueness";
 import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
-import {generateOtpSecret} from "../otpUtils";
+import {generateTotpSecret} from "../secretsUtils";
 import {LoginResult} from "../../model/LoginResult";
 import {Invitation} from "../../model/Invitation";
 import log = require("loglevel");
@@ -289,9 +289,9 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
  */
 export async function testEnableTotpMfa(email: string): Promise<string> {
     const user = await DbUser.get(email);
-    const secret = await generateOtpSecret();
+    const secret = await generateTotpSecret();
     const mfaSettings: DbUser.Mfa = {
-        totpSecret: secret,
+        totpSecret: secret.encryptedTotpSecret,
         totpUsedCodes: {},
         trustedDevices: {}
     };
@@ -300,7 +300,7 @@ export async function testEnableTotpMfa(email: string): Promise<string> {
         attribute: "login.mfa",
         value: mfaSettings
     });
-    return secret;
+    return secret.totpSecret;
 }
 
 /**

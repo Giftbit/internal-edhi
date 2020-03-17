@@ -82,6 +82,21 @@ Resources:
         - Key: Service
           Value: Edhi
 
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Encrypts Edhi secrets.  32 bytes as hex encoded string.
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludeCharacters: 'GHIJKLMNOPQRSTUVWXYZ'
+        ExcludeLowercase: false
+        ExcludeUppercase: true
+        ExcludePunctuation: true
+        IncludeSpace: false
+      Tags:
+        - Key: Service
+          Value: Edhi
+
   RestFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -92,6 +107,7 @@ Resources:
       Timeout: 30 # seconds, 300 max
       Environment:
         Variables:
+          ENCRYPTION_SECRET_ID: !Ref Secret
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
           LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
           LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
@@ -138,6 +154,11 @@ Resources:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Ref EdhiSecret
       Tags:
         ShortName: RestFunction
         Service: Edhi

@@ -10,7 +10,7 @@ import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
-import {validateOtpCode} from "../../../utils/otpUtils";
+import {decryptSecret, validateTotpCode} from "../../../utils/secretsUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {LoginResult} from "../../../model/LoginResult";
@@ -207,7 +207,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             operator: "attribute_exists",
             attribute: "login.mfa.smsAuthState"
         });
-    } else if (user.login.mfa.totpSecret && await validateOtpCode(user.login.mfa.totpSecret, params.code)) {
+    } else if (user.login.mfa.totpSecret && await validateTotpCode(user.login.mfa.totpSecret, params.code)) {
         // TOTP
         if (user.login.mfa.totpUsedCodes[params.code]) {
             // This code has been used recently.  Login completion is not successful but this is not a serious failure.
@@ -240,22 +240,23 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
                 });
             }
         }
-    } else if (user.login.mfa.backupCodes && user.login.mfa.backupCodes[params.code.toUpperCase()]) {
+    } else if (user.login.mfa.backupCodes && await getMatchingEncryptedBackupCode(user, params.code)) {
         // Backup code
+        const encryptedBackupCode = await getMatchingEncryptedBackupCode(user, params.code);
         userUpdates.push({
             action: "remove",
-            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${encryptedBackupCode}`
         });
 
         // With this condition login will fail unless this backup code is not yet deleted.
         // This prevents racing a quick replay of the login.
         userUpdateConditions.push({
             operator: "attribute_exists",
-            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${encryptedBackupCode}`
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-        await completeLoginFailure(user, params.sourceIp);
+        return await completeLoginFailure(user, params.sourceIp);
     }
 
     if (params.trustThisDevice) {
@@ -290,10 +291,23 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     return loginResponse;
 }
 
+async function getMatchingEncryptedBackupCode(user: DbUser, code: string): Promise<string | null> {
+    code = code.toUpperCase();
+    for (const encryptedBackupCode of Object.keys(user.login.mfa.backupCodes)) {
+        const decryptedCode = await decryptSecret(encryptedBackupCode);
+        if (decryptedCode === code) {
+            return encryptedBackupCode;
+        }
+    }
+    return null;
+}
+
+/**
+ * Complete login after the user has used MFA if required,
+ */
 async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<cassava.RouterResponse> {
     log.info("Logged in user", user.email);
 
-    // Store last login date.
     const userUpdates: dynameh.UpdateExpressionAction[] = [
         {
             action: "put",
@@ -303,20 +317,18 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         ...additionalUpdates
     ];
 
-    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0) || user.login.lockedUntilDate) {
-        // Clear failed login attempts.
-        userUpdates.push(
-            {
-                action: "remove",
-                attribute: "login.failedLoginAttempts"
-            },
-            {
-                action: "remove",
-                attribute: "login.lockedUntilDate"
-            }
-        );
+    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0)) {
+        userUpdates.push({
+            action: "remove",
+            attribute: "login.failedLoginAttempts"
+        });
     }
-
+    if (user.login.lockedUntilDate) {
+        userUpdates.push({
+            action: "remove",
+            attribute: "login.lockedUntilDate"
+        });
+    }
     if (user.login.mfa && user.login.mfa.trustedDevices) {
         // Clear expired trusted devices.
         const now = createdDateNow();

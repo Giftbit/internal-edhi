@@ -8,7 +8,7 @@ import {TestRouter} from "../../../utils/testUtils/TestRouter";
 import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
-import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
 
 describe("/v2/user/mfa", () => {
 
@@ -21,7 +21,7 @@ describe("/v2/user/mfa", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
-        initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
+        initializeEncryptionSecret(Promise.resolve(crypto.randomBytes(32).toString("hex")));
     });
 
     afterEach(async () => {
@@ -359,6 +359,10 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isArray(backupCodesResp.body);
             chai.assert.isString(backupCodesResp.body[0]);
+
+            const backupCodesAgainResp = await router.testWebAppRequest<string[]>("/v2/user/mfa/backupCodes", "GET");
+            chai.assert.equal(backupCodesAgainResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.sameMembers(backupCodesAgainResp.body, backupCodesResp.body);
         });
     });
 });
