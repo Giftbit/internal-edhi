@@ -5,6 +5,9 @@ import log = require("loglevel");
 
 /**
  * Nukes the entire ObjectTable to allow migration to be run again.
+ *
+ * This is intentionally a little harder to run.
+ * ./node_modules/.bin/ts-script unmigrate.ts
  */
 
 const dynamodb = new aws.DynamoDB({
