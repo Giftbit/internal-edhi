@@ -1,5 +1,4 @@
 import * as crypto from "crypto";
-import log = require("loglevel");
 import otplib = require("otplib");
 import otplibCore = require("otplib/core");
 
@@ -21,7 +20,6 @@ async function getEncryptionSecretBuffer(): Promise<Buffer> {
     }
     const hexString = await encryptionSecret;
     if (!/^[0-9A-Fa-f]{64}$/.test(hexString)) {
-        log.debug("hexString=", hexString);
         throw new Error("encryptionSecret is not a 32-byte hex string");
     }
     return Buffer.from(hexString, "hex");
