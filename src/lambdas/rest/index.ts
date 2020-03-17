@@ -55,7 +55,10 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
 }));
 DbUser.initializeBadgeSigningSecrets(authConfigPromise);
 
-const secretsManager = new aws.SecretsManager();
+const secretsManager = new aws.SecretsManager({
+    apiVersion: "2017-10-17",
+    region: process.env["AWS_REGION"]
+});
 initializeEncryptionSecret(secretsManager.getSecretValue({SecretId: process.env["ENCRYPTION_SECRET_ID"]}).promise().then(res => res.SecretString));
 
 initializeLightrailStripeConfig(
