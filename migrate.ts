@@ -6,6 +6,7 @@ import {DbUser} from "./src/db/DbUser";
 import {DbAccountUser} from "./src/db/DbAccountUser";
 import {DbApiKey} from "./src/db/DbApiKey";
 import {DbUserUniqueness} from "./src/db/DbUserUniqueness";
+import {encryptSecret, initializeEncryptionSecret} from "./src/utils/secretsUtils";
 import log = require("loglevel");
 import mysql = require("mysql2/promise");
 import readline = require("readline");
@@ -23,6 +24,12 @@ async function main(): Promise<void> {
     const mysqlPort = +await readLine("MySQL port (3307): ", "3307");
     const mysqlUser = "dev-160928";
     const mysqlPassword = await readPassword("MySQL database password: ");
+    const encryptionSecret = await readPassword("Encryption secret: ");
+
+    if (!/^[0-9A-Fa-f]{64}$/.test(encryptionSecret)) {
+        throw new Error("Encryption secret must be 64 hex characters.");
+    }
+    initializeEncryptionSecret(Promise.resolve(encryptionSecret));
 
     if ((await readLine(`Migrating from ${mysqlUser}@${mysqlHost}:${mysqlPort}, continue? (y/n) `)) !== "y") {
         log.info("Exiting...");
@@ -42,13 +49,13 @@ async function main(): Promise<void> {
     // enabled is unset to delete members from a team (which made them impossible to reinvite so we're intentionally forgetting about them)
     log.info("Fetching users...");
     const userRows: {
-        giftbit_user_id: string,
-        username: string,
-        team_member_id: string,
-        password: string,
-        account_locked: Buffer,
-        two_factor_authentication_device: string,
-        date_created: Date
+        giftbit_user_id: string;
+        username: string;
+        team_member_id: string;
+        password: string;
+        account_locked: Buffer;
+        two_factor_authentication_device: string;
+        date_created: Date;
     }[] = (await mysqlConnection.execute("select giftbit_user_id, username, team_member_id, password, account_locked, two_factor_authentication_device, date_created from giftbit_user where account_expired = 0 and enabled = 1"))[0];
     log.debug("userRows=", userRows);
 
@@ -79,17 +86,17 @@ async function main(): Promise<void> {
 
     log.info("Fetching roles...");
     const rolesRows: {
-        giftbit_user_id: string,
-        team_member_id: string,
-        roleString: string
+        giftbit_user_id: string;
+        team_member_id: string;
+        roleString: string;
     }[] = (await mysqlConnection.execute("select giftbit_user_id, team_member_id, GROUP_CONCAT(role SEPARATOR ', ') as roleString from granted_role group by team_member_id"))[0];
     const rolesMap = getMap(rolesRows, "team_member_id");
 
     log.info("Fetching scopes...");
     const scopesRows: {
-        giftbit_user_id: string,
-        team_member_id: string,
-        scopeString: string
+        giftbit_user_id: string;
+        team_member_id: string;
+        scopeString: string;
     }[] = (await mysqlConnection.execute("select giftbit_user_id, team_member_id, GROUP_CONCAT(scope SEPARATOR ', ') as scopeString from granted_scope group by team_member_id"))[0];
     const scopesMap = getMap(scopesRows, "team_member_id");
 
@@ -125,15 +132,15 @@ async function main(): Promise<void> {
 
     log.info("Fetching backup codes...");
     const backupCodesRows: {
-        team_member_id: string,
-        code: string,
-        date_created: Date
+        team_member_id: string;
+        code: string;
+        date_created: Date;
     }[] = (await mysqlConnection.execute("select team_member_id, code, date_created from two_factor_authentication_backup_code where active = 1"))[0];
     const backupCodesMap = getMapOfLists(backupCodesRows, "team_member_id");
 
     log.info("Calculating DbUsers...");
-    const dbUsers = userRows
-        .map(row => {
+    const dbUsers = await Promise.all(userRows
+        .map(async row => {
             const email = row.username;
             if (email.indexOf("@") === -1) {
                 throw new Error(`User ${row.team_member_id} username ${email} was expected to be an email address.`);
@@ -142,11 +149,11 @@ async function main(): Promise<void> {
             let backupCodes: { [code: string]: DbUser.BackupCode } | undefined = undefined;
             if (backupCodesMap[row.team_member_id]) {
                 backupCodes = {};
-                backupCodesMap[row.team_member_id].forEach(codeRow => {
-                    backupCodes[codeRow.code] = {
+                for (const codeRow of backupCodesMap[row.team_member_id]) {
+                    backupCodes[await encryptSecret(codeRow.code)] = {
                         createdDate: codeRow.date_created.toISOString()
                     };
-                })
+                }
             }
 
             const user: DbUser = {
@@ -175,18 +182,18 @@ async function main(): Promise<void> {
             };
 
             return user;
-        });
+        }));
     log.debug("dbUsers=", dbUsers);
 
     log.info("Fetching api keys...");
     const apiKeyRows: {
-        giftbit_user_id: string,
-        team_member_id: string,
-        name: string,
-        token_id: string,
-        token_version: number,
-        token_body_json: string,
-        date_created: Date
+        giftbit_user_id: string;
+        team_member_id: string;
+        name: string;
+        token_id: string;
+        token_version: number;
+        token_body_json: string;
+        date_created: Date;
     }[] = (await mysqlConnection.execute("select giftbit_user_id, team_member_id, name, token_id, token_version, token_body_json, date_created from stored_json_web_token where soft_deleted_date is null"))[0];
     log.debug("apiKeyRows=", apiKeyRows);
 
@@ -277,15 +284,15 @@ function readPassword(prompt: string): Promise<string> {
             output: process.stdout
         });
 
-        let keypressListener = function (c, k) {
+        const keypressListener = function (c, k): void {
             // get the number of characters entered so far:
-            var len = rl.line.length;
+            const len = rl.line.length;
             // move cursor back to the beginning of the input:
             readline.moveCursor(process.stdout, -len, 0);
             // clear everything to the right of the cursor:
             readline.clearLine(process.stdout, 1);
             // replace the original input with asterisks:
-            for (var i = 0; i < len; i++) {
+            for (let i = 0; i < len; i++) {
                 process.stdout.write("*");
             }
         };
