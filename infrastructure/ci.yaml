@@ -353,6 +353,13 @@ Resources:
           #            Action:
           #              - es:*
           #            Resource: "*"
+          - Effect: Allow
+            Action:
+              - secretsmanager:CreateSecret
+              - secretsmanager:GetRandomPassword
+              - secretsmanager:PutResourcePolicy
+              - secretsmanager:TagResource
+            Resource: "*" # This action does not support resource-level permissions. Policies granting access must specify "*" in the resource element.
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
