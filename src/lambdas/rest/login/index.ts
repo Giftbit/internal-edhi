@@ -255,7 +255,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             attribute: `login.mfa.backupCodes.${encryptedBackupCode}`
         });
     } else {
-        log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
+        log.warn("Could not log in user", auth.teamMemberId, "auth code", params.code, "did not match any known methods. smsAuthState=", user.login?.mfa?.smsAuthState);
         return await completeLoginFailure(user, params.sourceIp);
     }
 
