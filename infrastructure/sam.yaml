@@ -88,7 +88,7 @@ Resources:
       Description: Encrypts Edhi secrets.  32 bytes as hex encoded string.
       GenerateSecretString:
         PasswordLength: 64
-        ExcludeCharacters: 'GHIJKLMNOPQRSTUVWXYZ'
+        ExcludeCharacters: 'GHIJKLMNOPQRSTUVWXYZghijklmnopqrstuvwxyz'
         ExcludeLowercase: false
         ExcludeUppercase: true
         ExcludePunctuation: true
