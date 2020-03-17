@@ -28,23 +28,23 @@ export namespace DbUserUniqueness {
         return userDetails as any;
     }
 
-    export function toDbObject(userDetails: DbUserUniqueness): DbUserUniqueness & DbObject {
-        if (!userDetails) {
+    export function toDbObject(userUniqueness: DbUserUniqueness): DbUserUniqueness & DbObject {
+        if (!userUniqueness) {
             return null;
         }
         return {
-            ...userDetails,
-            ...getKeys(userDetails)
+            ...userUniqueness,
+            ...getKeys(userUniqueness)
         };
     }
 
-    export function getKeys(userDetails: DbUserUniqueness): DbObject {
-        if (!userDetails || !userDetails.userId) {
+    export function getKeys(userUniqueness: DbUserUniqueness): DbObject {
+        if (!userUniqueness || !userUniqueness.userId) {
             throw new Error("Not a valid UserDetails.");
         }
         return {
-            pk: "User/" + userDetails.userId,
-            sk: "User/" + userDetails.userId
+            pk: "User/" + userUniqueness.userId,
+            sk: "User/" + userUniqueness.userId
         };
     }
 

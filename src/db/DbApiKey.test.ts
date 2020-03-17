@@ -16,8 +16,8 @@ describe("DbApiKey", () => {
             name: "Test Key",
             tokenId: DbApiKey.generateTokenId(),
             tokenVersion: 3,
-            roles: [],
-            scopes: [],
+            roles: ["lawyer"],
+            scopes: ["monkey trial"],
             createdDate: createdDateNow()
         };
         const returned = DbApiKey.fromDbObject(DbApiKey.toDbObject(original));

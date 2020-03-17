@@ -115,7 +115,8 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
 
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account"
+        name: params.name ?? "Account",
+        createdDate
     };
     const putAccountReq = DbAccount.buildPutInput(account);
 
@@ -190,7 +191,8 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
 
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name ?? "Account"
+        name: params.name ?? "Account",
+        createdDate
     };
     const putAccountReq = DbAccount.buildPutInput(account);
 

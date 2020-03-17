@@ -289,7 +289,8 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 
     const account: DbAccount = {
         accountId: accountId,
-        name: params.name
+        name: params.name,
+        createdDate: createdDateNow()
     };
     const createAccountReq = DbAccount.buildPutInput(account);
 

@@ -15,7 +15,7 @@ export interface DbAccount {
     accountId: string;
 
     name: string;
-
+    
     /**
      * The maximum number of days a user can be inactive before their
      * account is locked.
@@ -34,6 +34,7 @@ export interface DbAccount {
      */
     requireMfa?: boolean;
 
+    createdDate: string;
 }
 
 export namespace DbAccount {

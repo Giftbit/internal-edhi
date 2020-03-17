@@ -5,6 +5,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
 import {DbUser} from "../../../db/DbUser";
 import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
+import {createdDateNow} from "../../../db/dynamodb";
 import {dynamodb, objectDynameh} from "../../../db/dynamodb";
 import log = require("loglevel");
 
@@ -107,7 +108,8 @@ function getUpdatePasswordHistoryInput(user: DbUser, userPasswordHistory: DbUser
             userId: user.userId,
             passwordHistory: {
                 [getHistoricalPasswordKey(user.login.password)]: user.login.password
-            }
+            },
+            createdDate: createdDateNow()
         };
         return DbUserPasswordHistory.buildPutInput(newUserPasswordHistory);
     }

@@ -20,6 +20,7 @@ export interface DbUserPasswordHistory {
      */
     passwordHistory?: { [key: string]: DbUser.Password };
 
+    createdDate: string;
 }
 
 export namespace DbUserPasswordHistory {

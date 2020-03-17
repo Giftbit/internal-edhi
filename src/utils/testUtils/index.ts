@@ -69,7 +69,8 @@ export namespace defaultTestUser {
     };
     export const account: DbAccount = {
         accountId: accountId,
-        name: "Test Account"
+        name: "Test Account",
+        createdDate: "2019-04-08T21:09:21.127Z"
     };
     export const accountUser: DbAccountUser = {
         accountId: accountId,

@@ -1,6 +1,7 @@
 import * as chai from "chai";
 import * as testUtils from "../utils/testUtils";
 import {DbAccount} from "./DbAccount";
+import {createdDateNow} from "./dynamodb";
 
 describe("DbAccount", () => {
 
@@ -11,7 +12,8 @@ describe("DbAccount", () => {
     it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbAccount = {
             accountId: testUtils.generateId(),
-            name: testUtils.generateId()
+            name: testUtils.generateId(),
+            createdDate: createdDateNow()
         };
         const returned = DbAccount.fromDbObject(DbAccount.toDbObject(original));
         chai.assert.deepEqual(returned, original);
@@ -20,7 +22,8 @@ describe("DbAccount", () => {
     it("can put and get an Account", async () => {
         const account: DbAccount = {
             accountId: testUtils.generateId(),
-            name: testUtils.generateId()
+            name: testUtils.generateId(),
+            createdDate: createdDateNow()
         };
 
         await DbAccount.put(account);
@@ -32,7 +35,8 @@ describe("DbAccount", () => {
     it("can partially update an Account", async () => {
         const account: DbAccount = {
             accountId: testUtils.generateId(),
-            name: testUtils.generateId()
+            name: testUtils.generateId(),
+            createdDate: createdDateNow()
         };
         await DbAccount.put(account);
 

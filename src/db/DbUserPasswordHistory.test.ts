@@ -15,7 +15,8 @@ describe("DbUserPasswordHistory", () => {
             userId: testUtils.generateId(),
             passwordHistory: {
                 [createdDateNow()]: await hashPassword(testUtils.generateId())
-            }
+            },
+            createdDate: createdDateNow()
         };
         const returned = DbUserPasswordHistory.fromDbObject(DbUserPasswordHistory.toDbObject(original));
         chai.assert.deepEqual(returned, original);
@@ -26,7 +27,8 @@ describe("DbUserPasswordHistory", () => {
             userId: testUtils.generateId(),
             passwordHistory: {
                 [createdDateNow()]: await hashPassword(testUtils.generateId())
-            }
+            },
+            createdDate: createdDateNow()
         };
         await DbUserPasswordHistory.put(userPasswordHistory);
 
