@@ -344,7 +344,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
 
     await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
 
-    const accountUser = await DbAccountUser.getForUser(user);
+    const accountUser = await DbAccountUser.getForUserLogin(user);
     const liveMode = isTestModeUserId(user.login.defaultLoginAccountId);
     return getLoginResponse(user, accountUser, liveMode);
 }

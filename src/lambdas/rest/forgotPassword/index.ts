@@ -84,6 +84,6 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
 
     log.info("User", user.email, "has changed their password through forgotPassword");
 
-    const accountUser = await DbAccountUser.getForUser(user);
+    const accountUser = await DbAccountUser.getForUserLogin(user);
     return getLoginResponse(user, accountUser, true);
 }

@@ -28,11 +28,10 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            const existingUser = await DbUser.get(evt.body.email);
-            if (!existingUser) {
-                // Don't initiate the process if the email address is already in use
-                // but don't acknowledge it either.  We don't want to expose an attack
-                // on determining who has an account.
+            if (await isEmailAddressInUse(evt.body.email)) {
+                // Don't initiate the process but don't acknowledge it either.
+                // We don't want to expose an attack on determining who has an account.
+            } else {
                 await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), evt.body.email);
             }
 
@@ -43,6 +42,10 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
                 }
             };
         });
+}
+
+async function isEmailAddressInUse(email: string): Promise<boolean> {
+    return !!await DbUser.get(email);
 }
 
 export function installChangeEmailUnauthedRest(router: cassava.Router): void {

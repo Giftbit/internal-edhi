@@ -136,7 +136,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
     } catch (error) {
         if (error.code === "TransactionCanceledException"
             && error.CancellationReasons
-            && error.CancellationReasons.length === 4
+            && error.CancellationReasons.length > 0
             && error.CancellationReasons[0].Code === "ConditionalCheckFailed"
         ) {
             // The registration failed because a user with that email address already exists.

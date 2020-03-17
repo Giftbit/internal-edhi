@@ -188,7 +188,7 @@ export namespace DbAccountUser {
     /**
      * Get the AccountUser the given User should login as.
      */
-    export async function getForUser(user: DbUser): Promise<DbAccountUser> {
+    export async function getForUserLogin(user: DbUser): Promise<DbAccountUser> {
         if (user.login.defaultLoginAccountId) {
             const accountUser = await DbAccountUser.get(user.login.defaultLoginAccountId, user.userId);
             if (accountUser && !accountUser.pendingInvitation) {
