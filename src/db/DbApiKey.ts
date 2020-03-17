@@ -1,5 +1,5 @@
 import * as aws from "aws-sdk";
-import * as uuid from "uuid/v4";
+import * as uuid from "uuid";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
 import {isTestModeUserId} from "../utils/userUtils";
@@ -136,6 +136,6 @@ export namespace DbApiKey {
     }
 
     export function generateTokenId(): string {
-        return "tok-" + uuid().replace(/-/g, "");
+        return "tok-" + uuid.v4().replace(/-/g, "");
     }
 }

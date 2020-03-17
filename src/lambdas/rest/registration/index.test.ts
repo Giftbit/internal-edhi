@@ -174,6 +174,7 @@ describe("/v2/user/register", () => {
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, email);
+        chai.assert.isDefined(inviteEmail);
 
         const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invitations/${inviteResp.body.userId}`, "DELETE");
         chai.assert.equal(deleteInvitationResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -200,7 +201,7 @@ describe("/v2/user/register", () => {
         chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
 
-        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/account/switch", "GET");
+        const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
         chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
     });

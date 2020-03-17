@@ -243,7 +243,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
 
-        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(newUser.loginResp, "/v2/account/switch", "GET");
+        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(newUser.loginResp, "/v2/user/accounts", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId === testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
@@ -319,7 +319,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
 
-        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(loginResp, "/v2/account/switch", "GET");
+        const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(loginResp, "/v2/user/accounts", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
     });
 
@@ -341,6 +341,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(inviteResp.body.accountId, testUtils.defaultTestUser.accountId);
         chai.assert.equal(inviteResp.body.email, newUser.email);
+        chai.assert.isDefined(inviteEmail);
 
         // And then cancels it.
         const deleteInvitationResp = await router.testApiRequest<Invitation>(`/v2/account/invitations/${inviteResp.body.userId}`, "DELETE");

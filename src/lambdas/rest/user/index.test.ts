@@ -7,6 +7,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {User} from "../../../model/User";
 import {initializeIntercomSecrets} from "../../../utils/intercomUtils";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 
 describe("/v2/user", () => {
 
@@ -30,6 +31,15 @@ describe("/v2/user", () => {
         chai.assert.equal(getUserResp.body.id, testUtils.defaultTestUser.userId);
     });
 
+    describe("/v2/user/accounts", () => {
+        it("lists Accounts the user can switch to (SwitchableAccounts)", async () => {
+            const resp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
+            chai.assert.lengthOf(resp.body, 1);
+            chai.assert.equal(resp.body[0].accountId, testUtils.defaultTestUser.accountId);
+            chai.assert.equal(resp.body[0].isCurrentAccount, true);
+        });
+    });
+
     describe("/v2/user/intercom", () => {
         const testId = testUtils.defaultTestUser.userId.replace("-TEST", "");
 
@@ -38,7 +48,7 @@ describe("/v2/user", () => {
                 .update(testId)
                 .digest("hex");
 
-            const resp = await router.testWebAppRequest<{ userHash: string; teamMemberId: string; }>("/v2/user/intercom", "GET");
+            const resp = await router.testWebAppRequest<{ userHash: string, teamMemberId: string }>("/v2/user/intercom", "GET");
             chai.assert.equal(resp.statusCode, 200);
             chai.assert.equal(expectedOutput, resp.body.userHash);
             chai.assert.equal(testId, resp.body.teamMemberId);

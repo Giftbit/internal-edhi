@@ -2,7 +2,7 @@ import Stripe = require("stripe");
 import log = require("loglevel");
 import * as giftbitRoutes from "giftbit-cassava-routes";
 
-const stripeApiVersion: string = "2018-05-21";
+const stripeApiVersion = "2018-05-21";
 const stripeClientCache: { [key: string]: Stripe } = {};
 let stripeConfig: giftbitRoutes.secureConfig.StripeConfig;
 let stripeConfigPromise: Promise<giftbitRoutes.secureConfig.StripeConfig>;

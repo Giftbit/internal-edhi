@@ -1,10 +1,11 @@
+import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as logPrefix from "loglevel-plugin-prefix";
 import {installUnauthedRestRoutes} from "./installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "./installAuthedRestRoutes";
 import {initializeLightrailStripeConfig} from "../../utils/stripeUtils";
-import {initializeOtpEncryptionSecrets} from "../../utils/otpUtils";
+import {initializeEncryptionSecret} from "../../utils/secretsUtils";
 import {initializeTwilioCredentials, TwilioCredentialsConfig} from "../../utils/smsUtils";
 import {initializeIntercomSecrets, IntercomSecrets} from "../../utils/intercomUtils";
 import {DbUser} from "../../db/DbUser";
@@ -54,6 +55,9 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
 }));
 DbUser.initializeBadgeSigningSecrets(authConfigPromise);
 
+const secretsManager = new aws.SecretsManager();
+initializeEncryptionSecret(secretsManager.getSecretValue({SecretId: process.env["ENCRYPTION_SECRET_ID"]}).promise().then(res => res.SecretString));
+
 initializeLightrailStripeConfig(
     giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.StripeConfig>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_STRIPE")
 );
@@ -64,10 +68,6 @@ initializeTwilioCredentials(
 
 initializeIntercomSecrets(
     giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<IntercomSecrets>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_INTERCOM_SECRET")
-);
-
-initializeOtpEncryptionSecrets(
-    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<{ key: string }>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_OTP")
 );
 
 installAuthedRestRoutes(router);

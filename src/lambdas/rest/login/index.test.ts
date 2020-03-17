@@ -11,7 +11,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import * as smsUtils from "../../../utils/smsUtils";
-import {generateSkewedOtpCode, initializeOtpEncryptionSecrets} from "../../../utils/otpUtils";
+import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
 import {LoginResult} from "../../../model/LoginResult";
 import {Account} from "../../../model/Account";
 
@@ -26,7 +26,7 @@ describe("/v2/user/login", () => {
         router.route(testUtils.authRoute);
         installAuthedRestRoutes(router);
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
-        initializeOtpEncryptionSecrets(Promise.resolve({key: crypto.randomBytes(32).toString("hex")}));
+        initializeEncryptionSecret(Promise.resolve(crypto.randomBytes(32).toString("hex")));
     });
 
     afterEach(async () => {

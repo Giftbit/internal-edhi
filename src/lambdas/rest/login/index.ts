@@ -1,16 +1,16 @@
 import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import * as uuid from "uuid/v4";
+import * as uuid from "uuid";
 import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
-import {sendEmailAddressVerificationEmail} from "../registration/sendEmailAddressVerificationEmail";
+import {sendRegistrationVerificationEmail} from "../registration/sendRegistrationVerificationEmail";
 import {DbUser} from "../../../db/DbUser";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
-import {validateOtpCode} from "../../../utils/otpUtils";
+import {decryptSecret, validateTotpCode} from "../../../utils/secretsUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {LoginResult} from "../../../model/LoginResult";
@@ -18,7 +18,7 @@ import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
 const failedLoginTimoutMinutes = 60;
-const trustedDeviceExpirationDays = 14;
+const trustedDeviceExpirationSeconds = 14 * 24 * 60 * 60;
 const totpUsedCodeTimeoutMillis = 3 * 60 * 1000;
 
 export function installLoginUnauthedRest(router: cassava.Router): void {
@@ -131,7 +131,7 @@ async function loginUser(params: { email: string, plaintextPassword: string, sou
     }
     if (!user.login.emailVerified) {
         log.warn("Could not log in user", params.email, "email is not verified");
-        await sendEmailAddressVerificationEmail(user.email);
+        await sendRegistrationVerificationEmail(user.email);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
     }
     if (user.login.frozen) {
@@ -207,7 +207,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             operator: "attribute_exists",
             attribute: "login.mfa.smsAuthState"
         });
-    } else if (user.login.mfa.totpSecret && await validateOtpCode(user.login.mfa.totpSecret, params.code)) {
+    } else if (user.login.mfa.totpSecret && await validateTotpCode(user.login.mfa.totpSecret, params.code)) {
         // TOTP
         if (user.login.mfa.totpUsedCodes[params.code]) {
             // This code has been used recently.  Login completion is not successful but this is not a serious failure.
@@ -233,36 +233,37 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
         // Remove previously used codes that have expired.
         const usedCodeExpiration = new Date(Date.now() + totpUsedCodeTimeoutMillis).toISOString();
         for (const usedCode in user.login.mfa.totpUsedCodes) {
-            if (user.login.mfa.totpUsedCodes.hasOwnProperty(usedCode) && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
+            if (user.login.mfa.totpUsedCodes[usedCode] && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `mfa.totpUsedCodes.${usedCode}`
                 });
             }
         }
-    } else if (user.login.mfa.backupCodes && user.login.mfa.backupCodes[params.code.toUpperCase()]) {
+    } else if (user.login.mfa.backupCodes && await getMatchingEncryptedBackupCode(user, params.code)) {
         // Backup code
+        const encryptedBackupCode = await getMatchingEncryptedBackupCode(user, params.code);
         userUpdates.push({
             action: "remove",
-            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${encryptedBackupCode}`
         });
 
         // With this condition login will fail unless this backup code is not yet deleted.
         // This prevents racing a quick replay of the login.
         userUpdateConditions.push({
             operator: "attribute_exists",
-            attribute: `login.mfa.backupCodes.${params.code.toUpperCase()}`
+            attribute: `login.mfa.backupCodes.${encryptedBackupCode}`
         });
     } else {
         log.warn("Could not log in user", auth.teamMemberId, "auth code did not match any known methods");
-        await completeLoginFailure(user, params.sourceIp);
+        return await completeLoginFailure(user, params.sourceIp);
     }
 
     if (params.trustThisDevice) {
-        const trustedDeviceToken = uuid().replace(/-/g, "");
+        const trustedDeviceToken = uuid.v4().replace(/-/g, "");
         const trustedDevice: DbUser.TrustedDevice = {
             createdDate: createdDateNow(),
-            expiresDate: new Date(Date.now() + trustedDeviceExpirationDays * 24 * 60 * 60 * 1000).toISOString()
+            expiresDate: new Date(Date.now() + trustedDeviceExpirationSeconds * 1000).toISOString()
         };
         userUpdates.push({
             action: "put",
@@ -273,7 +274,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             value: trustedDeviceToken,
             options: {
                 httpOnly: true,
-                maxAge: trustedDeviceExpirationDays * 24 * 60 * 60, // 14 days
+                maxAge: trustedDeviceExpirationSeconds,
                 path: "/",
                 secure: true
             }
@@ -290,10 +291,23 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
     return loginResponse;
 }
 
+async function getMatchingEncryptedBackupCode(user: DbUser, code: string): Promise<string | null> {
+    code = code.toUpperCase();
+    for (const encryptedBackupCode of Object.keys(user.login.mfa.backupCodes)) {
+        const decryptedCode = await decryptSecret(encryptedBackupCode);
+        if (decryptedCode === code) {
+            return encryptedBackupCode;
+        }
+    }
+    return null;
+}
+
+/**
+ * Complete login after the user has used MFA if required,
+ */
 async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.UpdateExpressionAction[] = [], updateConditions: dynameh.Condition[] = []): Promise<cassava.RouterResponse> {
     log.info("Logged in user", user.email);
 
-    // Store last login date.
     const userUpdates: dynameh.UpdateExpressionAction[] = [
         {
             action: "put",
@@ -303,25 +317,23 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         ...additionalUpdates
     ];
 
-    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0) || user.login.lockedUntilDate) {
-        // Clear failed login attempts.
-        userUpdates.push(
-            {
-                action: "remove",
-                attribute: "login.failedLoginAttempts"
-            },
-            {
-                action: "remove",
-                attribute: "login.lockedUntilDate"
-            }
-        );
+    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0)) {
+        userUpdates.push({
+            action: "remove",
+            attribute: "login.failedLoginAttempts"
+        });
     }
-
+    if (user.login.lockedUntilDate) {
+        userUpdates.push({
+            action: "remove",
+            attribute: "login.lockedUntilDate"
+        });
+    }
     if (user.login.mfa && user.login.mfa.trustedDevices) {
         // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
-            if (user.login.mfa.trustedDevices.hasOwnProperty(trustedDeviceToken) && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
+            if (user.login.mfa.trustedDevices[trustedDeviceToken] && user.login.mfa.trustedDevices[trustedDeviceToken].expiresDate < now) {
                 userUpdates.push({
                     action: "remove",
                     attribute: `login.mfa.trustedDevices.${trustedDeviceToken}`
@@ -384,7 +396,7 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  * @param additionalCookies Additional cookies that should be included in the response.
  */
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    let body: LoginResult = {
+    const body: LoginResult = {
         userId: user.userId,
         hasMfa: DbUser.hasMfaActive(user)
     };

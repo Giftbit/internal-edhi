@@ -2,6 +2,7 @@ import * as cassava from "cassava";
 import * as chai from "chai";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
+import * as uuid from "uuid";
 import * as emailUtils from "../emailUtils";
 import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
 import {DbAccountUser} from "../../db/DbAccountUser";
@@ -9,11 +10,10 @@ import {DbUser} from "../../db/DbUser";
 import {DbUserUniqueness} from "../../db/DbUserUniqueness";
 import {DbAccount} from "../../db/DbAccount";
 import {ParsedProxyResponse, TestRouter} from "./TestRouter";
-import {generateOtpSecret} from "../otpUtils";
+import {generateTotpSecret} from "../secretsUtils";
 import {LoginResult} from "../../model/LoginResult";
 import {Invitation} from "../../model/Invitation";
 import log = require("loglevel");
-import uuid = require("uuid/v4");
 
 if (!process.env["TEST_ENV"]) {
     log.error("Env var TEST_ENV is undefined.  This is not a test environment!");
@@ -290,9 +290,9 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
  */
 export async function testEnableTotpMfa(email: string): Promise<string> {
     const user = await DbUser.get(email);
-    const secret = await generateOtpSecret();
+    const secret = await generateTotpSecret();
     const mfaSettings: DbUser.Mfa = {
-        totpSecret: secret,
+        totpSecret: secret.encryptedTotpSecret,
         totpUsedCodes: {},
         trustedDevices: {}
     };
@@ -301,7 +301,7 @@ export async function testEnableTotpMfa(email: string): Promise<string> {
         attribute: "login.mfa",
         value: mfaSettings
     });
-    return secret;
+    return secret.totpSecret;
 }
 
 /**
@@ -322,5 +322,5 @@ export async function testEnableSmsMfa(email: string): Promise<void> {
 }
 
 export function generateId(length?: number): string {
-    return (uuid() + uuid()).substring(0, length != null ? length : 20);
+    return (uuid.v4() + uuid.v4()).substring(0, length != null ? length : 20);
 }

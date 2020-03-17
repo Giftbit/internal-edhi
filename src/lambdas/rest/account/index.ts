@@ -5,7 +5,6 @@ import {DbAccountUser} from "../../../db/DbAccountUser";
 import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {setUserIdTestMode, stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbUser} from "../../../db/DbUser";
-import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {AccountUser} from "../../../model/AccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {Account} from "../../../model/Account";
@@ -87,19 +86,6 @@ export function installAccountRest(router: cassava.Router): void {
             return {
                 body: Account.getFromDbAccount(account),
                 statusCode: cassava.httpStatusCode.success.CREATED
-            };
-        });
-
-    router.route("/v2/account/switch")
-        .method("GET")
-        .handler(async evt => {
-            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
-            auth.requireScopes("lightrailV2:user:read");
-            auth.requireIds("teamMemberId");
-            const accountUsers = await DbAccountUser.getAllForUser(auth.teamMemberId);
-            const currentAccount = stripUserIdTestMode(auth.userId);
-            return {
-                body: accountUsers.map(accountUser => SwitchableAccount.fromDbAccountUser(accountUser, accountUser.accountId === currentAccount))
             };
         });
 

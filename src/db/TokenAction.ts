@@ -1,4 +1,4 @@
-import * as uuid from "uuid/v4";
+import * as uuid from "uuid";
 import {dynamodb, tokenActionDynameh} from "./dynamodb";
 
 /**
@@ -25,7 +25,7 @@ export namespace TokenAction {
 
     export function generate(action: Action, durationInHours: number, params: GenerateAdditionalParams): TokenAction {
         return {
-            token: uuid().replace(/-/g, ""),
+            token: uuid.v4().replace(/-/g, ""),
             action: action,
             ttl: new Date(Date.now() + durationInHours * 60 * 60 * 1000),
             ...params

@@ -3,6 +3,9 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {User} from "../../../model/User";
 import {hashIntercomUserId} from "../../../utils/intercomUtils";
 import {DbUser} from "../../../db/DbUser";
+import {DbAccountUser} from "../../../db/DbAccountUser";
+import {stripUserIdTestMode} from "../../../utils/userUtils";
+import {SwitchableAccount} from "../../../model/SwitchableAccount";
 
 export function installUserRest(router: cassava.Router): void {
     router.route("/v2/user")
@@ -18,6 +21,19 @@ export function installUserRest(router: cassava.Router): void {
             }
             return {
                 body: User.getFromDbUser(user)
+            };
+        });
+
+    router.route("/v2/user/accounts")
+        .method("GET")
+        .handler(async evt => {
+            const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
+            auth.requireScopes("lightrailV2:user:read");
+            auth.requireIds("teamMemberId");
+            const accountUsers = await DbAccountUser.getAllForUser(auth.teamMemberId);
+            const currentAccount = stripUserIdTestMode(auth.userId);
+            return {
+                body: accountUsers.map(accountUser => SwitchableAccount.fromDbAccountUser(accountUser, accountUser.accountId === currentAccount))
             };
         });
 
