@@ -515,6 +515,27 @@ describe("/v2/user/login", () => {
             await assertFullyLoggedIn(loginCompleteResp);
         });
 
+        it("can complete login with a case-insensitive backup code", async () => {
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .callsFake(async params => {
+                });
+
+            const backupCodesResp = await router.testWebAppRequest<string[]>("/v2/user/mfa/backupCodes", "GET");
+            chai.assert.equal(backupCodesResp.statusCode, cassava.httpStatusCode.success.OK);
+
+            const loginResp = await router.testUnauthedRequest("/v2/user/login", "POST", {
+                email: testUtils.defaultTestUser.email,
+                password: testUtils.defaultTestUser.password
+            });
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+
+            const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
+                code: backupCodesResp.body[0].toLowerCase()
+            });
+            await assertFullyLoggedIn(loginCompleteResp);
+        });
+
         it("cannot use the same backup code twice", async () => {
             await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
             sinonSandbox.stub(smsUtils, "sendSms")
