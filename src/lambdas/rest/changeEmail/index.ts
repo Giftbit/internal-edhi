@@ -38,7 +38,7 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
 
             return {
                 body: {
-                    // This is really lazy but it's not worth the time to soften his rough edge right now.
+                    // This is really lazy but it's not worth the time to soften this rough edge right now.
                     message: "If this email address is not already in use an email will be sent to confirm the new address."
                 }
             };
@@ -53,7 +53,7 @@ export function installChangeEmailUnauthedRest(router: cassava.Router): void {
 
             return {
                 body: {
-                    // This is really lazy but it's not worth the time to soften his rough edge right now.
+                    // This is really lazy but it's not worth the time to soften this rough edge right now.
                     message: "You have successfully changed your email address.  Please log in to continue."
                 }
             };
