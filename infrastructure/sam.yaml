@@ -1,0 +1,198 @@
+# see https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Edhi takes care of users
+
+Parameters:
+  LightrailDomain:
+    Type: String
+    Description: The domain of the Lightrail REST API
+    AllowedPattern: (\w+\.)+\w{3}
+  LightrailEmailDomain:
+    Type: String
+    Description: The lightrail email domain.
+    AllowedPattern: (\w+\.)+\w{3}
+  LightrailWebappDomain:
+    Type: String
+    Description: The domain of the Lightrail web app
+    AllowedPattern: (\w+\.)+\w{3}
+  SecureConfigBucket:
+    Type: String
+    Description: Name of the S3 bucket holding the JWT secure config
+  SecureConfigKmsArn:
+    Type: String
+    Description: Optional ARN of the KMS encrypting SecureConfigBucket
+    AllowedPattern: arn:aws:kms:[a-zA-Z_0-9\-]+:\d{12}:key/[a-zA-Z_0-9+=,.@\-_/]+
+
+Resources:
+  ObjectTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: pk2
+          AttributeType: S
+        - AttributeName: sk2
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: EdhiIx2
+          KeySchema:
+            - AttributeName: pk2
+              KeyType: HASH
+            - AttributeName: sk2
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: ShortName
+          Value: ObjectTable
+        - Key: Service
+          Value: Edhi
+
+  # Separate from ObjectTable to support TTL.
+  TokenActionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: token
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: ShortName
+          Value: TokenActionTable
+        - Key: Service
+          Value: Edhi
+
+  EdhiSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Encrypts Edhi secrets.  32 bytes as hex encoded string.
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludeCharacters: 'GHIJKLMNOPQRSTUVWXYZghijklmnopqrstuvwxyz'
+        ExcludeLowercase: false
+        ExcludeUppercase: true
+        ExcludePunctuation: true
+        IncludeSpace: false
+      Tags:
+        - Key: Service
+          Value: Edhi
+
+  RestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../dist/rest/rest.zip
+      Handler: index.handler
+      Runtime: nodejs10.x
+      MemorySize: 128
+      Timeout: 30 # seconds, 300 max
+      Environment:
+        Variables:
+          ENCRYPTION_SECRET_ID: !Ref EdhiSecret
+          LIGHTRAIL_DOMAIN: !Ref LightrailDomain
+          LIGHTRAIL_EMAIL_DOMAIN: !Ref LightrailEmailDomain
+          LIGHTRAIL_WEBAPP_DOMAIN: !Ref LightrailWebappDomain
+          OBJECT_TABLE: !Ref ObjectTable
+          SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
+          SECURE_CONFIG_KEY_ASSUME_STORAGE_SCOPE_TOKEN: assumeStorageScopeToken.json
+          SECURE_CONFIG_KEY_INTERCOM_SECRET: intercom_secrets.json
+          SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
+          SECURE_CONFIG_KEY_OTP: otp.json
+          SECURE_CONFIG_KEY_ROLE_DEFINITIONS: RoleDefinitions.json
+          SECURE_CONFIG_KEY_SENTRY: sentry_lambda_services.json
+          SECURE_CONFIG_KEY_STRIPE: stripe_connect.json
+          SECURE_CONFIG_KEY_TWILIO: twilio.json
+          TOKEN_ACTION_TABLE: !Ref TokenActionTable
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/assumeStorageScopeToken.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/intercom_secrets.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/otp.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/RoleDefinitions.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/sentry_lambda_services.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/stripe_connect.json"
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/twilio.json"
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:DescribeKey
+              Resource:
+                - !Ref SecureConfigKmsArn
+              Condition:
+                StringLike:
+                  "kms:ViaService":
+                    !Sub "s3.${AWS::Region}.amazonaws.com"
+                  "kms:EncryptionContext:aws:s3:arn":
+                    !Sub "arn:aws:s3:::${SecureConfigBucket}/*"
+            - Effect: Allow
+              Action:
+                - dynamodb:BatchGetItem
+                - dynamodb:DescribeTable
+                - dynamodb:DeleteItem
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:Query
+                - dynamodb:UpdateItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*/index/EdhiIx2"
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeTable
+                - dynamodb:DeleteItem
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TokenActionTable}"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TokenActionTable}/*"
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Ref EdhiSecret
+      Tags:
+        ShortName: RestFunction
+        Service: Edhi
+      Events:
+        RestApi:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        KeepWarmSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(4 minutes)
+            Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/healthCheck\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
