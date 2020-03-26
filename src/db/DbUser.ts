@@ -297,12 +297,8 @@ export namespace DbUser {
     export function getOrphanBadge(user: DbUser): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.teamMemberId = user.userId;
-        auth.roles = [];
-        auth.scopes = [
-            "lightrailV2:account:create",
-            "lightrailV2:user:read",
-            "lightrailV2:user:update"
-        ];
+        auth.roles = ["self"];
+        auth.scopes = [];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
         auth.expirationTime = new Date(Date.now() + 180 * 60 * 1000);
