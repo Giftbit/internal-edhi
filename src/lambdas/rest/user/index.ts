@@ -16,9 +16,6 @@ export function installUserRest(router: cassava.Router): void {
             auth.requireIds("userId");
 
             const user = await DbUser.getByAuth(auth);
-            if (!user) {
-                throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND);
-            }
             return {
                 body: User.getFromDbUser(user)
             };
