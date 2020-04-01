@@ -70,9 +70,9 @@ describe("/v2/account/invitations", () => {
         const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
-        chai.assert.match(acceptInvitationResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
+        chai.assert.match(acceptInvitationResp.headers["Location"], /\/app\/#\/resetPassword\?token=[a-zA-Z0-9]*/);
 
-        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInvitationResp.headers["Location"])[1];
+        const resetPasswordToken = /\/app\/#\/resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptInvitationResp.headers["Location"])[1];
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();
@@ -141,7 +141,7 @@ describe("/v2/account/invitations", () => {
         const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
-        chai.assert.match(acceptInvitationResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
+        chai.assert.match(acceptInvitationResp.headers["Location"], /\/app\/#\/resetPassword\?token=[a-zA-Z0-9]*/);
     });
 
     it("can cancel an invitation and then resend it", async () => {
@@ -196,9 +196,9 @@ describe("/v2/account/invitations", () => {
         const acceptReinviteResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptReinviteToken}`, "GET");
         chai.assert.equal(acceptReinviteResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptReinviteResp.bodyRaw);
         chai.assert.isString(acceptReinviteResp.headers["Location"]);
-        chai.assert.match(acceptReinviteResp.headers["Location"], /https:\/\/.*resetPassword\?token=[a-zA-Z0-9]*/);
+        chai.assert.match(acceptReinviteResp.headers["Location"], /\/app\/#\/resetPassword\?token=[a-zA-Z0-9]*/);
 
-        const resetPasswordToken = /https:\/\/.*resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptReinviteResp.headers["Location"])[1];
+        const resetPasswordToken = /\/app\/#\/resetPassword\?token=([a-zA-Z0-9]*)/.exec(acceptReinviteResp.headers["Location"])[1];
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();

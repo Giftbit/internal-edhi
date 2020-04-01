@@ -70,7 +70,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 body: null,
                 statusCode: cassava.httpStatusCode.redirect.FOUND,
                 headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+                    Location: "/app/#"
                 }
             };
         });
@@ -297,7 +297,7 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
             body: null,
             statusCode: cassava.httpStatusCode.redirect.FOUND,
             headers: {
-                Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
+                Location: `/app/#/resetPassword?token=${encodeURIComponent(setPasswordTokenAction.token)}`
             }
         };
     }
