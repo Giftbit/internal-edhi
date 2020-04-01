@@ -52,7 +52,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
                 body: null,
                 statusCode: cassava.httpStatusCode.redirect.FOUND,
                 headers: {
-                    Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+                    Location: "/app/#"
                 },
                 cookies: {
                     "gb_jwt_session": {
@@ -429,7 +429,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         body: body,
         statusCode: cassava.httpStatusCode.redirect.FOUND,
         headers: {
-            Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+            Location: "/app/#"
         },
         cookies: {
             ...await DbUser.getBadgeCookies(badge),
@@ -451,7 +451,7 @@ async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): P
         body: body,
         statusCode: cassava.httpStatusCode.redirect.FOUND,
         headers: {
-            Location: `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#`
+            Location: "/app/#"
         },
         cookies: await DbUser.getBadgeCookies(badge)
     };
