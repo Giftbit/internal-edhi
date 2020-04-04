@@ -69,7 +69,7 @@ export function installMfaRest(router: cassava.Router): void {
             const res = await completeEnableMfa(auth, evt.body);
             return {
                 body: res,
-                statusCode: res.complete ? cassava.httpStatusCode.success.OK : cassava.httpStatusCode.success.ACCEPTED
+                statusCode: res.complete ? cassava.httpStatusCode.success.OK : cassava.httpStatusCode.success.OK
             };
         });
 

@@ -80,16 +80,14 @@ describe("/v2/account/invitations", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(completeResp.headers["Location"]);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
 
         const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
             password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
@@ -206,8 +204,7 @@ describe("/v2/account/invitations", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(completeResp.headers["Location"]);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("can invite a user to an account that already has its own account", async () => {
@@ -252,8 +249,7 @@ describe("/v2/account/invitations", () => {
             accountId: testUtils.defaultTestUser.accountId,
             mode: "test"
         });
-        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
-        chai.assert.isString(switchAccountResp.headers["Location"]);
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.notEqual(switchAccountResp.headers["Set-Cookie"], newUser.loginResp.headers["Set-Cookie"]);
         chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
         chai.assert.match(switchAccountResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
@@ -309,7 +305,7 @@ describe("/v2/account/invitations", () => {
             email,
             password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(loginResp.body.messageCode);
 
         const acceptInvitationToken = /https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvitation\?token=([a-zA-Z0-9]*)/.exec(inviteEmail.htmlBody)[1];
@@ -351,7 +347,7 @@ describe("/v2/account/invitations", () => {
             email: newUser.email,
             password: newUser.password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(loginResp.body.messageCode);
 
         const getAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "GET");

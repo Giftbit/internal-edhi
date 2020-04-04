@@ -43,7 +43,7 @@ describe("/v2/user/changePassword", () => {
             email: testUtils.defaultTestUser.user.email,
             password: newPassword
         });
-        chai.assert.equal(newPasswordLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(newPasswordLoginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isString(newPasswordLoginResp.headers["Set-Cookie"]);
         chai.assert.match(newPasswordLoginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(newPasswordLoginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);

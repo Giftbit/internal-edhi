@@ -209,7 +209,7 @@ export async function testRegisterNewUser(router: TestRouter, sinonSandbox: sino
         email,
         password
     });
-    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
     chai.assert.isUndefined(loginResp.body.messageCode);
 
     return {
@@ -268,14 +268,13 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
         token: resetPasswordToken,
         password
     });
-    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
 
     const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
         email,
         password
     });
-    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-    chai.assert.equal(loginResp.headers["Location"], "/app/#");
+    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
     return {
         loginResp: loginResp,

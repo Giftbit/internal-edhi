@@ -49,8 +49,8 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/logout")
         .handler(async () => {
             return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                body: {},
+                statusCode: cassava.httpStatusCode.success.OK,
                 headers: {
                     Location: "/app/#"
                 },
@@ -427,10 +427,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
 
     return {
         body: body,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        },
+        statusCode: cassava.httpStatusCode.success.OK,
         cookies: {
             ...await DbUser.getBadgeCookies(badge),
             ...additionalCookies
@@ -449,10 +446,7 @@ async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): P
 
     return {
         body: body,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        },
+        statusCode: cassava.httpStatusCode.success.OK,
         cookies: await DbUser.getBadgeCookies(badge)
     };
 }
