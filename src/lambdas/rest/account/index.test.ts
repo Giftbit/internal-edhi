@@ -173,8 +173,14 @@ describe("/v2/account", () => {
     it("can remove the user from the account", async () => {
         const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
+        const newUserTestModeResp = await router.testPostLoginRequest<LoginResult>(newUser.loginResp, "/v2/account/switch", "POST", {
+            accountId: testUtils.defaultTestUser.accountId,
+            mode: "test"
+        });
+        chai.assert.equal(newUserTestModeResp.statusCode, cassava.httpStatusCode.success.OK, newUserTestModeResp.bodyRaw);
+
         // New account creates an API key.
-        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
+        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUserTestModeResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
         chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);

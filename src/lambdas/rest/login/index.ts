@@ -345,7 +345,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
     await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
 
     const accountUser = await DbAccountUser.getForUserLogin(user);
-    const liveMode = isTestModeUserId(user.login.defaultLoginAccountId);
+    const liveMode = !isTestModeUserId(user.login.defaultLoginAccountId);
     return getLoginResponse(user, accountUser, liveMode);
 }
 
@@ -398,6 +398,8 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const body: LoginResult = {
         userId: user.userId,
+        userEmail: user.email,
+        mode: liveMode ? "live" : "test",
         hasMfa: DbUser.hasMfaActive(user)
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
@@ -439,6 +441,8 @@ async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): P
     const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
         userId: null,
+        userEmail: null,
+        mode: "live",
         hasMfa: DbUser.hasMfaActive(user),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
