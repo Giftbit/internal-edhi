@@ -14,6 +14,7 @@ import {decryptSecret, validateTotpCode} from "../../../utils/secretsUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {LoginResult} from "../../../model/LoginResult";
+import {User} from "../../../model/User";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -397,21 +398,19 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  */
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const body: LoginResult = {
-        userId: user.userId,
-        userEmail: user.email,
-        mode: liveMode ? "live" : "test",
-        hasMfa: DbUser.hasMfaActive(user)
+        user: User.getFromDbUser(user),
+        mode: liveMode ? "live" : "test"
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
     const account = accountUser && await DbAccount.get(accountUser.accountId);
-    log.debug("Get login response for account=", account, "hasMfa=", body.hasMfa);
+    log.debug("Get login response for account=", account, "user=", body.user);
 
     if (!account) {
         body.message = "You have been removed from all Accounts.  You can create your own to continue.";
         body.messageCode = "NoAccount";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.requireMfa && !body.hasMfa) {
+    } else if (account.requireMfa && !body.user.hasMfa) {
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
         badge = DbUser.getOrphanBadge(user);
@@ -440,10 +439,8 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
 async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
-        userId: null,
-        userEmail: null,
+        user: User.getFromDbUser(user),
         mode: "live",
-        hasMfa: DbUser.hasMfaActive(user),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
     };

@@ -617,7 +617,7 @@ describe("/v2/account", () => {
                 mode: "test"
             });
             chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountNoMfaResp.bodyRaw);
-            chai.assert.equal(switchAccountNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(switchAccountNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(switchAccountNoMfaResp.body.messageCode, "AccountMfaRequired");
             chai.assert.isString(switchAccountNoMfaResp.headers["Set-Cookie"]);
 
@@ -631,7 +631,7 @@ describe("/v2/account", () => {
                 mode: "test"
             });
             chai.assert.equal(switchAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountWithMfaResp.bodyRaw);
-            chai.assert.equal(switchAccountWithMfaResp.body.hasMfa, true);
+            chai.assert.equal(switchAccountWithMfaResp.body.user.hasMfa, true);
             chai.assert.notEqual(switchAccountWithMfaResp.body.messageCode, "AccountMfaRequired");
             chai.assert.isString(switchAccountWithMfaResp.headers["Set-Cookie"]);
 
@@ -649,7 +649,7 @@ describe("/v2/account", () => {
                 password: testUtils.defaultTestUser.password
             });
             chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
-            chai.assert.equal(loginNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
             chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
 
@@ -668,7 +668,7 @@ describe("/v2/account", () => {
                 code: await generateSkewedOtpCode(totpSecret, -2000)
             });
             chai.assert.equal(loginWithMfaCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.equal(loginWithMfaCompleteResp.body.hasMfa, true);
+            chai.assert.equal(loginWithMfaCompleteResp.body.user.hasMfa, true);
             chai.assert.notEqual(loginWithMfaCompleteResp.body.messageCode, "AccountMfaRequired");
             chai.assert.isString(loginWithMfaCompleteResp.headers["Set-Cookie"]);
 
@@ -684,7 +684,7 @@ describe("/v2/account", () => {
                 password: newUser.password
             });
             chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
-            chai.assert.equal(loginNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
             chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
 

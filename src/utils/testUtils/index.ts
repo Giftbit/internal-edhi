@@ -280,7 +280,7 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
         loginResp: loginResp,
         email: email,
         password: password,
-        userId: loginResp.body.userId
+        userId: loginResp.body.user.id
     };
 }
 

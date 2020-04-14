@@ -38,8 +38,9 @@ describe("/v2/user/login", () => {
 
     async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<LoginResult>): Promise<void> {
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isString(loginResp.body.userId);
-        chai.assert.isString(loginResp.body.userEmail);
+        chai.assert.isObject(loginResp.body.user);
+        chai.assert.isString(loginResp.body.user.id);
+        chai.assert.isString(loginResp.body.user.email);
         chai.assert.equal(loginResp.body.mode, "test");
         chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
