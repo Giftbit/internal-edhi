@@ -86,7 +86,7 @@ describe("/v2/account/apiKeys", () => {
             accountId: testUtils.defaultTestUser.accountId,
             mode: "live"
         });
-        chai.assert.equal(liveSwitchResp.statusCode, cassava.httpStatusCode.redirect.FOUND, liveSwitchResp.bodyRaw);
+        chai.assert.equal(liveSwitchResp.statusCode, cassava.httpStatusCode.success.OK, liveSwitchResp.bodyRaw);
 
         const createLiveKeyResp = await router.testPostLoginRequest<ApiKey>(liveSwitchResp, "/v2/account/apiKeys", "POST", {
             name: generateId()

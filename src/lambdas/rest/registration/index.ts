@@ -17,7 +17,7 @@ import {DbUser} from "../../../db/DbUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
-import {getLoginResponse} from "../login";
+import * as dynameh from "dynameh";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -250,22 +250,30 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
     if (!user) {
         throw new Error(`Cannot accept account invitation: can't find User with id ${acceptInvitationTokenAction.userId}`);
     }
+    const userUpdateActions: dynameh.UpdateExpressionAction[] = [
+        {
+            action: "put",
+            attribute: "login.defaultLoginAccountId",
+            value: acceptInvitationTokenAction.accountId
+        }
+    ];
     if (!user.login.emailVerified) {
         // Accepting the invite verifies the email address.
-        const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
-            DbUser.getKeys(user),
-            {
-                action: "put",
-                attribute: "login.emailVerified",
-                value: true
-            }
-        );
-        objectDynameh.requestBuilder.addCondition(updateUserReq, {
-            attribute: "pk",
-            operator: "attribute_exists"
+        userUpdateActions.push({
+            action: "put",
+            attribute: "login.emailVerified",
+            value: true
         });
-        updates.push(updateUserReq);
     }
+    const updateUserReq = objectDynameh.requestBuilder.buildUpdateInputFromActions(
+        DbUser.getKeys(user),
+        ...userUpdateActions
+    );
+    objectDynameh.requestBuilder.addCondition(updateUserReq, {
+        attribute: "pk",
+        operator: "attribute_exists"
+    });
+    updates.push(updateUserReq);
 
     const accountUser = await DbAccountUser.get(acceptInvitationTokenAction.accountId, acceptInvitationTokenAction.userId);
     if (!accountUser) {
@@ -302,5 +310,11 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return getLoginResponse(user, accountUser, true);
+    return {
+        body: null,
+        statusCode: cassava.httpStatusCode.redirect.FOUND,
+        headers: {
+            Location: "/app/#"
+        }
+    };
 }

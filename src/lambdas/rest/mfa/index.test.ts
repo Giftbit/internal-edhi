@@ -217,7 +217,7 @@ describe("/v2/user/mfa", () => {
             const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
-            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.ACCEPTED);
+            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
             const mfaNotEnabledResp = await router.testWebAppRequest("/v2/user/mfa", "GET");
@@ -245,7 +245,7 @@ describe("/v2/user/mfa", () => {
             const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
                 code: code
             });
-            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.ACCEPTED);
+            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
             const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
@@ -292,7 +292,7 @@ describe("/v2/user/mfa", () => {
             const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
-            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.ACCEPTED);
+            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
             const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {

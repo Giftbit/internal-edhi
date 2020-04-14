@@ -97,9 +97,8 @@ describe("/v2/account", () => {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
-        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.isUndefined(switchAccountResp.body.messageCode);
-        chai.assert.isString(switchAccountResp.headers["Location"]);
         chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
 
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
@@ -132,7 +131,7 @@ describe("/v2/account", () => {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
-        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
 
         const invitationResp = await router.testPostLoginRequest<Invitation>(switchAccountResp, "/v2/account/invitations", "POST", {
             email: testUtils.defaultTestUser.teamMate.email,
@@ -174,8 +173,14 @@ describe("/v2/account", () => {
     it("can remove the user from the account", async () => {
         const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
+        const newUserTestModeResp = await router.testPostLoginRequest<LoginResult>(newUser.loginResp, "/v2/account/switch", "POST", {
+            accountId: testUtils.defaultTestUser.accountId,
+            mode: "test"
+        });
+        chai.assert.equal(newUserTestModeResp.statusCode, cassava.httpStatusCode.success.OK, newUserTestModeResp.bodyRaw);
+
         // New account creates an API key.
-        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUser.loginResp, "/v2/account/apiKeys", "POST", {
+        const createApiKeyResp = await router.testPostLoginRequest<ApiKey>(newUserTestModeResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
         chai.assert.equal(createApiKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
@@ -253,7 +258,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountFailResp.bodyRaw);
+            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountFailResp.bodyRaw);
             chai.assert.equal(switchAccountFailResp.body.messageCode, "AccountMaxInactiveDays", switchAccountFailResp.bodyRaw);
 
             const getAccountFailResp = await router.testPostLoginRequest<Account>(switchAccountFailResp, "/v2/account", "GET");
@@ -272,7 +277,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
 
             const getAccountFailResp = await router.testPostLoginRequest<Account>(loginFailResp, "/v2/account", "GET");
@@ -291,7 +296,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountSuccessResp.bodyRaw);
 
             const accountUserAfterLogin = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
             chai.assert.notEqual(accountUserAfterLogin.lastLoginDate, accountUser.lastLoginDate);
@@ -312,7 +317,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
 
             const accountUserAfterLogin = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
@@ -329,7 +334,7 @@ describe("/v2/account", () => {
                 email: newUser.email,
                 password: newUser.password
             });
-            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
         });
 
@@ -367,7 +372,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
 
             const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
@@ -380,7 +385,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
         });
 
@@ -396,7 +401,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
 
             const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
@@ -409,7 +414,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
         });
 
@@ -431,7 +436,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountSuccessResp.bodyRaw);
         });
     });
 
@@ -504,7 +509,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountFailResp.bodyRaw);
+            chai.assert.equal(switchAccountFailResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountFailResp.bodyRaw);
             chai.assert.equal(switchAccountFailResp.body.messageCode, "AccountMaxPasswordAge", switchAccountFailResp.bodyRaw);
 
             const getAccountOldPasswordResp = await router.testPostLoginRequest<Account>(switchAccountFailResp, "/v2/account", "GET");
@@ -520,7 +525,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountSuccessResp.bodyRaw);
+            chai.assert.equal(switchAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountSuccessResp.bodyRaw);
 
             const getAccountSuccessResp = await router.testPostLoginRequest<Account>(switchAccountSuccessResp, "/v2/account", "GET");
             chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -531,7 +536,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginFailResp.bodyRaw);
+            chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxPasswordAge", loginFailResp.bodyRaw);
 
             const getAccountOldPasswordResp = await router.testPostLoginRequest<Account>(loginFailResp, "/v2/account", "GET");
@@ -548,7 +553,7 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.email,
                 password: newPassword
             });
-            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const getAccountSuccessResp = await router.testPostLoginRequest<Account>(loginSuccessResp, "/v2/account", "GET");
             chai.assert.equal(getAccountSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -563,11 +568,14 @@ describe("/v2/account", () => {
                 value: createdDatePast(1)
             });
 
-            const invite = await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
-            chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-            chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMaxPasswordAge");
+            await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
+            const loginNewAccountResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: newUser.email,
+                password: newUser.password
+            });
+            chai.assert.equal(loginNewAccountResp.body.messageCode, "AccountMaxPasswordAge");
 
-            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(invite.acceptInvitationResp, "/v2/account", "GET");
+            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNewAccountResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
         });
 
@@ -608,10 +616,9 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountNoMfaResp.bodyRaw);
-            chai.assert.equal(switchAccountNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountNoMfaResp.bodyRaw);
+            chai.assert.equal(switchAccountNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(switchAccountNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(switchAccountNoMfaResp.headers["Location"]);
             chai.assert.isString(switchAccountNoMfaResp.headers["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");
@@ -623,10 +630,9 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.account.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountWithMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountWithMfaResp.bodyRaw);
-            chai.assert.equal(switchAccountWithMfaResp.body.hasMfa, true);
+            chai.assert.equal(switchAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountWithMfaResp.bodyRaw);
+            chai.assert.equal(switchAccountWithMfaResp.body.user.hasMfa, true);
             chai.assert.notEqual(switchAccountWithMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(switchAccountWithMfaResp.headers["Location"]);
             chai.assert.isString(switchAccountWithMfaResp.headers["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountWithMfaResp, "/v2/account", "GET");
@@ -642,10 +648,9 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.user.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
-            chai.assert.equal(loginNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
+            chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginNoMfaResp.headers["Location"]);
             chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
@@ -657,15 +662,14 @@ describe("/v2/account", () => {
                 email: testUtils.defaultTestUser.user.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginWithMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
+            chai.assert.equal(loginWithMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
 
             const loginWithMfaCompleteResp = await router.testPostLoginRequest<LoginResult>(loginWithMfaResp, "/v2/user/login/mfa", "POST", {
                 code: await generateSkewedOtpCode(totpSecret, -2000)
             });
-            chai.assert.equal(loginWithMfaCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-            chai.assert.equal(loginWithMfaCompleteResp.body.hasMfa, true);
+            chai.assert.equal(loginWithMfaCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(loginWithMfaCompleteResp.body.user.hasMfa, true);
             chai.assert.notEqual(loginWithMfaCompleteResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginWithMfaCompleteResp.headers["Location"]);
             chai.assert.isString(loginWithMfaCompleteResp.headers["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(loginWithMfaCompleteResp, "/v2/account", "GET");
@@ -679,10 +683,9 @@ describe("/v2/account", () => {
                 email: newUser.email,
                 password: newUser.password
             });
-            chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginNoMfaResp.bodyRaw);
-            chai.assert.equal(loginNoMfaResp.body.hasMfa, false);
+            chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
+            chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginNoMfaResp.headers["Location"]);
             chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
@@ -691,11 +694,15 @@ describe("/v2/account", () => {
 
         it("requires existing users newly invited set up mfa as part of gaining access", async () => {
             const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
-            const invite = await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
-            chai.assert.equal(invite.acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-            chai.assert.equal(invite.acceptInvitationResp.body.messageCode, "AccountMfaRequired");
+            await testUtils.testInviteExistingUser(newUser.email, router, sinonSandbox);
+            const loginNewAccountResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+                email: newUser.email,
+                password: newUser.password
+            });
+            chai.assert.equal(loginNewAccountResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(loginNewAccountResp.body.messageCode, "AccountMfaRequired");
 
-            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(invite.acceptInvitationResp, "/v2/account", "GET");
+            const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNewAccountResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
         });
 
@@ -712,8 +719,7 @@ describe("/v2/account", () => {
                 accountId: testUtils.defaultTestUser.account.accountId,
                 mode: "test"
             });
-            chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountNoMfaResp.bodyRaw);
-            chai.assert.isString(switchAccountNoMfaResp.headers["Location"]);
+            chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountNoMfaResp.bodyRaw);
             chai.assert.isString(switchAccountNoMfaResp.headers["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");

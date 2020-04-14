@@ -60,7 +60,7 @@ describe("/v2/user/changeEmail", () => {
             email: testUtils.defaultTestUser.user.email,
             password: testUtils.defaultTestUser.password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("changes the user's email address", async () => {
@@ -110,7 +110,7 @@ describe("/v2/user/changeEmail", () => {
             email,
             password: testUtils.defaultTestUser.password
         });
-        chai.assert.equal(canLoginNewEmailResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(canLoginNewEmailResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("cannot change the email address to one already used in the system (but won't acknowledge that it's in use)", async () => {

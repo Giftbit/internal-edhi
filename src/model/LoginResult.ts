@@ -1,6 +1,8 @@
+import {User} from "./User";
+
 export interface LoginResult {
-    userId: string;
-    hasMfa: boolean;
+    user?: User;
+    mode: "test" | "live";
     message?: string;
     messageCode?: string;
 }

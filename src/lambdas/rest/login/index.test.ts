@@ -37,9 +37,12 @@ describe("/v2/user/login", () => {
     });
 
     async function assertFullyLoggedIn(loginResp: ParsedProxyResponse<LoginResult>): Promise<void> {
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isObject(loginResp.body.user);
+        chai.assert.isString(loginResp.body.user.id);
+        chai.assert.isString(loginResp.body.user.email);
+        chai.assert.equal(loginResp.body.mode, "test");
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
@@ -48,6 +51,7 @@ describe("/v2/user/login", () => {
     }
 
     async function assertNotFullyLoggedIn(loginResp: ParsedProxyResponse<LoginResult>): Promise<void> {
+        chai.assert.oneOf(loginResp.statusCode, [cassava.httpStatusCode.success.OK, cassava.httpStatusCode.clientError.UNAUTHORIZED]);
         const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
         chai.assert.oneOf(accountUsersResp.statusCode, [cassava.httpStatusCode.clientError.FORBIDDEN, cassava.httpStatusCode.clientError.UNAUTHORIZED], "prove we're not logged in");
     }
@@ -100,7 +104,7 @@ describe("/v2/user/login", () => {
             email: newUser.email,
             password: newUser.password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(loginResp.body.messageCode, "NoAccount");
         await assertNotFullyLoggedIn(loginResp);
 
@@ -113,7 +117,7 @@ describe("/v2/user/login", () => {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
-        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.redirect.FOUND, switchAccountResp.bodyRaw);
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.isUndefined(switchAccountResp.body.messageCode);
     });
 
@@ -164,7 +168,7 @@ describe("/v2/user/login", () => {
             email: testUtils.defaultTestUser.email,
             password: testUtils.defaultTestUser.password
         });
-        chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(goodLoginResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("does not log in a user that hasn't verified their email address, triggering sending another email", async () => {
@@ -210,8 +214,7 @@ describe("/v2/user/login", () => {
             email,
             password
         });
-        chai.assert.equal(loginResp2.statusCode, cassava.httpStatusCode.redirect.FOUND, loginResp2.bodyRaw);
-        chai.assert.isString(loginResp2.headers["Location"]);
+        chai.assert.equal(loginResp2.statusCode, cassava.httpStatusCode.success.OK, loginResp2.bodyRaw);
         chai.assert.isString(loginResp2.headers["Set-Cookie"]);
         chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
@@ -219,8 +222,7 @@ describe("/v2/user/login", () => {
 
     it("can logout", async () => {
         const resp = await router.testWebAppRequest("/v2/user/logout", "POST");
-        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.redirect.FOUND, resp.bodyRaw);
-        chai.assert.isString(resp.headers["Location"]);
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.success.OK, resp.bodyRaw);
         chai.assert.isString(resp.headers["Set-Cookie"]);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
         chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
@@ -237,7 +239,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
@@ -265,7 +267,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
@@ -295,7 +297,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
@@ -324,7 +326,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code1 = /\b([A-Z0-9]{6})\b/.exec(sms1.body)[1];
             chai.assert.isString(code1);
@@ -366,7 +368,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(login1Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(login1Resp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code1 = /\b([A-Z0-9]{6})\b/.exec(sms1.body)[1];
             chai.assert.isString(code1);
@@ -375,13 +377,13 @@ describe("/v2/user/login", () => {
             const login1CompleteResp = await router.testPostLoginRequest(login1Resp, "/v2/user/login/mfa", "POST", {
                 code: code1
             });
-            chai.assert.equal(login1CompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(login1CompleteResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.success.OK);
 
             const login2CompleteResp = await router.testPostLoginRequest(login2Resp, "/v2/user/login/mfa", "POST", {
                 code: code1
@@ -398,7 +400,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
@@ -420,7 +422,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
 
             const wrongCodeLoginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
@@ -441,7 +443,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: await generateSkewedOtpCode(secret, -30000)
@@ -456,7 +458,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
                 code: await generateSkewedOtpCode(secret, -60001)
@@ -471,7 +473,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code = await generateSkewedOtpCode(secret, -2000);
             const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
@@ -483,7 +485,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginAgainResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginAgainCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: code
@@ -507,7 +509,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: backupCodesResp.body[0]
@@ -528,7 +530,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginCompleteResp = await router.testPostLoginRequest<LoginResult>(loginResp, "/v2/user/login/mfa", "POST", {
                 code: backupCodesResp.body[0].toLowerCase()
@@ -549,18 +551,18 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const loginCompleteResp = await router.testPostLoginRequest(loginResp, "/v2/user/login/mfa", "POST", {
                 code: backupCodesResp.body[0]
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const login2Resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(login2Resp.statusCode, cassava.httpStatusCode.success.OK);
 
             const login2CompleteResp = await router.testPostLoginRequest(login2Resp, "/v2/user/login/mfa", "POST", {
                 code: backupCodesResp.body[0]
@@ -583,7 +585,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
@@ -592,7 +594,7 @@ describe("/v2/user/login", () => {
                 code: code,
                 trustThisDevice: true
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
@@ -608,7 +610,7 @@ describe("/v2/user/login", () => {
                     Cookie: "gb_ttd=asdfasdfasdfasdf"
                 }
             );
-            chai.assert.equal(badTtdTokenLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(badTtdTokenLoginResp.statusCode, cassava.httpStatusCode.success.OK);
             await assertNotFullyLoggedIn(badTtdTokenLoginResp);
 
             const goodTtdTokenLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
@@ -647,7 +649,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const enableSmsMfaCode = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(enableSmsMfaCode);
@@ -656,7 +658,7 @@ describe("/v2/user/login", () => {
                 code: enableSmsMfaCode,
                 trustThisDevice: true
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
@@ -681,7 +683,7 @@ describe("/v2/user/login", () => {
                 {
                     Cookie: `gb_ttd=${ttdToken}`
                 });
-            chai.assert.equal(secondLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(secondLoginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(secondLoginResp.body.messageCode, "MfaAuthRequired");
             await assertNotFullyLoggedIn(secondLoginResp);
         });
@@ -699,7 +701,7 @@ describe("/v2/user/login", () => {
                 email: testUtils.defaultTestUser.email,
                 password: testUtils.defaultTestUser.password
             });
-            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.success.OK);
 
             const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
             chai.assert.isString(code);
@@ -708,7 +710,7 @@ describe("/v2/user/login", () => {
                 code: code,
                 trustThisDevice: true
             });
-            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
             chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
@@ -728,7 +730,7 @@ describe("/v2/user/login", () => {
                 {
                     Cookie: `gb_ttd=${ttdToken}`
                 });
-            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+            chai.assert.equal(firstLoginResp.statusCode, cassava.httpStatusCode.success.OK);
             await assertNotFullyLoggedIn(secondLoginResp);
         });
     });
