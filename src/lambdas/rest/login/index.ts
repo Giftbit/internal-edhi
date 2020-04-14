@@ -14,6 +14,7 @@ import {decryptSecret, validateTotpCode} from "../../../utils/secretsUtils";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {LoginResult} from "../../../model/LoginResult";
+import {User} from "../../../model/User";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -49,8 +50,8 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/logout")
         .handler(async () => {
             return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
+                body: {},
+                statusCode: cassava.httpStatusCode.success.OK,
                 headers: {
                     Location: "/app/#"
                 },
@@ -345,7 +346,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
     await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
 
     const accountUser = await DbAccountUser.getForUserLogin(user);
-    const liveMode = isTestModeUserId(user.login.defaultLoginAccountId);
+    const liveMode = !isTestModeUserId(user.login.defaultLoginAccountId);
     return getLoginResponse(user, accountUser, liveMode);
 }
 
@@ -397,19 +398,19 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  */
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const body: LoginResult = {
-        userId: user.userId,
-        hasMfa: DbUser.hasMfaActive(user)
+        user: User.getFromDbUser(user),
+        mode: liveMode ? "live" : "test"
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
     const account = accountUser && await DbAccount.get(accountUser.accountId);
-    log.debug("Get login response for account=", account, "hasMfa=", body.hasMfa);
+    log.debug("Get login response for account=", account, "user=", body.user);
 
     if (!account) {
         body.message = "You have been removed from all Accounts.  You can create your own to continue.";
         body.messageCode = "NoAccount";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.requireMfa && !body.hasMfa) {
+    } else if (account.requireMfa && !body.user.hasMfa) {
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
         badge = DbUser.getOrphanBadge(user);
@@ -427,10 +428,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
 
     return {
         body: body,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        },
+        statusCode: cassava.httpStatusCode.success.OK,
         cookies: {
             ...await DbUser.getBadgeCookies(badge),
             ...additionalCookies
@@ -441,18 +439,15 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
 async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
-        userId: null,
-        hasMfa: DbUser.hasMfaActive(user),
+        user: User.getFromDbUser(user),
+        mode: "live",
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
     };
 
     return {
         body: body,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        },
+        statusCode: cassava.httpStatusCode.success.OK,
         cookies: await DbUser.getBadgeCookies(badge)
     };
 }

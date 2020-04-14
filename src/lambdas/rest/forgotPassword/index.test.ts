@@ -67,8 +67,7 @@ describe("/v2/user/forgotPassword", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-        chai.assert.isString(completeResp.headers["Location"]);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.match(completeResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(completeResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 
@@ -89,9 +88,8 @@ describe("/v2/user/forgotPassword", () => {
             email: testUtils.defaultTestUser.user.email,
             password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
-        chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
 

@@ -67,9 +67,8 @@ describe("/v2/user/register", () => {
             email,
             password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
         chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
@@ -146,9 +145,8 @@ describe("/v2/user/register", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(completeResp.body.messageCode);
-        chai.assert.isString(completeResp.headers["Location"]);
     });
 
     it("sends a verify email to someone who was previously invited but then the invitation was deleted", async () => {
@@ -196,9 +194,8 @@ describe("/v2/user/register", () => {
             email,
             password
         });
-        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.redirect.FOUND, loginResp.bodyRaw);
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK, loginResp.bodyRaw);
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isString(loginResp.headers["Location"]);
         chai.assert.isString(loginResp.headers["Set-Cookie"]);
 
         const getSwitchableAccountsResp = await router.testWebAppRequest<SwitchableAccount[]>("/v2/user/accounts", "GET");
