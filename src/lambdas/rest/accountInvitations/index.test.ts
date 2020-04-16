@@ -88,9 +88,8 @@ describe("/v2/account/invitations", () => {
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isArray(loginResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isString(loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
-        chai.assert.isString(loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        chai.assert.isString(loginResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(loginResp.getCookie("gb_jwt_signature"));
 
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
@@ -251,9 +250,8 @@ describe("/v2/account/invitations", () => {
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.notDeepEqual(switchAccountResp.multiValueHeaders["Set-Cookie"], newUser.loginResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isArray(switchAccountResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isString(switchAccountResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
-        chai.assert.isString(switchAccountResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        chai.assert.isString(switchAccountResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(switchAccountResp.getCookie("gb_jwt_signature"));
 
         const secondAccountUsersResp = await router.testPostLoginRequest<AccountUser[]>(switchAccountResp, "/v2/account/users", "GET");
         chai.assert.equal(secondAccountUsersResp.statusCode, cassava.httpStatusCode.success.OK);

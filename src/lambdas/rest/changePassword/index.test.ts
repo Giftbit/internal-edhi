@@ -44,9 +44,8 @@ describe("/v2/user/changePassword", () => {
             password: newPassword
         });
         chai.assert.equal(newPasswordLoginResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isArray(newPasswordLoginResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isString(newPasswordLoginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
-        chai.assert.isString(newPasswordLoginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        chai.assert.isString(newPasswordLoginResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(newPasswordLoginResp.getCookie("gb_jwt_signature"));
 
     });
 

@@ -68,9 +68,8 @@ describe("/v2/user/forgotPassword", () => {
             password
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isArray(completeResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isString(completeResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
-        chai.assert.isString(completeResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        chai.assert.isString(completeResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(completeResp.getCookie("gb_jwt_signature"));
 
         // Is logged in after completing.
         const getAccountResp = await router.testPostLoginRequest<Account>(completeResp, "/v2/account", "GET");
@@ -90,9 +89,8 @@ describe("/v2/user/forgotPassword", () => {
             password
         });
         chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isArray(loginResp.multiValueHeaders["Set-Cookie"]);
-        chai.assert.isString(loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
-        chai.assert.isString(loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        chai.assert.isString(loginResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(loginResp.getCookie("gb_jwt_signature"));
 
         // Can't use the same email to reset the password again
         const completeRepeatResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
