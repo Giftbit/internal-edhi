@@ -27,9 +27,7 @@ describe("/v2/user/ping", () => {
         const resp = await router.testWebAppRequest("/v2/user/ping?refresh=false", "GET");
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.success.OK);
 
-        if (resp.headers["Set-Cookie"]) {
-            chai.assert.notMatch(resp.headers["Set-Cookie"], /gb_jwt_session/);
-            chai.assert.notMatch(resp.headers["Set-Cookie"], /gb_jwt_signature/);
-        }
+        chai.assert.isNotString(resp.getCookie("gb_jwt_session"));
+        chai.assert.isNotString(resp.getCookie("gb_jwt_signature"));
     });
 });

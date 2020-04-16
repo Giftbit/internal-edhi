@@ -43,9 +43,15 @@ describe("/v2/user/login", () => {
         chai.assert.isString(loginResp.body.user.email);
         chai.assert.equal(loginResp.body.mode, "test");
         chai.assert.isUndefined(loginResp.body.messageCode);
-        chai.assert.isString(loginResp.headers["Set-Cookie"]);
-        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-        chai.assert.match(loginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+
+        const sessionCookie = loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session="));
+        chai.assert.notMatch(sessionCookie, /HttpOnly($|;)/);
+        chai.assert.match(sessionCookie, /Secure($|;)/);
+
+        const signatureCookie = loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature="));
+        chai.assert.match(signatureCookie, /HttpOnly($|;)/);
+        chai.assert.match(signatureCookie, /Secure($|;)/);
+        
         const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, "prove we're logged in");
     }
@@ -215,17 +221,16 @@ describe("/v2/user/login", () => {
             password
         });
         chai.assert.equal(loginResp2.statusCode, cassava.httpStatusCode.success.OK, loginResp2.bodyRaw);
-        chai.assert.isString(loginResp2.headers["Set-Cookie"]);
-        chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-        chai.assert.match(loginResp2.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+        chai.assert.isString(loginResp2.getCookie("gb_jwt_session"));
+        chai.assert.isString(loginResp2.getCookie("gb_jwt_signature"));
     });
 
     it("can logout", async () => {
         const resp = await router.testWebAppRequest("/v2/user/logout", "POST");
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.success.OK, resp.bodyRaw);
-        chai.assert.isString(resp.headers["Set-Cookie"]);
-        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
-        chai.assert.match(resp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+        chai.assert.isArray(resp.multiValueHeaders["Set-Cookie"]);
+        chai.assert.isString(resp.multiValueHeaders["Set-Cookie"].find(s => /gb_jwt_session=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/.test(s)));
+        chai.assert.isString(resp.multiValueHeaders["Set-Cookie"].find(s => /gb_jwt_signature=([^ ;]*).*Expires=Thu, 01 Jan 1970 00:00:00 GMT/.test(s)));
     });
 
     describe("SMS MFA login", () => {
@@ -595,10 +600,8 @@ describe("/v2/user/login", () => {
                 trustThisDevice: true
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
-            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            const ttdToken = loginCompleteResp.getCookie("gb_ttd");
             chai.assert.isString(ttdToken);
 
             const badTtdTokenLoginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST",
@@ -659,10 +662,8 @@ describe("/v2/user/login", () => {
                 trustThisDevice: true
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
-            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            const ttdToken = loginCompleteResp.getCookie("gb_ttd");
             chai.assert.isString(ttdToken);
 
             // Manually adjust DB to expire token
@@ -711,10 +712,8 @@ describe("/v2/user/login", () => {
                 trustThisDevice: true
             });
             chai.assert.equal(loginCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.isString(loginCompleteResp.headers["Set-Cookie"]);
-            chai.assert.match(loginCompleteResp.headers["Set-Cookie"], /gb_ttd=([^ ;]+)/);
 
-            const ttdToken = /gb_ttd=([^ ;]+)/.exec(loginCompleteResp.headers["Set-Cookie"])[1];
+            const ttdToken = loginCompleteResp.getCookie("gb_ttd");
             chai.assert.isString(ttdToken);
 
             const disableMfaResp = await router.testPostLoginRequest(loginCompleteResp, "/v2/user/mfa", "DELETE");
