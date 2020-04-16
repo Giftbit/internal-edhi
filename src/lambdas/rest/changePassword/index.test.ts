@@ -44,9 +44,10 @@ describe("/v2/user/changePassword", () => {
             password: newPassword
         });
         chai.assert.equal(newPasswordLoginResp.statusCode, cassava.httpStatusCode.success.OK);
-        chai.assert.isString(newPasswordLoginResp.headers["Set-Cookie"]);
-        chai.assert.match(newPasswordLoginResp.headers["Set-Cookie"], /gb_jwt_session=([^ ;]+)/);
-        chai.assert.match(newPasswordLoginResp.headers["Set-Cookie"], /gb_jwt_signature=([^ ;]+)/);
+        chai.assert.isArray(newPasswordLoginResp.multiValueHeaders["Set-Cookie"]);
+        chai.assert.isString(newPasswordLoginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
+        chai.assert.isString(newPasswordLoginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+
     });
 
     it("rejects an empty password", async () => {

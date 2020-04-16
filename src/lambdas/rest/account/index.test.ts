@@ -99,7 +99,7 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.isUndefined(switchAccountResp.body.messageCode);
-        chai.assert.isString(switchAccountResp.headers["Set-Cookie"]);
+        chai.assert.isArray(switchAccountResp.multiValueHeaders["Set-Cookie"]);
 
         const getAccountResp = await router.testPostLoginRequest<Account>(switchAccountResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -619,7 +619,7 @@ describe("/v2/account", () => {
             chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountNoMfaResp.bodyRaw);
             chai.assert.equal(switchAccountNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(switchAccountNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(switchAccountNoMfaResp.headers["Set-Cookie"]);
+            chai.assert.isArray(switchAccountNoMfaResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
@@ -633,7 +633,7 @@ describe("/v2/account", () => {
             chai.assert.equal(switchAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountWithMfaResp.bodyRaw);
             chai.assert.equal(switchAccountWithMfaResp.body.user.hasMfa, true);
             chai.assert.notEqual(switchAccountWithMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(switchAccountWithMfaResp.headers["Set-Cookie"]);
+            chai.assert.isArray(switchAccountWithMfaResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountWithMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -651,7 +651,7 @@ describe("/v2/account", () => {
             chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
             chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
+            chai.assert.isArray(loginNoMfaResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
@@ -670,7 +670,7 @@ describe("/v2/account", () => {
             chai.assert.equal(loginWithMfaCompleteResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginWithMfaCompleteResp.body.user.hasMfa, true);
             chai.assert.notEqual(loginWithMfaCompleteResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginWithMfaCompleteResp.headers["Set-Cookie"]);
+            chai.assert.isArray(loginWithMfaCompleteResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(loginWithMfaCompleteResp, "/v2/account", "GET");
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -686,7 +686,7 @@ describe("/v2/account", () => {
             chai.assert.equal(loginNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, loginNoMfaResp.bodyRaw);
             chai.assert.equal(loginNoMfaResp.body.user.hasMfa, false);
             chai.assert.equal(loginNoMfaResp.body.messageCode, "AccountMfaRequired");
-            chai.assert.isString(loginNoMfaResp.headers["Set-Cookie"]);
+            chai.assert.isArray(loginNoMfaResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountNoMfaResp = await router.testPostLoginRequest<Account>(loginNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountNoMfaResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
@@ -720,7 +720,7 @@ describe("/v2/account", () => {
                 mode: "test"
             });
             chai.assert.equal(switchAccountNoMfaResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountNoMfaResp.bodyRaw);
-            chai.assert.isString(switchAccountNoMfaResp.headers["Set-Cookie"]);
+            chai.assert.isArray(switchAccountNoMfaResp.multiValueHeaders["Set-Cookie"]);
 
             const getAccountWithMfaResp = await router.testPostLoginRequest<Account>(switchAccountNoMfaResp, "/v2/account", "GET");
             chai.assert.equal(getAccountWithMfaResp.statusCode, cassava.httpStatusCode.success.OK);

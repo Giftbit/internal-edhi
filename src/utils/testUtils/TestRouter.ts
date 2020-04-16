@@ -6,6 +6,9 @@ export interface ParsedProxyResponse<T> {
     headers: {
         [key: string]: string;
     };
+    multiValueHeaders: {
+        [key: string]: string[];
+    };
     bodyRaw: string;
     body: T;
 }
@@ -21,6 +24,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: (resp.body && JSON.parse(resp.body)) || resp.body
         };
@@ -28,19 +32,10 @@ export class TestRouter extends cassava.Router {
 
     async testPostLoginRequest<T>(loginResp: ParsedProxyResponse<any>, url: string, method: string, body?: any): Promise<ParsedProxyResponse<T>> {
         let cookie = "";
-        const setCookies = loginResp.headers["Set-Cookie"].split(";");
-        for (const setCookie of setCookies) {
-            const keyValueMatcher = /([^=$]+)+=([^ ;]+)/.exec(setCookie);
-            if (keyValueMatcher) {
-                const key = keyValueMatcher[1];
-                if (!/^(expires|max-age|secure|httponly|samesite)$/i.exec(key)) {
-                    const value = keyValueMatcher[2];
-                    if (cookie) {
-                        cookie += "; ";
-                    }
-                    cookie += `${key}=${value}`;
-                }
-            }
+        if (loginResp.multiValueHeaders?.["Set-Cookie"]) {
+            cookie = loginResp.multiValueHeaders["Set-Cookie"].map(c => c.split(";")[0]).join("; ");
+        } else if (loginResp.headers?.["Set-Cookie"]) {
+            cookie = loginResp.headers["Set-Cookie"].split(";")[0];
         }
 
         const resp = await cassava.testing.testRouter(this, cassava.testing.createTestProxyEvent(url, method, {
@@ -54,6 +49,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
@@ -70,6 +66,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
@@ -86,6 +83,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
@@ -103,6 +101,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };
@@ -120,6 +119,7 @@ export class TestRouter extends cassava.Router {
         return {
             statusCode: resp.statusCode,
             headers: resp.headers,
+            multiValueHeaders: resp.multiValueHeaders,
             bodyRaw: resp.body,
             body: resp.body && JSON.parse(resp.body) || undefined
         };

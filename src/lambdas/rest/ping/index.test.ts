@@ -31,5 +31,9 @@ describe("/v2/user/ping", () => {
             chai.assert.notMatch(resp.headers["Set-Cookie"], /gb_jwt_session/);
             chai.assert.notMatch(resp.headers["Set-Cookie"], /gb_jwt_signature/);
         }
+        if (resp.multiValueHeaders["Set-Cookie"]) {
+            chai.assert.isNotString(resp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session")));
+            chai.assert.isNotString(resp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature")));
+        }
     });
 });
