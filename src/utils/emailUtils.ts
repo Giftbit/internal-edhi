@@ -25,16 +25,19 @@ export async function sendEmail(params: SendEmailParams): Promise<aws.SES.SendEm
             ToAddresses: [params.toAddress]
         },
         Message: {
-            Body: {
-                Html: params.htmlBody ? {Data: params.htmlBody} : undefined,
-                Text: params.textBody ? {Data: params.textBody} : undefined
-            },
+            Body: {},
             Subject: {
                 Data: params.subject
             }
         },
         Source: `notifications@${process.env["LIGHTRAIL_EMAIL_DOMAIN"]}`
     };
+    if (params.htmlBody) {
+        eParams.Message.Body.Html = {Data: params.htmlBody};
+    }
+    if (params.textBody) {
+        eParams.Message.Body.Text = {Data: params.textBody};
+    }
     if (params.replyToAddress) {
         eParams.ReplyToAddresses = [params.replyToAddress];
     }
