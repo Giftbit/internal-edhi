@@ -4,11 +4,10 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 
 const stripeApiVersion = "2018-05-21";
 const stripeClientCache: { [key: string]: Stripe } = {};
-let stripeConfig: giftbitRoutes.secureConfig.StripeConfig;
 let stripeConfigPromise: Promise<giftbitRoutes.secureConfig.StripeConfig>;
 
 export function initializeLightrailStripeConfig(config: Promise<giftbitRoutes.secureConfig.StripeConfig>): void {
-    this.stripeConfigPromise = config;
+    stripeConfigPromise = config;
 }
 
 export async function getStripeClient(mode: "test" | "live"): Promise<Stripe> {
@@ -21,9 +20,10 @@ export async function getStripeClient(mode: "test" | "live"): Promise<Stripe> {
                 stripeClientCache[mode].setHost("localhost", 8000, "http");
             }
         } else {
-            if (!stripeConfig) {
-                stripeConfig = await stripeConfigPromise;
+            if (!stripeConfigPromise) {
+                throw new Error("stripeConfigPromise has not been initialized.");
             }
+            const stripeConfig = await stripeConfigPromise;
             stripeClientCache[mode] = new Stripe(stripeConfig[mode].secretKey, stripeApiVersion);
         }
     }
