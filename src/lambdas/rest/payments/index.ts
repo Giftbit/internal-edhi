@@ -94,29 +94,19 @@ async function getActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
 
 async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge, cardToken: string): Promise<PaymentCreditCard> {
     const customer = await getOrCreateStripeCustomer(auth);
-    const card = await createStripeCardSource(customer, cardToken);
-    const stripe = await getStripeClient("live");
-    await stripe.customers.update(customer.id, {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        default_source: card.id,
-        ...await getDefaultStripeCustomerProperties(auth)
-    });
-    return PaymentCreditCard.fromStripeSource(card);
-}
 
-async function createStripeCardSource(customer: Stripe.customers.ICustomer, cardToken: string): Promise<Stripe.IStripeSource> {
-    const stripe = await getStripeClient("live");
     try {
-        const card = await stripe.customers.createSource(customer.id, {source: cardToken});
-        if (card.object !== "card") {
-            log.error("Stripe token", cardToken, "creates source of type", card.object);
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "The Stripe token is not a credit card token.");
-        }
-        return card;
+        const stripe = await getStripeClient("live");
+        const updatedCustomer = await stripe.customers.update(customer.id, {
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            source: cardToken,
+            ...await getDefaultStripeCustomerProperties(auth)
+        });
+        return PaymentCreditCard.fromCustomer(updatedCustomer);
     } catch (err) {
-        if (err.code === "resource_missing") {
-            log.error("Stripe token", cardToken, "not found in Stripe");
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "The Stripe token is not valid.");
+        if (err.code === "resource_missing" && err.param === "source") {
+            log.warn(err);
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "The Stripe token is not a credit card token.");
         }
         throw err;
     }

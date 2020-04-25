@@ -41,4 +41,17 @@ export namespace PaymentCreditCard {
         }
         throw new Error("Stripe source is not a credit card.");
     }
+
+    export function fromCustomer(customer: Stripe.customers.ICustomer): PaymentCreditCard {
+        if (!customer) {
+            return null;
+        }
+        if (customer.default_source) {
+            const defaultSource = customer.sources.data.find(source => source.id === customer.default_source);
+            if (defaultSource) {
+                return PaymentCreditCard.fromStripeSource(defaultSource);
+            }
+        }
+        return null;
+    }
 }
