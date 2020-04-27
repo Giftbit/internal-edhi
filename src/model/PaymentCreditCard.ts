@@ -1,4 +1,4 @@
-import Stripe = require("stripe");
+import Stripe from "stripe";
 
 export interface PaymentCreditCard {
     addressCity?: string;
@@ -18,7 +18,7 @@ export interface PaymentCreditCard {
 }
 
 export namespace PaymentCreditCard {
-    export function fromStripeSource(source: Stripe.IStripeSource): PaymentCreditCard {
+    export function fromStripeSource(source: Stripe.CustomerSource): PaymentCreditCard {
         if (!source) {
             return null;
         }
@@ -40,5 +40,21 @@ export namespace PaymentCreditCard {
             };
         }
         throw new Error("Stripe source is not a credit card.");
+    }
+
+    export function fromCustomer(customer: Stripe.Customer): PaymentCreditCard {
+        if (!customer) {
+            return null;
+        }
+        if (typeof customer.default_source === "object" && customer.default_source?.object === "card") {
+            return PaymentCreditCard.fromStripeSource(customer.default_source);
+        }
+        if (typeof customer.default_source === "string") {
+            const defaultSource = customer.sources.data.find(source => source.id === customer.default_source);
+            if (defaultSource) {
+                return PaymentCreditCard.fromStripeSource(defaultSource);
+            }
+        }
+        return null;
     }
 }

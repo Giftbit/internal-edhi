@@ -1,35 +1,48 @@
-import Stripe = require("stripe");
-import log = require("loglevel");
+import Stripe from "stripe";
 import * as giftbitRoutes from "giftbit-cassava-routes";
+import log = require("loglevel");
 
-const stripeApiVersion = "2018-05-21";
-const stripeClientCache: { [key: string]: Stripe } = {};
+const stripeApiVersion = "2020-03-02";
+let stripeClient: Stripe = null;
 let stripeConfigPromise: Promise<giftbitRoutes.secureConfig.StripeConfig>;
 
 export function initializeLightrailStripeConfig(config: Promise<giftbitRoutes.secureConfig.StripeConfig>): void {
     stripeConfigPromise = config;
 }
 
-export async function getStripeClient(mode: "test" | "live"): Promise<Stripe> {
-    if (!stripeClientCache[mode]) {
+export async function getStripeClient(): Promise<Stripe> {
+    if (!stripeClient) {
         if (process.env["TEST_ENV"]) {
             log.warn("Using unit test Stripe secret key from env");
-            stripeClientCache[mode] = new Stripe(process.env["LIGHTRAIL_STRIPE_TEST_SECRET_KEY"], stripeApiVersion);
             if (process.env["TEST_STRIPE_LOCAL"] === "true") {
                 log.warn("Using localhost:8000 for Stripe");
-                stripeClientCache[mode].setHost("localhost", 8000, "http");
+                stripeClient = new Stripe(process.env["LIGHTRAIL_STRIPE_TEST_SECRET_KEY"], {
+                    apiVersion: stripeApiVersion,
+                    host: "localhost",
+                    port: 8000,
+                    protocol: "http"
+                });
+            } else {
+                stripeClient = new Stripe(process.env["LIGHTRAIL_STRIPE_TEST_SECRET_KEY"], {
+                    apiVersion: stripeApiVersion
+                });
             }
         } else {
             if (!stripeConfigPromise) {
                 throw new Error("stripeConfigPromise has not been initialized.");
             }
             const stripeConfig = await stripeConfigPromise;
-            stripeClientCache[mode] = new Stripe(stripeConfig[mode].secretKey, stripeApiVersion);
+            if (process.env["LIGHTRAIL_WEBAPP_DOMAIN"] === "www.lightraildev.net") {
+                log.warn("Using test mode Stripe key in the dev domain");
+                stripeClient = new Stripe(stripeConfig.test.secretKey, {
+                    apiVersion: stripeApiVersion
+                });
+            } else {
+                stripeClient = new Stripe(stripeConfig.live.secretKey, {
+                    apiVersion: stripeApiVersion
+                });
+            }
         }
     }
-    return stripeClientCache[mode];
-}
-
-export function getStripeClientForAuth(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe> {
-    return getStripeClient(auth.isTestUser() ? "test" : "live");
+    return stripeClient;
 }
