@@ -5,8 +5,8 @@ import {stripUserIdTestMode} from "../../../utils/userUtils";
 import {PaymentCreditCard} from "../../../model/PaymentCreditCard";
 import {DbAccount} from "../../../db/DbAccount";
 import {DbUser} from "../../../db/DbUser";
+import Stripe from "stripe";
 import log = require("loglevel");
-import Stripe = require("stripe");
 
 export function installPaymentsRest(router: cassava.Router): void {
     router.route("/v2/account/payments/card")
@@ -71,32 +71,14 @@ export function installPaymentsRest(router: cassava.Router): void {
 
 async function getActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<PaymentCreditCard> {
     const customer = await getStripeCustomerOrNull(auth);
-    if (!customer) {
-        log.info("Customer", auth.userId, "does not exist in Stripe.");
-        return null;
-    }
-    if (!customer.default_source) {
-        log.info("Customer", customer.id, "does not have a default source.");
-        return null;
-    }
-    if (customer.sources.total_count === 0) {
-        log.info("Customer", customer.id, "has 0 cards on file.");
-        return null;
-    }
-    if (typeof customer.default_source !== "string") {
-        throw new Error(`Customer ${customer.id} default_source is not a string.`);
-    }
-
-    const stripe = await getStripeClient("live");
-    const source = await stripe.customers.retrieveSource(customer.id, customer.default_source) as Stripe.ICard;
-    return PaymentCreditCard.fromStripeSource(source);
+    return PaymentCreditCard.fromCustomer(customer);
 }
 
 async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge, cardToken: string): Promise<PaymentCreditCard> {
     const customer = await getOrCreateStripeCustomer(auth);
 
     try {
-        const stripe = await getStripeClient("live");
+        const stripe = await getStripeClient();
         const updatedCustomer = await stripe.customers.update(customer.id, {
             // eslint-disable-next-line @typescript-eslint/camelcase
             source: cardToken,
@@ -113,18 +95,22 @@ async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
 }
 
 async function clearActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<void> {
-    const stripe = await getStripeClient("live");
+    const stripe = await getStripeClient();
     const customer = await getOrCreateStripeCustomer(auth);
     if (customer.default_source && typeof customer.default_source === "string") {
         await stripe.customers.deleteSource(customer.id, customer.default_source);
     }
 }
 
-async function getStripeCustomerOrNull(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe.customers.ICustomer> {
-    const stripe = await getStripeClient("live");
+async function getStripeCustomerOrNull(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe.Customer> {
+    const stripe = await getStripeClient();
     const customerId = stripUserIdTestMode(auth.userId);
     try {
-        return await stripe.customers.retrieve(customerId);
+        const customer = await stripe.customers.retrieve(customerId);
+        if (customer.deleted) {
+            throw new Error(`Customer '${customer.id}' is deleted.  That's not expected to ever happen.`);
+        }
+        return customer as Stripe.Customer;
     } catch (err) {
         if (err.code === "resource_missing") {
             return null;
@@ -133,17 +119,17 @@ async function getStripeCustomerOrNull(auth: giftbitRoutes.jwtauth.Authorization
     }
 }
 
-async function getOrCreateStripeCustomer(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe.customers.ICustomer> {
-    const stripe = await getStripeClient("live");
+async function getOrCreateStripeCustomer(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<Stripe.Customer> {
+    const stripe = await getStripeClient();
     const customerId = stripUserIdTestMode(auth.userId);
 
     try {
         const customer = await stripe.customers.retrieve(customerId);
-        if ((customer as any).deleted) {
+        if (customer.deleted) {
             // We don't do this in this service.  Hopefully no one else ever does.
             throw new Error(`Stripe customer '${customer.id}' has been deleted and cannot be recreated.`);
         }
-        return customer;
+        return customer as Stripe.Customer;
     } catch (err) {
         if (err.code === "resource_missing") {
             const customer = await stripe.customers.create({
