@@ -17,7 +17,7 @@ export function installUserRest(router: cassava.Router): void {
 
             const user = await DbUser.getByAuth(auth);
             return {
-                body: User.getFromDbUser(user)
+                body: User.getFromDbUser(user, auth.isTestUser() ? "test" : "live")
             };
         });
 

@@ -41,7 +41,7 @@ describe("/v2/user/login", () => {
         chai.assert.isObject(loginResp.body.user);
         chai.assert.isString(loginResp.body.user.id);
         chai.assert.isString(loginResp.body.user.email);
-        chai.assert.equal(loginResp.body.mode, "test");
+        chai.assert.equal(loginResp.body.user.mode, "test");
         chai.assert.isUndefined(loginResp.body.messageCode);
 
         const sessionCookie = loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_session="));
@@ -51,7 +51,7 @@ describe("/v2/user/login", () => {
         const signatureCookie = loginResp.multiValueHeaders["Set-Cookie"].find(s => s.startsWith("gb_jwt_signature="));
         chai.assert.match(signatureCookie, /HttpOnly($|;)/);
         chai.assert.match(signatureCookie, /Secure($|;)/);
-        
+
         const accountUsersResp = await router.testPostLoginRequest(loginResp, "/v2/account/users", "GET");
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK, "prove we're logged in");
     }
