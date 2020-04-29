@@ -15,9 +15,9 @@ export function installUserRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:user:read");
             auth.requireIds("userId");
 
-            const user = await DbUser.getByAuth(auth);
+            const dbUser = await DbUser.getByAuth(auth);
             return {
-                body: User.getFromDbUser(user)
+                body: User.getFromDbUser(dbUser, auth.isTestUser() ? "test" : "live")
             };
         });
 

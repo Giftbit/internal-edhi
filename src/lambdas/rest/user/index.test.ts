@@ -29,6 +29,7 @@ describe("/v2/user", () => {
         chai.assert.equal(getUserResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.equal(getUserResp.body.email, testUtils.defaultTestUser.email);
         chai.assert.equal(getUserResp.body.id, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getUserResp.body.mode, "test");
     });
 
     describe("/v2/user/accounts", () => {
