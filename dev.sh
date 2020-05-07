@@ -17,6 +17,7 @@ PARAMETER_OVERRIDES+=" LightrailEmailDomain=lightraildev.net"
 PARAMETER_OVERRIDES+=" LightrailWebappDomain=www.lightraildev.net"
 PARAMETER_OVERRIDES+=" SecureConfigBucket=dev-lightrailsecureconfig-1q7bltwyiihpq-bucket-id162gq711cc"
 PARAMETER_OVERRIDES+=" SecureConfigKmsArn=arn:aws:kms:us-west-2:757264843183:key/5240d853-a89f-4510-82ba-386bf2b977dc"
+PARAMETER_OVERRIDES+=" SentryDsn=https://fb28f9ac76a84e879f7523cc07092369@o51938.ingest.sentry.io/239845"
 
 USAGE="usage: $0 <command name>\nvalid command names: build delete deploy invoke upload"
 
