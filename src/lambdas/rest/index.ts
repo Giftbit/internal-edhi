@@ -53,7 +53,8 @@ router.route(new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     sharedSecretProvider: new giftbitRoutes.jwtauth.sharedSecret.RestSharedSecretProvider(`https://${process.env["LIGHTRAIL_DOMAIN"]}/v1/storage/jwtSecret`, giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<giftbitRoutes.secureConfig.AssumeScopeToken>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_ASSUME_STORAGE_SCOPE_TOKEN"),
     ),
     infoLogFunction: log.info,
-    errorLogFunction: log.error
+    errorLogFunction: log.error,
+    onAuth: auth => giftbitRoutes.sentry.setSentryUser(auth)
 }));
 DbUser.initializeBadgeSigningSecrets(authConfigPromise);
 
@@ -81,5 +82,5 @@ installAuthedRestRoutes(router);
 export const handler = giftbitRoutes.sentry.wrapLambdaHandler({
     router,
     logger: log.error,
-    secureConfig: giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<any>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_SENTRY")
+    sentryDsn: process.env["SENTRY_DSN"]
 });
