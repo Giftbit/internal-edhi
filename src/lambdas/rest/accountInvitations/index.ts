@@ -47,6 +47,10 @@ export function installAccountInvitationsRest(router: cassava.Router): void {
                     }
                 },
                 required: ["email"],
+                not: {
+                    id: "specifying both 'userPrivilegeType' and 'roles'",
+                    required: ["userPrivilegeType", "roles"]
+                },
                 additionalProperties: false
             });
 
@@ -143,14 +147,31 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
                 attribute: "pendingInvitation.createdDate",
                 value: createdDate
             }));
+            if (params.userPrivilegeType) {
+                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                    action: "put",
+                    attribute: "roles",
+                    value: getRolesForUserPrivilege(params.userPrivilegeType)
+                }));
+            } else if (params.roles) {
+                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                    action: "put",
+                    attribute: "roles",
+                    value: params.roles
+                }));
+            }
+            if (params.scopes) {
+                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                    action: "put",
+                    attribute: "scopes",
+                    value: params.scopes
+                }));
+            }
             log.info("Resending invitation to invited AccountUser", accountUser.accountId, accountUser.userId);
         } else {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
         }
     } else {
-        if (params.userPrivilegeType && params.roles) {
-            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Cannot specify both userPrivilegeType and roles.");
-        }
         if (!params.userPrivilegeType && !(params.roles && params.roles.length) && !(params.scopes && params.scopes.length)) {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Must specify userPrivilegeType or one of roles, scopes.");
         }
