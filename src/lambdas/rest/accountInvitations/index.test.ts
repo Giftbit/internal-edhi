@@ -123,8 +123,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.isUndefined(reinviteEmail);
 
         const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
-            email: email,
-            userPrivilegeType: "FULL_ACCESS"
+            email: email
         });
         chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.isDefined(reinviteEmail);
@@ -351,5 +350,14 @@ describe("/v2/account/invitations", () => {
         const getAccountResp = await router.testPostLoginRequest<Account>(loginResp, "/v2/account", "GET");
         chai.assert.equal(getAccountResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.notEqual(getAccountResp.body.id, testUtils.defaultTestUser.accountId, "should not be logged in to the account that deleted the invitation");
+    });
+
+    it("cannot send an invitation with userPrivilegeType and roles", async () => {
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: `${generateId()}@example.com`,
+            userPrivilegeType: "FULL_ACCESS",
+            roles: ["lineCook"]
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
     });
 });
