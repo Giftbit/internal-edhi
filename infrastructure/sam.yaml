@@ -235,21 +235,21 @@ Resources:
       Statistic: Sum
       Threshold: 0
 
-    EdhiRestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
-      Type: "AWS::CloudWatch::Alarm"
-      Properties:
-        AlarmDescription: Lambda Function Error > 0
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: Resource
-            Value: !Sub "${EdhiRestFunction}:live"
-          - Name: FunctionName
-            Value: !Ref EdhiRestFunction
-          - Name: ExecutedVersion
-            Value: !GetAtt EdhiRestFunction.Version.Version
-        EvaluationPeriods: 2
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Period: 60
-        Statistic: Sum
-        Threshold: 0
+  EdhiRestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${EdhiRestFunction}:live"
+        - Name: FunctionName
+          Value: !Ref EdhiRestFunction
+        - Name: ExecutedVersion
+          Value: !GetAtt EdhiRestFunction.Version.Version
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0

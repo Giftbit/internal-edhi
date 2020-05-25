@@ -243,11 +243,17 @@ Resources:
           - Effect: Allow
             Action:
               - lambda:AddPermission
+              - lambda:CreateAlias
               - lambda:CreateFunction
               - lambda:DeleteFunction
+              - lambda:DeleteAlias
+              - lambda:GetAlias
               - lambda:GetFunction
               - lambda:GetFunctionConfiguration
               - lambda:InvokeFunction
+              - lambda:ListAliases
+              - lambda:ListVersionsByFunction
+              - lambda:PublishVersion
               - lambda:RemovePermission
               - lambda:TagResource
               - lambda:UntagResource

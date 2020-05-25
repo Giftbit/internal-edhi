@@ -1,4 +1,4 @@
-#!/usr/bin/env bas
+#!/usr/bin/env bash
 # A few bash commands to make development against dev environment easy.
 # Set the properties below to sensible values for your project.
 
