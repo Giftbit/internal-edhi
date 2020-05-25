@@ -5,6 +5,19 @@ Transform: AWS::Serverless-2016-10-31
 Description: Edhi takes care of users
 
 Parameters:
+  DeploymentPreferenceType:
+    Type: String
+    Description: SAM traffic shifting configuration
+    AllowedValues:
+      - Canary10Percent30Minutes
+      - Canary10Percent5Minutes
+      - Canary10Percent10Minutes
+      - Canary10Percent15Minutes
+      - AllAtOnce
+      - Linear10PercentEvery10Minutes
+      - Linear10PercentEvery1Minute
+      - Linear10PercentEvery2Minutes
+      - Linear10PercentEvery3Minutes
   LightrailDomain:
     Type: String
     Description: The domain of the Lightrail REST API
@@ -110,6 +123,12 @@ Resources:
       Runtime: nodejs10.x
       MemorySize: 256
       Timeout: 30 # seconds, 300 max
+      AutoPublishAlias: live # see https://github.com/awslabs/serverless-application-model/blob/master/docs/safe_lambda_deployments.rst
+      DeploymentPreference:
+        Type: !Ref DeploymentPreferenceType
+        Alarms:
+          - !Ref RestFunctionAliasErrorMetricGreaterThanZeroAlarm
+          - !Ref RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
       Environment:
         Variables:
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
@@ -198,3 +217,39 @@ Resources:
           Properties:
             Schedule: rate(4 minutes)
             Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/healthCheck\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
+
+  RestFunctionAliasErrorMetricGreaterThanZeroAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${RestFunction}:live"
+        - Name: FunctionName
+          Value: !Ref RestFunction
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+
+  RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${RestFunction}:live"
+        - Name: FunctionName
+          Value: !Ref RestFunction
+        - Name: ExecutedVersion
+          Value: !GetAtt RestFunction.Version.Version
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
