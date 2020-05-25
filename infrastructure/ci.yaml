@@ -284,24 +284,6 @@ Resources:
               - events:PutTargets
               - events:RemoveTargets
             Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-*"
-          # Kinesis stream event mapping
-          #          - Effect: Allow
-          #            Action:
-          #              - kinesis:DescribeStreams
-          #              - kinesis:DescribeStream
-          #              - kinesis:ListStreams
-          #              - kinesis:GetShardIterator
-          #              - kinesis:GetRecords
-          #            Resource: !Sub "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/*"
-          # DynamoBD event mapping
-          #          - Effect: Allow
-          #            Action:
-          #              - dynamodb:DescribeStreams
-          #              - dynamodb:DescribeStream
-          #              - dynamodb:ListStreams
-          #              - dynamodb:GetShardIterator
-          #              - dynamodb:GetRecords
-          #            Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*"
           # DynamoDB tables
           - Effect: Allow
             Action:
@@ -360,6 +342,30 @@ Resources:
               - secretsmanager:PutResourcePolicy
               - secretsmanager:TagResource
             Resource: "*" # This action does not support resource-level permissions. Policies granting access must specify "*" in the resource element.
+          # Blue Green deployment
+          - Effect: Allow
+            Action:
+              - codedeploy:CreateApplication
+              - codedeploy:DeleteApplication
+              - codedeploy:RegisterApplicationRevision
+            Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${ProjectName}-*"
+          - Effect: Allow
+            Action:
+              - codedeploy:CreateDeployment
+              - codedeploy:CreateDeploymentGroup
+              - codedeploy:DeleteDeploymentGroup
+              - codedeploy:GetDeployment
+              - codedeploy:UpdateDeploymentGroup
+            Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ProjectName}-*"
+          - Effect: Allow
+            Action:
+              - codedeploy:GetDeploymentConfig
+            Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:CodeDeployDefault.*"
+          - Effect: Allow
+            Action:
+              - cloudwatch:DeleteAlarms
+              - cloudwatch:PutMetricAlarm
+            Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${ProjectName}-*"
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
