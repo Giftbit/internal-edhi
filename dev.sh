@@ -11,8 +11,7 @@ BUILD_ARTIFACT_BUCKET="dev-lightrailedhi-1d4vyn-deploymentartifactbucket-5rv7c6m
 
 # Parameter values for the sam template.  see: `aws cloudformation deploy help`
 PARAMETER_OVERRIDES="--parameter-overrides"
-#PARAMETER_OVERRIDES+=" DeploymentPreferenceType=AllAtOnce"
-PARAMETER_OVERRIDES+=" DeploymentPreferenceType=Linear10PercentEvery1Minute"
+PARAMETER_OVERRIDES+=" DeploymentPreferenceType=AllAtOnce"
 PARAMETER_OVERRIDES+=" LightrailDomain=api.lightraildev.net"
 PARAMETER_OVERRIDES+=" LightrailEmailDomain=lightraildev.net"
 PARAMETER_OVERRIDES+=" LightrailWebappDomain=www.lightraildev.net"

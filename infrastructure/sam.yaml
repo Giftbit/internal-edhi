@@ -115,7 +115,7 @@ Resources:
         - Key: Service
           Value: Edhi
 
-  EdhiRestFunction:
+  RestFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../dist/rest/rest.zip
@@ -127,8 +127,8 @@ Resources:
       DeploymentPreference:
         Type: !Ref DeploymentPreferenceType
         Alarms:
-          - !Ref EdhiRestFunctionAliasErrorMetricGreaterThanZeroAlarm
-          - !Ref EdhiRestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
+          - !Ref RestFunctionAliasErrorMetricGreaterThanZeroAlarm
+          - !Ref RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
       Environment:
         Variables:
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
@@ -218,16 +218,16 @@ Resources:
             Schedule: rate(4 minutes)
             Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/healthCheck\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
 
-  EdhiRestFunctionAliasErrorMetricGreaterThanZeroAlarm:
+  RestFunctionAliasErrorMetricGreaterThanZeroAlarm:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       AlarmDescription: Lambda Function Error > 0
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: Resource
-          Value: !Sub "${EdhiRestFunction}:live"
+          Value: !Sub "${RestFunction}:live"
         - Name: FunctionName
-          Value: !Ref EdhiRestFunction
+          Value: !Ref RestFunction
       EvaluationPeriods: 2
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -235,18 +235,18 @@ Resources:
       Statistic: Sum
       Threshold: 0
 
-  EdhiRestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
+  RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       AlarmDescription: Lambda Function Error > 0
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: Resource
-          Value: !Sub "${EdhiRestFunction}:live"
+          Value: !Sub "${RestFunction}:live"
         - Name: FunctionName
-          Value: !Ref EdhiRestFunction
+          Value: !Ref RestFunction
         - Name: ExecutedVersion
-          Value: !GetAtt EdhiRestFunction.Version.Version
+          Value: !GetAtt RestFunction.Version.Version
       EvaluationPeriods: 2
       MetricName: Errors
       Namespace: AWS/Lambda
