@@ -18,6 +18,8 @@ import {DbAccount} from "../../../db/DbAccount";
 import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import * as dynameh from "dynameh";
+import {getLoginResponse} from "../login";
+import {isTestModeUserId} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -213,7 +215,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
     await sendRegistrationVerificationEmail(params.email);
 }
 
-async function verifyEmail(token: string): Promise<void> {
+async function verifyEmail(token: string): Promise<cassava.RouterResponse> {
     const tokenAction = await TokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
@@ -233,6 +235,13 @@ async function verifyEmail(token: string): Promise<void> {
 
     await TokenAction.del(tokenAction);
     log.info("User", tokenAction.email, "has verified their email address");
+
+    const accountUser = await DbAccountUser.getForUserLogin(user);
+    const response = await getLoginResponse(user, accountUser, isTestModeUserId(user?.login?.defaultLoginAccountId));
+    response.body = null;
+    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
+    response.headers["Location"] = "/app/#/";
+    return response;
 }
 
 async function acceptInvitation(token: string): Promise<cassava.RouterResponse> {
@@ -310,11 +319,9 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return {
-        body: null,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        }
-    };
+    const response = await getLoginResponse(user, accountUser, isTestModeUserId(user?.login?.defaultLoginAccountId));
+    response.body = null;
+    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
+    response.headers["Location"] = "/app/#/";
+    return response;
 }

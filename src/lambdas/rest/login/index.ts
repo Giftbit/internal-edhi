@@ -394,9 +394,8 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  * @param accountUser The DbAccountUser of the Account to log in to.  If null then the
  *                    user has no Account and can only create one.
  * @param liveMode Whether to log in as live (or test) to the Account.
- * @param additionalCookies Additional cookies that should be included in the response.
  */
-export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
+export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const body: LoginResult = {
         user: User.getFromDbUser(user, liveMode ? "live" : "test")
     };
@@ -429,9 +428,10 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         body: body,
         statusCode: cassava.httpStatusCode.success.OK,
         cookies: {
-            ...await DbUser.getBadgeCookies(badge),
-            ...additionalCookies
-        }
+            ...await DbUser.getBadgeCookies(badge)
+        },
+        headers: {},
+        multiValueHeaders: {}
     };
 }
 

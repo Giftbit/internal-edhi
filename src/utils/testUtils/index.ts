@@ -146,7 +146,7 @@ export namespace defaultTestUser {
 export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     authConfigPromise: Promise.resolve({secretkey: "secret"}),
     rolesConfigPromise: Promise.resolve(require("./rolesConfig.json")),
-    infoLogFunction: () => {
+    infoLogFunction: (): void => {
         // too noisy for testing
     },
     errorLogFunction: log.error

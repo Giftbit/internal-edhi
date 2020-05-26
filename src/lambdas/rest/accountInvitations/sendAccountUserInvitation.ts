@@ -7,8 +7,9 @@ export async function sendAccountUserInvitation(params: { email: string, account
     const tokenAction = TokenAction.generate("acceptAccountInvitation", 5 * 24, params);
     await TokenAction.put(tokenAction);
 
-    const confirmAccountLink = `https://${process.env["LIGHTRAIL_DOMAIN"]}/v2/user/register/acceptInvitation?token=${encodeURIComponent(tokenAction.token)}`;
-    const body = invitationEmail.replace(/{{confirmAccountLink}}/g, confirmAccountLink)
+    const confirmAccountLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/v2/user/register/acceptInvitation?token=${encodeURIComponent(tokenAction.token)}`;
+    const body = invitationEmail
+        .replace(/{{confirmAccountLink}}/g, confirmAccountLink)
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     await sendEmail({

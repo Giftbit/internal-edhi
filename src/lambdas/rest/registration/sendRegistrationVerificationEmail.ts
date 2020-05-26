@@ -8,8 +8,9 @@ export async function sendRegistrationVerificationEmail(email: string): Promise<
     const tokenAction = TokenAction.generate("emailVerification", 7 * 24, {email: email});
     await TokenAction.put(tokenAction);
 
-    const confirmAccountLink = `https://${process.env["LIGHTRAIL_DOMAIN"]}/v2/user/register/verifyEmail?token=${encodeURIComponent(tokenAction.token)}`;
-    const body = registrationEmail.replace(/{{confirmAccountLink}}/g, confirmAccountLink)
+    const confirmAccountLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/v2/user/register/verifyEmail?token=${encodeURIComponent(tokenAction.token)}`;
+    const body = registrationEmail
+        .replace(/{{confirmAccountLink}}/g, confirmAccountLink)
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     log.info("Sending email address verification email to", email, "token=", tokenAction.token);

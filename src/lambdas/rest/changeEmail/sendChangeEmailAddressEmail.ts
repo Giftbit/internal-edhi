@@ -8,8 +8,9 @@ export async function sendChangeEmailAddressEmail(userId: string, email: string)
     const tokenAction = TokenAction.generate("changeEmail", 24, {email, userId});
     await TokenAction.put(tokenAction);
 
-    const confirmChangeLink = `https://${process.env["LIGHTRAIL_DOMAIN"]}/v2/user/changeEmail/complete?token=${encodeURIComponent(tokenAction.token)}`;
-    const body = changeEmailAddressEmail.replace(/{{confirmChangeLink}}/g, confirmChangeLink)
+    const confirmChangeLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/v2/user/changeEmail/complete?token=${encodeURIComponent(tokenAction.token)}`;
+    const body = changeEmailAddressEmail
+        .replace(/{{confirmChangeLink}}/g, confirmChangeLink)
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     log.info("Sending change email address email to", email, "userId=", userId, "token=", tokenAction.token);

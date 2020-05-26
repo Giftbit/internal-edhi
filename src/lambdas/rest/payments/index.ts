@@ -80,7 +80,6 @@ async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
     try {
         const stripe = await getStripeClient();
         const updatedCustomer = await stripe.customers.update(customer.id, {
-            // eslint-disable-next-line @typescript-eslint/camelcase
             source: cardToken,
             ...await getDefaultStripeCustomerProperties(auth)
         });
