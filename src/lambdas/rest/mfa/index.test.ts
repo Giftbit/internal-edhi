@@ -208,11 +208,12 @@ describe("/v2/user/mfa", () => {
 
     describe("TOTP MFA", () => {
         it("can be enabled by confirming 2 consecutive codes", async () => {
-            const enableMfaResp = await router.testWebAppRequest<{ secret: string }>("/v2/user/mfa", "POST", {
+            const enableMfaResp = await router.testWebAppRequest<{ secret: string, uri: string }>("/v2/user/mfa", "POST", {
                 device: "totp"
             });
             chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isString(enableMfaResp.body.secret);
+            chai.assert.include(enableMfaResp.body.uri, `secret=${enableMfaResp.body.secret}`, "secret is properly encoded in uri");
 
             const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
@@ -234,7 +235,7 @@ describe("/v2/user/mfa", () => {
         });
 
         it("cannot be enabled by entering the same code twice", async () => {
-            const enableMfaResp = await router.testWebAppRequest<{ secret: string }>("/v2/user/mfa", "POST", {
+            const enableMfaResp = await router.testWebAppRequest<{ secret: string, uri: string }>("/v2/user/mfa", "POST", {
                 device: "totp"
             });
             chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -258,7 +259,7 @@ describe("/v2/user/mfa", () => {
         });
 
         it("cannot be enabled with codes from too far in the past or future", async () => {
-            const enableMfaResp = await router.testWebAppRequest<{ secret: string }>("/v2/user/mfa", "POST", {
+            const enableMfaResp = await router.testWebAppRequest<{ secret: string, uri: string }>("/v2/user/mfa", "POST", {
                 device: "totp"
             });
             chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -306,7 +307,7 @@ describe("/v2/user/mfa", () => {
         });
 
         it("times out", async () => {
-            const enableMfaResp = await router.testWebAppRequest<{ secret: string }>("/v2/user/mfa", "POST", {
+            const enableMfaResp = await router.testWebAppRequest<{ secret: string, uri: string }>("/v2/user/mfa", "POST", {
                 device: "totp"
             });
             chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);

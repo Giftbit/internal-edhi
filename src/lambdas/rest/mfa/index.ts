@@ -102,7 +102,7 @@ export function installMfaRest(router: cassava.Router): void {
         });
 }
 
-function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { device: string }): Promise<{ message?: string, secret?: string }> {
+function startEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { device: string }): Promise<{ message?: string, secret?: string, uri?: string }> {
     if (params.device === "totp") {
         return startEnableTotpMfa(auth);
     } else {
@@ -151,7 +151,7 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     };
 }
 
-async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ secret: string }> {
+async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge): Promise<{ secret: string, uri: string }> {
     log.info("Beginning TOTP MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
@@ -182,7 +182,8 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     }
 
     return {
-        secret: secret.totpSecret
+        secret: secret.totpSecret,
+        uri: `otpauth://totp/Lightrail:${user.email}?secret=${secret.totpSecret}&period=30&digits=6&algorithm=SHA1&issuer=Lightrail`
     };
 }
 
