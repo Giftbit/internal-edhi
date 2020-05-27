@@ -129,6 +129,7 @@ Resources:
         Alarms:
           - !Ref RestFunctionAliasErrorMetricGreaterThanZeroAlarm
           - !Ref RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
+          - !Ref EdhiApiGateway5XXGreaterThanZeroAlarm
       Environment:
         Variables:
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
@@ -250,6 +251,23 @@ Resources:
       EvaluationPeriods: 2
       MetricName: Errors
       Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+
+  EdhiApiGateway5XXGreaterThanZeroAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: ApiGateway 5XX > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref AWS::StackName
+        - Name: Stage
+          Value: Prod
+      EvaluationPeriods: 2
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
       Period: 60
       Statistic: Sum
       Threshold: 0
