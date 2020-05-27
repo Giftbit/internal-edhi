@@ -220,7 +220,7 @@ Resources:
             Input: !Sub "{\"resource\":\"/{proxy+}\",\"path\":\"/v2/user/healthCheck\",\"httpMethod\":\"GET\",\"headers\":null,\"queryStringParameters\":null,\"pathParameters\":null,\"stageVariables\":null,\"context\":{\"accountId\":\"12345678912\",\"resourceId\":null,\"stage\":\"Prod\",\"requestId\":null,\"identity\":null,\"resourcePath\":\"/{proxy+}\",\"httpMethod\":\"GET\",\"apiId\":null},\"body\":null,\"isBase64Encoded\":false}"
 
   RestFunctionAliasErrorMetricGreaterThanZeroAlarm:
-    Type: "AWS::CloudWatch::Alarm"
+    Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: Lambda Function Error > 0
       ComparisonOperator: GreaterThanThreshold
@@ -237,7 +237,7 @@ Resources:
       Threshold: 0
 
   RestFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
-    Type: "AWS::CloudWatch::Alarm"
+    Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: Lambda Function Error > 0
       ComparisonOperator: GreaterThanThreshold

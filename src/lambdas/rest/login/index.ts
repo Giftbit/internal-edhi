@@ -396,6 +396,10 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  * @param liveMode Whether to log in as live (or test) to the Account.
  */
 export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    if (!user.login.password) {
+        throw new Error(`User '${user.email}' does not have a password set and should not be sent to getLoginResponse().`);
+    }
+
     const body: LoginResult = {
         user: User.getFromDbUser(user, liveMode ? "live" : "test")
     };

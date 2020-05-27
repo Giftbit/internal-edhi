@@ -56,6 +56,8 @@ describe("/v2/user/register", () => {
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
         chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(verifyResp.headers["Location"]);
+        chai.assert.isString(verifyResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(verifyResp.getCookie("gb_jwt_signature"));
 
         const badLoginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
             email,

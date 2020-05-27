@@ -66,15 +66,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
             }
 
-            await verifyEmail(evt.queryStringParameters.token);
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: "/app/#"
-                }
-            };
+            return await verifyEmail(evt.queryStringParameters.token);
         });
 
     router.route("/v2/user/register/acceptInvitation")
