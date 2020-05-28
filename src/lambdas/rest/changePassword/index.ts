@@ -5,8 +5,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {hashPassword, validatePassword} from "../../../utils/passwordUtils";
 import {DbUser} from "../../../db/DbUser";
 import {DbUserPasswordHistory} from "../../../db/DbUserPasswordHistory";
-import {createdDateNow} from "../../../db/dynamodb";
-import {dynamodb, objectDynameh} from "../../../db/dynamodb";
+import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import log = require("loglevel");
 
 export function installChangePasswordRest(router: cassava.Router): void {
@@ -79,6 +78,7 @@ export async function completeChangePassword(newPlaintextPassword: string, user:
     const userPasswordHistoryReq = getUpdatePasswordHistoryInput(user, userPasswordHistory);
     const tx = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...[userUpdateReq, userPasswordHistoryReq].filter(i => !!i));
     await dynamodb.transactWriteItems(tx).promise();
+    user.login.password = userNewPassword;
 
     log.info("User", user.email, "has changed their password");
 }

@@ -312,12 +312,17 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 }
 
 async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
-    if (!accountUser || accountUser.pendingInvitation) {
+    const user = await DbUser.getByAuth(auth);
+    const accountUser = await DbAccountUser.get(accountId, user.userId);
+    if (!accountUser) {
+        log.warn("Could not switch user", user.userId, "to account", accountId, "AccountUser not found");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+    if (accountUser.pendingInvitation) {
+        log.warn("Could not switch user", user.userId, "to account", accountId, "invitation is still pending");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
     }
 
-    const user = await DbUser.getByAuth(auth);
     await DbUser.update(user, {
         action: "put",
         attribute: "login.defaultLoginAccountId",
