@@ -27,6 +27,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string"
@@ -102,6 +103,7 @@ export function installLoginAuthedRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:authenticate");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     code: {
                         type: "string",

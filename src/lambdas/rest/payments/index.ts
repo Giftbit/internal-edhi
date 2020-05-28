@@ -34,6 +34,7 @@ export function installPaymentsRest(router: cassava.Router): void {
             auth.requireIds("userId");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     cardToken: {
                         type: "string",

@@ -20,6 +20,7 @@ export function installAccountInvitationsRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:users:create");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string",

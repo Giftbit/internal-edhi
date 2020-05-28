@@ -27,6 +27,7 @@ export function installRegistrationRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string",

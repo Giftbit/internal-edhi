@@ -33,6 +33,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     maxInactiveDays: {
                         type: ["number", "null"],
@@ -70,6 +71,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:create");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     name: {
                         type: "string",
@@ -97,6 +99,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("teamMemberId");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     accountId: {
                         type: "string",
@@ -154,6 +157,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:users:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     lockedByInactivity: {
                         type: "boolean"

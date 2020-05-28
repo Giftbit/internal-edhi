@@ -17,6 +17,7 @@ export function installChangePasswordRest(router: cassava.Router): void {
             auth.requireIds("teamMemberId");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     oldPassword: {
                         type: "string"

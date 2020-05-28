@@ -26,6 +26,12 @@ describe("/v2/user/changeEmail", () => {
         sinonSandbox.restore();
     });
 
+    it("requires a body", async () => {
+        const resp = await router.testWebAppRequest("/v2/user/changeEmail", "POST");
+        console.log(resp.bodyRaw);
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("cannot change to an invalid email address", async () => {
         let changeEmailAddressEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")

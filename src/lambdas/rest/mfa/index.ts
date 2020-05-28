@@ -34,6 +34,7 @@ export function installMfaRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:user:mfa:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     device: {
                         type: "string",
@@ -56,6 +57,7 @@ export function installMfaRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:user:mfa:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     code: {
                         type: "string",

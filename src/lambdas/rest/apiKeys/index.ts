@@ -28,6 +28,7 @@ export function installApiKeysRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:apiKeys:create");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     name: {
                         type: "string",
