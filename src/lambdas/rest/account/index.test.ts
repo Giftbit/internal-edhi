@@ -139,11 +139,19 @@ describe("/v2/account", () => {
         });
         chai.assert.equal(invitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
 
-        const teamMateSwitchAccountResp = await router.testTeamMateRequest("/v2/account/switch", "POST", {
+        const teamMateSwitchAccountResp = await router.testTeamMateRequest<LoginResult>("/v2/account/switch", "POST", {
             accountId: createAccountResp.body.id,
             mode: "test"
         });
         chai.assert.equal(teamMateSwitchAccountResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN, teamMateSwitchAccountResp.bodyRaw);
+    });
+
+    it("can switch between test and live mode without specifying the accountId", async () => {
+        const switchAccountResp = await router.testWebAppRequest<LoginResult>("/v2/account/switch", "POST", {
+            mode: "live"
+        });
+        chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
+        chai.assert.equal(switchAccountResp.body.user.mode, "live");
     });
 
     it("can update an AccountUser's roles and scopes", async () => {

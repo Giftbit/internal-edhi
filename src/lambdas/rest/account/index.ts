@@ -107,11 +107,13 @@ export function installAccountRest(router: cassava.Router): void {
                         enum: ["live", "test"]
                     }
                 },
-                required: ["accountId", "mode"],
+                required: ["mode"],
                 additionalProperties: false
             });
 
-            return await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
+            const accountId = evt.body.accountId ?? auth.userId;
+            const liveMode = evt.body.mode === "live";
+            return await switchAccount(auth, accountId, liveMode);
         });
 
     router.route("/v2/account/users")
@@ -312,6 +314,10 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 }
 
 async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    if (!accountId) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Cannot switch.  User is not logged into an account and accountId is not set.");
+    }
+
     const user = await DbUser.getByAuth(auth);
     const accountUser = await DbAccountUser.get(accountId, user.userId);
     if (!accountUser) {
