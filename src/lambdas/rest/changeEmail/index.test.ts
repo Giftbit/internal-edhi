@@ -26,9 +26,13 @@ describe("/v2/user/changeEmail", () => {
         sinonSandbox.restore();
     });
 
+    it("requires authorization", async () => {
+        const resp = await router.testUnauthedRequest("/v2/user/changeEmail", "POST");
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    });
+
     it("requires a body", async () => {
         const resp = await router.testWebAppRequest("/v2/user/changeEmail", "POST");
-        console.log(resp.bodyRaw);
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 

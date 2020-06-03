@@ -29,7 +29,6 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            console.log("validated", evt.body);
             if (await isEmailAddressInUse(evt.body.email)) {
                 // Don't initiate the process but don't acknowledge it either.
                 // We don't want to expose an attack on determining who has an account.
