@@ -403,18 +403,18 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
     }
 
     const body: LoginResult = {
-        user: User.getFromDbUser(user, liveMode ? "live" : "test")
+        user: null
     };
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
     const account = accountUser && await DbAccount.get(accountUser.accountId);
-    log.debug("Get login response for account=", account, "user=", body.user);
+    log.debug("Get login response for account=", account, "user=", user.email, user.userId);
 
     if (!account) {
         body.message = "You have been removed from all Accounts.  You can create your own to continue.";
         body.messageCode = "NoAccount";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.requireMfa && !body.user.hasMfa) {
+    } else if (account.requireMfa && !DbUser.hasMfaActive(user)) {
         body.message = "The Account requires that MFA is enabled to continue.";
         body.messageCode = "AccountMfaRequired";
         badge = DbUser.getOrphanBadge(user);
@@ -430,6 +430,8 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         badge = DbUser.getBadge(accountUser, liveMode, true);
     }
 
+    body.user = User.getFromDbUser(user, badge);
+
     return {
         body: body,
         statusCode: cassava.httpStatusCode.success.OK,
@@ -442,9 +444,11 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
 }
 
 async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    log.debug("Get login additional authentication response for user=", user.email, user.userId);
+
     const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
-        user: User.getFromDbUser(user, "live"),
+        user: User.getFromDbUser(user, badge),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
     };

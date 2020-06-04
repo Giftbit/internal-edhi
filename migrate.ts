@@ -56,7 +56,7 @@ async function main(): Promise<void> {
         account_locked: Buffer;
         two_factor_authentication_device: string;
         date_created: Date;
-    }[] = (await mysqlConnection.execute("select giftbit_user_id, username, team_member_id, password, account_locked, two_factor_authentication_device, date_created from giftbit_user where account_expired = 0 and enabled = 1 and giftbit_user_id = 'user-461204bab4654c26adaf2162e4b49e01'"))[0];
+    }[] = (await mysqlConnection.execute("select giftbit_user_id, username, team_member_id, password, account_locked, two_factor_authentication_device, date_created from giftbit_user where account_expired = 0 and enabled = 1"))[0];
     log.debug("userRows=", userRows);
 
     log.info("Calculating DbAccounts...");
