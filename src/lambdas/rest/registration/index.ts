@@ -18,8 +18,7 @@ import {DbAccount} from "../../../db/DbAccount";
 import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import * as dynameh from "dynameh";
-import {getLoginResponse} from "../login";
-import {isTestModeUserId} from "../../../utils/userUtils";
+import {loginUserByEmailAction} from "../login";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -229,12 +228,8 @@ async function verifyEmail(token: string): Promise<cassava.RouterResponse> {
     await TokenAction.del(tokenAction);
     log.info("User", tokenAction.email, "has verified their email address");
 
-    const accountUser = await DbAccountUser.getForUserLogin(user);
-    const response = await getLoginResponse(user, accountUser, isTestModeUserId(user?.login?.defaultLoginAccountId));
-    response.body = null;
-    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
-    response.headers["Location"] = "/app/#/";
-    return response;
+    user.login.emailVerified = true;
+    return await loginUserByEmailAction(user);
 }
 
 async function acceptInvitation(token: string): Promise<cassava.RouterResponse> {
@@ -312,9 +307,5 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    const response = await getLoginResponse(user, accountUser, isTestModeUserId(user?.login?.defaultLoginAccountId));
-    response.body = null;
-    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
-    response.headers["Location"] = "/app/#/";
-    return response;
+    return await loginUserByEmailAction(user);
 }

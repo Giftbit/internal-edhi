@@ -7,6 +7,7 @@ import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
+import {loginUserByEmailAction} from "../login";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -53,18 +54,11 @@ export function installChangeEmailUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/changeEmail/complete")
         .method("GET")
         .handler(async evt => {
-            await completeChangeEmail(evt.queryStringParameters.token);
-
-            return {
-                body: {
-                    // This is really lazy but it's not worth the time to soften this rough edge right now.
-                    message: "You have successfully changed your email address.  Please log in to continue."
-                }
-            };
+            return await completeChangeEmail(evt.queryStringParameters.token);
         });
 }
 
-export async function completeChangeEmail(token: string): Promise<void> {
+export async function completeChangeEmail(token: string): Promise<cassava.RouterResponse> {
     const tokenAction = await TokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "changeEmail") {
         log.warn("Could not find changeEmail TokenAction for token", token);
@@ -121,4 +115,6 @@ export async function completeChangeEmail(token: string): Promise<void> {
 
     await sendEmailAddressChangedEmail(user.email);
     await TokenAction.del(tokenAction);
+
+    return loginUserByEmailAction(newUser, "/app/#/changeEmailComplete");
 }

@@ -146,7 +146,7 @@ describe("/v2/user/register", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isUndefined(completeResp.body.messageCode);
     });
 

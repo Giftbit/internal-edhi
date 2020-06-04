@@ -104,7 +104,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailToken, "found complete email address change link");
 
         const completeResp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken}`, "GET");
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isDefined(emailAddressChangedEmail);
         chai.assert.include(emailAddressChangedEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
         chai.assert.match(emailAddressChangedEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
@@ -170,7 +170,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailToken1, "found complete email address change link");
 
         const complete1Resp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken1}`, "GET");
-        chai.assert.equal(complete1Resp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(complete1Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
         const changeEmailToken2 = /https:\/\/.*changeEmail\/complete\?token=([a-zA-Z0-9]*)/.exec(changeEmailAddressEmail2.htmlBody)[1];
         chai.assert.isDefined(changeEmailToken2, "found complete email address change link");

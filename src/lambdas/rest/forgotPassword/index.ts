@@ -2,8 +2,7 @@ import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendForgotPasswordEmail} from "./sendForgotPasswordEmail";
 import {TokenAction} from "../../../db/TokenAction";
-import {getLoginResponse} from "../login";
-import {DbAccountUser} from "../../../db/DbAccountUser";
+import {loginUserByEmailAction} from "../login";
 import {createdDateNow} from "../../../db/dynamodb";
 import {DbUser} from "../../../db/DbUser";
 import {completeChangePassword} from "../changePassword";
@@ -86,6 +85,5 @@ async function completeForgotPassword(params: { token: string, plaintextPassword
 
     log.info("User", user.email, "has changed their password through forgotPassword");
 
-    const accountUser = await DbAccountUser.getForUserLogin(user);
-    return getLoginResponse(user, accountUser, true);
+    return loginUserByEmailAction(user);
 }

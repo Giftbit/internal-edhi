@@ -80,7 +80,7 @@ describe("/v2/account/invitations", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
         const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
@@ -202,7 +202,7 @@ describe("/v2/account/invitations", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
     });
 
     it("can invite a user to an account that already has its own account", async () => {

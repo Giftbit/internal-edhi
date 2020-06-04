@@ -268,7 +268,7 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
         token: resetPasswordToken,
         password
     });
-    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
     const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
         email,
