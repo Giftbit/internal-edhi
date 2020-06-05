@@ -51,6 +51,21 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isUndefined(changeEmailAddressEmail);
     });
 
+    it("cannot change to an email address domain with no MX record", async () => {
+        let changeEmailAddressEmail: string;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                changeEmailAddressEmail = params.htmlBody;
+                return null;
+            });
+
+        const resp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
+            email: `${generateId()}@example.com`
+        });
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+        chai.assert.isUndefined(changeEmailAddressEmail);
+    });
+
     it("changes nothing until the email link is clicked", async () => {
         let changeEmailAddressEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
@@ -59,7 +74,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });
@@ -88,7 +103,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });
@@ -153,7 +168,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp1 = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });

@@ -19,6 +19,7 @@ import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
 import * as dynameh from "dynameh";
 import {loginUserByEmailAction} from "../login";
+import {isValidEmailAddress} from "../../../utils/emailUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -81,6 +82,10 @@ export function installRegistrationRest(router: cassava.Router): void {
 }
 
 async function registerNewUser(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+    if (!await isValidEmailAddress(params.email)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
+    }
+
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
     const accountId = DbAccount.generateAccountId();

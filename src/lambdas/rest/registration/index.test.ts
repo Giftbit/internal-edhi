@@ -38,7 +38,7 @@ describe("/v2/user/register", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress()
         const password = generateId();
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email,
@@ -86,6 +86,14 @@ describe("/v2/user/register", () => {
     it("cannot register an invalid email", async () => {
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email: "notanemail",
+            password: generateId()
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
+    it("cannot register an email at a domain with no MX record", async () => {
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: "usefuldomain@example.com",
             password: generateId()
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
@@ -165,7 +173,7 @@ describe("/v2/user/register", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"

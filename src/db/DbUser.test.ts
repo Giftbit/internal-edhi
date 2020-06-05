@@ -11,7 +11,7 @@ describe("DbUser", () => {
 
     it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbUser = {
-            email: `${testUtils.generateId()}@example.com`,
+            email: testUtils.generateValidEmailAddress(),
             userId: testUtils.generateId(),
             login: {
                 emailVerified: true,
@@ -26,7 +26,7 @@ describe("DbUser", () => {
 
     it("can put and get a User", async () => {
         const user: DbUser = {
-            email: `${testUtils.generateId()}@example.com`,
+            email: testUtils.generateValidEmailAddress(),
             userId: testUtils.generateId(),
             login: {
                 emailVerified: true,
@@ -46,7 +46,7 @@ describe("DbUser", () => {
 
     it("can partially update a User", async () => {
         const user: DbUser = {
-            email: `${testUtils.generateId()}@example.com`,
+            email: testUtils.generateValidEmailAddress(),
             userId: testUtils.generateId(),
             login: {
                 emailVerified: true,

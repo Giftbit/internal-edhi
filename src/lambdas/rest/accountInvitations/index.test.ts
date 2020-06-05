@@ -42,7 +42,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -113,7 +113,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -155,7 +155,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -276,7 +276,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
 
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
@@ -354,9 +354,23 @@ describe("/v2/account/invitations", () => {
 
     it("cannot send an invitation with userPrivilegeType and roles", async () => {
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
-            email: `${generateId()}@example.com`,
+            email: `${generateId()}@lightrail.com`,
             userPrivilegeType: "FULL_ACCESS",
             roles: ["lineCook"]
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
+    });
+
+    it("cannot send an invitation to an invalid email address", async () => {
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: generateId()
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
+    });
+
+    it("cannot send an invitation to an email address domain with no MX record", async () => {
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: `${generateId()}@example.com`
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
     });

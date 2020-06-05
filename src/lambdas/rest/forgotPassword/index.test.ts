@@ -36,7 +36,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: "nosuchuser@example.com"
+            email: testUtils.generateValidEmailAddress()
         });
         chai.assert.isFalse(gotEmail);
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);

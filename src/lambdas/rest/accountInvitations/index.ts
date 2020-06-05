@@ -10,6 +10,7 @@ import {DbUser} from "../../../db/DbUser";
 import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {sendAccountUserInvitation} from "./sendAccountUserInvitation";
+import {isValidEmailAddress} from "../../../utils/emailUtils";
 import log = require("loglevel");
 
 export function installAccountInvitationsRest(router: cassava.Router): void {
@@ -101,6 +102,11 @@ export function installAccountInvitationsRest(router: cassava.Router): void {
 
 async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { email: string, userPrivilegeType?: UserPrivilege, roles?: string[], scopes?: string[] }): Promise<Invitation> {
     auth.requireIds("userId");
+
+    if (!await isValidEmailAddress(params.email)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
+    }
+
     const accountId = stripUserIdTestMode(auth.userId);
     log.info("Inviting User", params.email, "to Account", accountId);
 
