@@ -12,6 +12,7 @@ import {AccountUser} from "../../../model/AccountUser";
 import {Invitation} from "../../../model/Invitation";
 import {LoginResult} from "../../../model/LoginResult";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
+import {User} from "../../../model/User";
 
 describe("/v2/user/register", () => {
 
@@ -76,6 +77,10 @@ describe("/v2/user/register", () => {
 
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, pingResp.bodyRaw);
+
+        const userResp = await router.testPostLoginRequest<User>(loginResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
 
         const accountUsersResp = await router.testWebAppRequest<AccountUser[]>("/v2/account/users", "GET");
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);

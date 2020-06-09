@@ -14,6 +14,7 @@ import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 import {LoginResult} from "../../../model/LoginResult";
+import {User} from "../../../model/User";
 
 chai.use(chaiExclude);
 
@@ -90,6 +91,10 @@ describe("/v2/account/invitations", () => {
         chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.getCookie("gb_jwt_session"));
         chai.assert.isString(loginResp.getCookie("gb_jwt_signature"));
+
+        const userResp = await router.testPostLoginRequest<User>(loginResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
 
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
@@ -237,6 +242,14 @@ describe("/v2/account/invitations", () => {
         const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
+
+        const userResp = await router.testPostLoginRequest<User>(acceptInvitationResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
+
+        const accountResp = await router.testPostLoginRequest<Account>(acceptInvitationResp, "/v2/account", "GET");
+        chai.assert.equal(accountResp.statusCode, cassava.httpStatusCode.success.OK, accountResp.bodyRaw);
+        chai.assert.equal(accountResp.body.id, testUtils.defaultTestUser.accountId);
 
         const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(newUser.loginResp, "/v2/user/accounts", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);

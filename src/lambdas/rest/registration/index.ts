@@ -1,5 +1,6 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
+import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {
     createdDateNow,
@@ -17,9 +18,9 @@ import {DbUser} from "../../../db/DbUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
-import * as dynameh from "dynameh";
 import {loginUserByEmailAction} from "../login";
 import {isValidEmailAddress} from "../../../utils/emailUtils";
+import {setUserIdTestMode} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -101,7 +102,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
             password: await hashPassword(params.plaintextPassword),
             emailVerified: false,
             frozen: false,
-            defaultLoginAccountId: accountId
+            defaultLoginAccountId: setUserIdTestMode(accountId)
         },
         createdDate
     };
@@ -177,7 +178,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
     }, {
         action: "put",
         attribute: "login.defaultLoginAccountId",
-        value: accountId
+        value: setUserIdTestMode(accountId)
     });
     objectDynameh.requestBuilder.addCondition(updateUserReq, {
         attribute: "login.password",
@@ -256,9 +257,10 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         {
             action: "put",
             attribute: "login.defaultLoginAccountId",
-            value: acceptInvitationTokenAction.accountId
+            value: setUserIdTestMode(acceptInvitationTokenAction.accountId)
         }
     ];
+    user.login.defaultLoginAccountId = setUserIdTestMode(acceptInvitationTokenAction.accountId);
     if (!user.login.emailVerified) {
         // Accepting the invite verifies the email address.
         userUpdateActions.push({
