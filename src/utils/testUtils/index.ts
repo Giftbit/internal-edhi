@@ -23,7 +23,7 @@ if (!process.env["TEST_ENV"]) {
 export namespace defaultTestUser {
     export const accountId = "user-testaccount";
     export const userId = "user-testuser";
-    export const email = "default-test-user@example.com";
+    export const email = "default-test-user@gmail.com";
     export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
             "gui": accountId + "-TEST",
@@ -84,7 +84,7 @@ export namespace defaultTestUser {
 
     export namespace teamMate {
         export const userId = "user-testteammate";
-        export const email = "teammate@example.com";
+        export const email = "teammate@gmail.com";
         export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
             "g": {
                 "gui": accountId + "-TEST",
@@ -146,7 +146,7 @@ export namespace defaultTestUser {
 export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     authConfigPromise: Promise.resolve({secretkey: "secret"}),
     rolesConfigPromise: Promise.resolve(require("./rolesConfig.json")),
-    infoLogFunction: () => {
+    infoLogFunction: (): void => {
         // too noisy for testing
     },
     errorLogFunction: log.error
@@ -192,7 +192,7 @@ export async function testRegisterNewUser(router: TestRouter, sinonSandbox: sino
             return null;
         });
 
-    const email = `unittest-${generateId()}@example.com`;
+    const email = generateValidEmailAddress();
     const password = generateId();
     const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
         email,
@@ -252,7 +252,7 @@ export async function testInviteExistingUser(email: string, router: TestRouter, 
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
 export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
-    const email = generateId() + "@example.com";
+    const email = generateValidEmailAddress();
     const invite = await testInviteExistingUser(email, router, sinonSandbox);
     const acceptInvitationResp = invite.acceptInvitationResp;
 
@@ -268,7 +268,7 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
         token: resetPasswordToken,
         password
     });
-    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
     const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
         email,
@@ -323,4 +323,8 @@ export async function testEnableSmsMfa(email: string): Promise<void> {
 
 export function generateId(length?: number): string {
     return (uuid.v4() + uuid.v4()).substring(0, length != null ? length : 20);
+}
+
+export function generateValidEmailAddress(): string {
+    return `unittest-${uuid.v4().substr(0, 8)}@gmail.com`;
 }

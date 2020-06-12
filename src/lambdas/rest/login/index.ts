@@ -6,7 +6,6 @@ import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendRegistrationVerificationEmail} from "../registration/sendRegistrationVerificationEmail";
 import {DbUser} from "../../../db/DbUser";
-import {isTestModeUserId} from "../../../utils/userUtils";
 import {sendSmsMfaChallenge} from "../mfa";
 import {sendFailedLoginTimeoutEmail} from "./sendFailedLoginTimeoutEmail";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
@@ -15,6 +14,7 @@ import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {LoginResult} from "../../../model/LoginResult";
 import {User} from "../../../model/User";
+import {isTestModeUserId} from "../../../utils/userUtils";
 import log = require("loglevel");
 
 const maxFailedLoginAttempts = 10;
@@ -27,6 +27,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string"
@@ -39,7 +40,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            return await loginUser({
+            return await loginUserByPassword({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
                 sourceIp: evt.requestContext.identity.sourceIp,
@@ -102,6 +103,7 @@ export function installLoginAuthedRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:authenticate");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     code: {
                         type: "string",
@@ -123,53 +125,83 @@ export function installLoginAuthedRest(router: cassava.Router): void {
         });
 }
 
-async function loginUser(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
+/**
+ * Login the user by manually entered email and password.
+ */
+async function loginUserByPassword(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
     const user = await DbUser.get(params.email);
 
-    if (!user) {
-        log.warn("Could not log in user", params.email, "user not found");
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
-    }
-    if (!user.login.emailVerified) {
-        log.warn("Could not log in user", params.email, "email is not verified");
-        await sendRegistrationVerificationEmail(user.email);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
-    }
-    if (user.login.frozen) {
-        log.warn("Could not log in user", params.email, "user is frozen");
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
-    }
-    if (user.login.lockedUntilDate && user.login.lockedUntilDate >= createdDateNow()) {
-        log.warn("Could not log in user", params.email, "user is locked until", user.login.lockedUntilDate);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
-    }
+    // If the user can't log in we don't want to give away if the password is valid.
+    await verifyUserCanLogin(user);
+
     if (!await validatePassword(params.plaintextPassword, user.login.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
         await completeLoginFailure(user, params.sourceIp);
     }
+    return loginUserFirstFactorAccepted(user, {trustedDeviceToken: params.trustedDeviceToken});
+}
+
+/**
+ * Login the user by an email action (link) and redirect to the webapp.
+ * If MFA is enabled the user will still be required to enter it.
+ */
+export async function loginUserByEmailAction(user: DbUser, redirectLocation: string = "/app/#/"): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    const response = await loginUserFirstFactorAccepted(user, {});
+    response.body = null;
+    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
+    response.headers["Location"] = redirectLocation;
+    return response;
+}
+
+async function loginUserFirstFactorAccepted(user: DbUser, params: { trustedDeviceToken?: string }): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    await verifyUserCanLogin(user);
 
     if (user.login.mfa) {
         if (params.trustedDeviceToken) {
             if (user.login.mfa.trustedDevices[params.trustedDeviceToken] && user.login.mfa.trustedDevices[params.trustedDeviceToken].expiresDate > createdDateNow()) {
-                log.info("User", params.email, "has a trusted device");
+                log.info("User", user.email, "has a trusted device");
                 return await completeLoginSuccess(user);
             }
-            log.info("User", params.email, "trusted device token is not trusted");
+            log.info("User", user.email, "trusted device token is not trusted");
             log.debug("params.trustedDeviceToken=", params.trustedDeviceToken, "trustedDevices=", user.login.mfa.trustedDevices);
         }
         if (user.login.mfa.smsDevice) {
-            log.info("Partially logged in user", params.email, "sending SMS code");
+            log.info("Partially logged in user", user.email, "sending SMS code");
 
             await sendSmsMfaChallenge(user);
             return getLoginAdditionalAuthenticationRequiredResponse(user);
         }
         if (user.login.mfa.totpSecret) {
-            log.info("Partially logged in user", params.email, "awaiting TOTP code");
+            log.info("Partially logged in user", user.email, "awaiting TOTP code");
             return getLoginAdditionalAuthenticationRequiredResponse(user);
         }
     }
 
     return completeLoginSuccess(user);
+}
+
+/**
+ * Check basic properties on the DbUser that would prevent
+ * them from logging in regardless of Account.
+ */
+async function verifyUserCanLogin(user: DbUser): Promise<void> {
+    if (!user) {
+        log.warn("Could not log in user, user not found");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (!user.login.emailVerified) {
+        log.warn("Could not log in user", user.email, "email is not verified");
+        await sendRegistrationVerificationEmail(user.email);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
+    }
+    if (user.login.frozen) {
+        log.warn("Could not log in user", user.email, "user is frozen");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
+    if (user.login.lockedUntilDate && user.login.lockedUntilDate >= createdDateNow()) {
+        log.warn("Could not log in user", user.email, "user is locked until", user.login.lockedUntilDate);
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    }
 }
 
 async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string, trustThisDevice?: boolean, sourceIp: string }): Promise<cassava.RouterResponse> {
@@ -394,51 +426,60 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
  * @param accountUser The DbAccountUser of the Account to log in to.  If null then the
  *                    user has no Account and can only create one.
  * @param liveMode Whether to log in as live (or test) to the Account.
- * @param additionalCookies Additional cookies that should be included in the response.
  */
-export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean, additionalCookies: { [key: string]: RouterResponseCookie } = {}): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    const body: LoginResult = {
-        user: User.getFromDbUser(user, liveMode ? "live" : "test")
-    };
+export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser | null, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    if (!user.login.password) {
+        throw new Error(`User '${user.email}' does not have a password set and should not be sent to getLoginResponse().`);
+    }
+
+    let message: string | undefined = undefined;
+    let messageCode: string | undefined = undefined;
     let badge: giftbitRoutes.jwtauth.AuthorizationBadge;
 
     const account = accountUser && await DbAccount.get(accountUser.accountId);
-    log.debug("Get login response for account=", account, "user=", body.user);
+    log.debug("Get login response for account=", account, "user=", user.email, user.userId);
 
     if (!account) {
-        body.message = "You have been removed from all Accounts.  You can create your own to continue.";
-        body.messageCode = "NoAccount";
+        message = "You have been removed from all Accounts.  You can create your own to continue.";
+        messageCode = "NoAccount";
         badge = DbUser.getOrphanBadge(user);
-    } else if (account.requireMfa && !body.user.hasMfa) {
-        body.message = "The Account requires that MFA is enabled to continue.";
-        body.messageCode = "AccountMfaRequired";
+    } else if (account.requireMfa && !DbUser.hasMfaActive(user)) {
+        message = "The Account requires that MFA is enabled to continue.";
+        messageCode = "AccountMfaRequired";
         badge = DbUser.getOrphanBadge(user);
     } else if (account.maxPasswordAge && user.login.password.createdDate < createdDatePast(0, 0, account.maxPasswordAge)) {
-        body.message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
-        body.messageCode = "AccountMaxPasswordAge";
+        message = `You have an old password and the Account requires passwords change every ${account.maxPasswordAge} days.`;
+        messageCode = "AccountMaxPasswordAge";
         badge = DbUser.getOrphanBadge(user);
     } else if (DbAccountUser.isLockedByInactivity(accountUser, account)) {
-        body.message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
-        body.messageCode = "AccountMaxInactiveDays";
+        message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
+        messageCode = "AccountMaxInactiveDays";
         badge = DbUser.getOrphanBadge(user);
     } else {
         badge = DbUser.getBadge(accountUser, liveMode, true);
     }
 
     return {
-        body: body,
+        body: {
+            user: User.getFromDbUser(user, badge),
+            message,
+            messageCode
+        },
         statusCode: cassava.httpStatusCode.success.OK,
         cookies: {
-            ...await DbUser.getBadgeCookies(badge),
-            ...additionalCookies
-        }
+            ...await DbUser.getBadgeCookies(badge)
+        },
+        headers: {},
+        multiValueHeaders: {}
     };
 }
 
 async function getLoginAdditionalAuthenticationRequiredResponse(user: DbUser): Promise<cassava.RouterResponse & { body: LoginResult }> {
+    log.debug("Get login additional authentication response for user=", user.email, user.userId);
+
     const badge = DbUser.getAdditionalAuthenticationRequiredBadge(user);
     const body: LoginResult = {
-        user: User.getFromDbUser(user, "live"),
+        user: User.getFromDbUser(user, badge),
         message: "Additional authentication through MFA is required.",
         messageCode: "MfaAuthRequired"
     };

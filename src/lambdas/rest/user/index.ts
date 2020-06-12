@@ -13,11 +13,11 @@ export function installUserRest(router: cassava.Router): void {
         .handler(async evt => {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
             auth.requireScopes("lightrailV2:user:read");
-            auth.requireIds("userId");
+            auth.requireIds("teamMemberId");
 
             const dbUser = await DbUser.getByAuth(auth);
             return {
-                body: User.getFromDbUser(dbUser, auth.isTestUser() ? "test" : "live")
+                body: User.getFromDbUser(dbUser, auth)
             };
         });
 

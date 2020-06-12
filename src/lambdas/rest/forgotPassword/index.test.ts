@@ -36,7 +36,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: "nosuchuser@example.com"
+            email: testUtils.generateValidEmailAddress()
         });
         chai.assert.isFalse(gotEmail);
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -67,7 +67,7 @@ describe("/v2/user/forgotPassword", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(completeResp.getCookie("gb_jwt_session"));
         chai.assert.isString(completeResp.getCookie("gb_jwt_signature"));
 

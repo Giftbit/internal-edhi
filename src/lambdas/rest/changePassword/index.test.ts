@@ -67,7 +67,7 @@ describe("/v2/user/changePassword", () => {
     });
 
     it("accepts a password of 8 characters", async () => {
-        const newPassword = generateId().substring(0, 8);
+        const newPassword = generateId().substring(0, 5) + "a0_";
         const changePasswordResp = await router.testWebAppRequest("/v2/user/changePassword", "POST", {
             oldPassword: testUtils.defaultTestUser.password,
             newPassword

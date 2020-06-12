@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     const mysqlPort = +await readLine("MySQL port (3307): ", "3307");
     const mysqlUser = "dev-160928";
     const mysqlPassword = await readPassword("MySQL database password: ");
-    const encryptionSecret = await readPassword("Encryption secret: ");
+    const encryptionSecret = await readPassword("Password encryption secret: ");
 
     if (!/^[0-9A-Fa-f]{64}$/.test(encryptionSecret)) {
         throw new Error("Encryption secret must be 64 hex characters.");

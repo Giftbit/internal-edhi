@@ -310,7 +310,7 @@ export namespace DbUser {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.teamMemberId = user.userId;
         auth.roles = [];
-        auth.scopes = ["lightrailV2:authenticate"];
+        auth.scopes = ["lightrailV2:authenticate", "lightrailV2:user:read"];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
         auth.expirationTime = new Date(Date.now() + 15 * 60 * 1000);

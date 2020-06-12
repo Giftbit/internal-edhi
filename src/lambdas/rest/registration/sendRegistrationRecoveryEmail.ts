@@ -9,7 +9,8 @@ export async function sendRegistrationRecoveryEmail(email: string): Promise<void
     await TokenAction.put(tokenAction);
 
     const resetPasswordLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(tokenAction.token)}`;
-    const body = recoveryEmail.replace(/{{resetPasswordLink}}/g, resetPasswordLink)
+    const body = recoveryEmail
+        .replace(/{{resetPasswordLink}}/g, resetPasswordLink)
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     log.info("Sending email address already registered to", email);

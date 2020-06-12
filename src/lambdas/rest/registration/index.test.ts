@@ -12,6 +12,7 @@ import {AccountUser} from "../../../model/AccountUser";
 import {Invitation} from "../../../model/Invitation";
 import {LoginResult} from "../../../model/LoginResult";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
+import {User} from "../../../model/User";
 
 describe("/v2/user/register", () => {
 
@@ -38,7 +39,7 @@ describe("/v2/user/register", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress()
         const password = generateId();
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email,
@@ -56,6 +57,8 @@ describe("/v2/user/register", () => {
         const verifyResp = await router.testUnauthedRequest<any>(`/v2/user/register/verifyEmail?token=${token}`, "GET");
         chai.assert.equal(verifyResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isString(verifyResp.headers["Location"]);
+        chai.assert.isString(verifyResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(verifyResp.getCookie("gb_jwt_signature"));
 
         const badLoginResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
             email,
@@ -75,6 +78,10 @@ describe("/v2/user/register", () => {
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, pingResp.bodyRaw);
 
+        const userResp = await router.testPostLoginRequest<User>(loginResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
+
         const accountUsersResp = await router.testWebAppRequest<AccountUser[]>("/v2/account/users", "GET");
         chai.assert.equal(accountUsersResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(accountUsersResp.body, 2, "2 users in the account now");
@@ -84,6 +91,14 @@ describe("/v2/user/register", () => {
     it("cannot register an invalid email", async () => {
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email: "notanemail",
+            password: generateId()
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
+    it("cannot register an email at a domain with no MX record", async () => {
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: "usefuldomain@example.com",
             password: generateId()
         });
         chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
@@ -144,7 +159,7 @@ describe("/v2/user/register", () => {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isUndefined(completeResp.body.messageCode);
     });
 
@@ -163,7 +178,7 @@ describe("/v2/user/register", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"

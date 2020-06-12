@@ -20,7 +20,8 @@ export async function sendForgotPasswordEmail(email: string): Promise<void> {
     await TokenAction.put(tokenAction);
 
     const resetPasswordLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(tokenAction.token)}`;
-    const body = forgotPasswordEmail.replace(/{{resetPasswordLink}}/g, resetPasswordLink)
+    const body = forgotPasswordEmail
+        .replace(/{{resetPasswordLink}}/g, resetPasswordLink)
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     log.info("Sending forgot password email to", email, "token=", tokenAction.token);
