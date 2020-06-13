@@ -6,6 +6,7 @@ import {DbUser} from "../../../db/DbUser";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {createdDateNow} from "../../../db/dynamodb";
 import {sendSms} from "../../../utils/smsUtils";
+import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 import log = require("loglevel");
 
 export function installMfaRest(router: cassava.Router): void {
@@ -189,7 +190,7 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     };
 }
 
-async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<CompleteEnableMfaResult> {
     log.info("Completing MFA enable for", auth.teamMemberId);
     const user = await DbUser.getByAuth(auth);
 
@@ -203,7 +204,7 @@ async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Not in the process of enabling MFA.");
 }
 
-async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Promise<CompleteEnableMfaResult> {
     if (user.login.mfa.smsAuthState.expiresDate < createdDateNow()) {
         log.info("SMS MFA not enabled for", user.userId, "code expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
@@ -230,7 +231,7 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
     };
 }
 
-async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Promise<CompleteEnableMfaResult> {
     if (user.login.mfa.totpSetup.expiresDate < createdDateNow()) {
         log.info("TOTP MFA not enabled for", user.userId, "the enable process has expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the process to enable MFA has expired.  Please start again.");

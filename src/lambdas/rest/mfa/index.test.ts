@@ -9,6 +9,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
+import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 
 describe("/v2/user/mfa", () => {
 
@@ -215,7 +216,7 @@ describe("/v2/user/mfa", () => {
             chai.assert.isString(enableMfaResp.body.secret);
             chai.assert.include(enableMfaResp.body.uri, `secret=${enableMfaResp.body.secret}`, "secret is properly encoded in uri");
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -224,7 +225,7 @@ describe("/v2/user/mfa", () => {
             const mfaNotEnabledResp = await router.testWebAppRequest("/v2/user/mfa", "GET");
             chai.assert.equal(mfaNotEnabledResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, "not enabled yet");
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -243,13 +244,13 @@ describe("/v2/user/mfa", () => {
 
             const code = await generateSkewedOtpCode(enableMfaResp.body.secret, -2000);
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: code
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: code
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
@@ -290,13 +291,13 @@ describe("/v2/user/mfa", () => {
             });
             chai.assert.equal(setBadCode4Resp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);
