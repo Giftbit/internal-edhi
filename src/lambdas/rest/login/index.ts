@@ -355,11 +355,8 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         ...additionalUpdates
     ];
 
-    if ((user.login.failedLoginAttempts && user.login.failedLoginAttempts.size > 0)) {
-        userUpdates.push({
-            action: "remove",
-            attribute: "login.failedLoginAttempts"
-        });
+    if (DbUser.limitedActions.count(user, "failedLogin") > 0) {
+        userUpdates.push(DbUser.limitedActions.buildClearUpdateAction("failedLogin"));
     }
     if (user.login.lockedUntilDate) {
         userUpdates.push({
@@ -388,29 +385,15 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
 }
 
 async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<never> {
-    const failedAttempt = `${createdDateNow()}, ${sourceIp}`;
-    if (!user.login.failedLoginAttempts) {
-        user.login.failedLoginAttempts = new Set();
-    }
-    user.login.failedLoginAttempts.add(failedAttempt);
-
-    if (user.login.failedLoginAttempts.size < maxFailedLoginAttempts) {
-        log.info("Storing failed login attempt for user", user.email, "failedLoginAttempts.size=", user.login.failedLoginAttempts.size);
-        await DbUser.update(user, {
-            action: "set_add",
-            attribute: "login.failedLoginAttempts",
-            values: new Set([failedAttempt])
-        });
+    if (DbUser.limitedActions.count(user, "failedLogin") + 1 < maxFailedLoginAttempts) {
+        await DbUser.limitedActions.add(user, "failedLogin");
     } else {
-        log.info("Too many failed login attempts for user", user.email, Array.from(user.login.failedLoginAttempts));
+        log.info("Too many failed login attempts for user", user.email, user.limitedActions["failedLogin"]);
 
         const lockedUntilDate = new Date();
         lockedUntilDate.setMinutes(lockedUntilDate.getMinutes() + failedLoginTimoutMinutes);
         await DbUser.update(user,
-            {
-                action: "remove",
-                attribute: "login.failedLoginAttempts"
-            },
+            DbUser.limitedActions.buildClearUpdateAction("failedLogin"),
             {
                 action: "put",
                 attribute: "login.lockedUntilDate",

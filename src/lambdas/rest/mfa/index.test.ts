@@ -30,6 +30,7 @@ describe("/v2/user/mfa", () => {
 
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
+        await DbUser.limitedActions.clear(testUtils.defaultTestUser.user, "enableSmsMfa");
     });
 
     it("returns 404 when no MFA is set", async () => {

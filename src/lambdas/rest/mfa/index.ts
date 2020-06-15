@@ -9,6 +9,8 @@ import {sendSms} from "../../../utils/smsUtils";
 import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 import log = require("loglevel");
 
+const maxEnableSmsMfaAttempts = 8;
+
 export function installMfaRest(router: cassava.Router): void {
     router.route("/v2/user/mfa")
         .method("GET")
@@ -117,8 +119,8 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     log.info("Beginning SMS MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
-    if ((user.login?.mfa?.smsAuthState?.enableCount ?? 0) > 10) {
-        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA", user.login?.mfa?.smsAuthState?.enableCount, "times and is prevented from trying further to prevent abuse.  Pretending the code sent anyways.");
+    if (DbUser.limitedActions.count(user, "enableSmsMfa") > maxEnableSmsMfaAttempts) {
+        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA too many times and is prevented from trying further to prevent abuse.  Pretending the code sent anyways.");
         return {
             message: `Code sent to ${params.device}`
         };
@@ -127,7 +129,6 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     const code = generateCode();
     const smsAuthState: DbUser.SmsAuthState = {
         action: "enable",
-        enableCount: (user.login?.mfa?.smsAuthState?.enableCount ?? 0) + 1,
         code,
         device: params.device,
         createdDate: createdDateNow(),
@@ -139,7 +140,7 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             attribute: "login.mfa.smsAuthState",
             action: "put",
             value: smsAuthState
-        });
+        }, DbUser.limitedActions.buildAddUpdateAction("enableSmsMfa"));
     } else {
         const mfa: DbUser.Mfa = {
             smsAuthState,
@@ -149,7 +150,7 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             attribute: "login.mfa",
             action: "put",
             value: mfa
-        });
+        }, DbUser.limitedActions.buildAddUpdateAction("enableSmsMfa"));
     }
 
     await sendSms({
@@ -230,7 +231,7 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
         action: "put",
         attribute: "login.mfa.smsDevice",
         value: user.login.mfa.smsAuthState.device
-    });
+    }, DbUser.limitedActions.buildClearUpdateAction("enableSmsMfa"));
     log.info("Code matches, SMS MFA enabled for", user.userId, user.login.mfa.smsAuthState.device);
 
     return {

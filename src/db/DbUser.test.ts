@@ -18,6 +18,7 @@ describe("DbUser", () => {
                 frozen: false,
                 defaultLoginAccountId: testUtils.generateId()
             },
+            limitedActions: {},
             createdDate: createdDateNow()
         };
         const returned = DbUser.fromDbObject(DbUser.toDbObject(original));
@@ -33,6 +34,7 @@ describe("DbUser", () => {
                 frozen: false,
                 defaultLoginAccountId: testUtils.generateId()
             },
+            limitedActions: {},
             createdDate: createdDateNow()
         };
         await DbUser.put(user);
@@ -53,6 +55,7 @@ describe("DbUser", () => {
                 frozen: false,
                 defaultLoginAccountId: testUtils.generateId()
             },
+            limitedActions: {},
             createdDate: createdDateNow()
         };
         await DbUser.put(user);

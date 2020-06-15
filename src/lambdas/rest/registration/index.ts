@@ -98,6 +98,7 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
             frozen: false,
             defaultLoginAccountId: setUserIdTestMode(accountId)
         },
+        limitedActions: {},
         createdDate
     };
     const putUserReq = DbUser.buildPutInput(user);

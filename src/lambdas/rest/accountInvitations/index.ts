@@ -131,6 +131,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
                 frozen: false,
                 defaultLoginAccountId: accountId
             },
+            limitedActions: {},
             createdDate
         };
         const putUserReq = DbUser.buildPutInput(user);

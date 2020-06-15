@@ -62,6 +62,7 @@ export namespace defaultTestUser {
             frozen: false,
             defaultLoginAccountId: accountId + "-TEST"
         },
+        limitedActions: {},
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userUniqueness: DbUserUniqueness = {
@@ -123,6 +124,7 @@ export namespace defaultTestUser {
                 frozen: false,
                 defaultLoginAccountId: accountId + "-TEST"
             },
+            limitedActions: {},
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userUniqueness: DbUserUniqueness = {

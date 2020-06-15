@@ -6,7 +6,7 @@ import {DbObject} from "./DbObject";
 import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {stripUserIdTestMode} from "../utils/userUtils";
-import {dynamodb, objectDynameh} from "./dynamodb";
+import {createdDateNow, dynamodb, objectDynameh} from "./dynamodb";
 
 /**
  * A user (person) of the system.
@@ -27,6 +27,8 @@ export interface DbUser {
      * Login details.
      */
     login: DbUser.Login;
+
+    limitedActions: { [key: string]: Set<string> };
 
     /**
      * Date the user was created.
@@ -81,13 +83,6 @@ export namespace DbUser {
          * The default accountId a user will log in to.
          */
         defaultLoginAccountId: string;
-
-        /**
-         * A history of recent failed log in attempt Dates.  Too many
-         * failed logins will time lock the account.  A successful login
-         * clears the Set.
-         */
-        failedLoginAttempts?: Set<string>;
     }
 
     export interface Password {
@@ -157,7 +152,6 @@ export namespace DbUser {
         device: string;
         code: string;
         action: "enable" | "auth";
-        enableCount?: number;
         createdDate: string;
         expiresDate: string;
     }
@@ -371,5 +365,50 @@ export namespace DbUser {
 
     export function generateUserId(): string {
         return "user-" + uuid.v4().replace(/-/g, "");
+    }
+
+    export namespace limitedActions {
+        export type Action = "failedLogin" | "accountInvitation" | "enableSmsMfa";
+
+        export function count(user: DbUser, action: Action): number {
+            return user.limitedActions[action]?.size ?? 0;
+        }
+
+        export async function add(user: DbUser, action: Action): Promise<void> {
+            const value = createdDateNow();
+            await DbUser.update(user, {
+                action: "set_add",
+                attribute: `limitedActions.${action}`,
+                values: new Set([value])
+            });
+            if (!user.limitedActions[action]) {
+                user.limitedActions[action] = new Set([value])
+            } else {
+                user.limitedActions[action].add(value);
+            }
+        }
+
+        export function buildAddUpdateAction(action: Action): dynameh.UpdateExpressionAction {
+            const value = createdDateNow();
+            return {
+                action: "set_add",
+                attribute: `limitedActions.${action}`,
+                values: new Set([value])
+            };
+        }
+
+        export async function clear(user: DbUser, action: Action): Promise<void> {
+            await DbUser.update(user, buildClearUpdateAction(action));
+            delete user.limitedActions[action];
+        }
+
+        export function buildClearUpdateAction(action: Action): dynameh.UpdateExpressionAction {
+            return {
+                action: "remove",
+                attribute: `limitedActions.${action}`
+            };
+        }
+
+        // We could add some code here to expire limited actions.
     }
 }
