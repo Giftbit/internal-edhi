@@ -158,8 +158,8 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(sms.to, "+15008675309");
             chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
 
-            // const token = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
-            // chai.assert.isString(token, "got token from sms");
+            const token = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(token, "got token from sms");
 
             const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
                 code: "ABC"
@@ -197,6 +197,34 @@ describe("/v2/user/mfa", () => {
                 code: code
             });
             chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, completeResp.bodyRaw);
+        });
+
+        it("will not keep spamming SMS messages after too many attempts", async () => {
+            const smses: smsUtils.SendSmsParams[] = [];
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .callsFake(async params => {
+                    smses.push(params);
+                });
+
+            for (let i = 0; i < 20; i++) {
+                const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                    device: "+15008675309"
+                });
+                chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            }
+
+            chai.assert.isAtLeast(smses.length, 3, "should definitely be able to try more than this");
+            chai.assert.isAtMost(smses.length, 15, "should not be able to get away with this many");
+
+            const disableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "DELETE");
+            chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+
+            const smsesLengthBeforeAnotherEnable = smses.length;
+            const anotherEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(anotherEnableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(smses.length, smsesLengthBeforeAnotherEnable, "should not be able to send another SMS after disabling MFA")
         });
 
         it("cannot jump straight to the complete step", async () => {

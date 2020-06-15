@@ -117,9 +117,17 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     log.info("Beginning SMS MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
+    if ((user.login?.mfa?.smsAuthState?.enableCount ?? 0) > 10) {
+        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA", user.login?.mfa?.smsAuthState?.enableCount, "times and is prevented from trying further to prevent abuse.  Pretending the code sent anyways.");
+        return {
+            message: `Code sent to ${params.device}`
+        };
+    }
+
     const code = generateCode();
     const smsAuthState: DbUser.SmsAuthState = {
         action: "enable",
+        enableCount: (user.login?.mfa?.smsAuthState?.enableCount ?? 0) + 1,
         code,
         device: params.device,
         createdDate: createdDateNow(),

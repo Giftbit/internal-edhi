@@ -157,6 +157,7 @@ export namespace DbUser {
         device: string;
         code: string;
         action: "enable" | "auth";
+        enableCount?: number;
         createdDate: string;
         expiresDate: string;
     }
