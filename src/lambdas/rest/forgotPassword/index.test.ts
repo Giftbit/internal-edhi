@@ -9,6 +9,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {Account} from "../../../model/Account";
+import {LoginResult} from "../../../model/LoginResult";
 
 describe("/v2/user/forgotPassword", () => {
 
@@ -63,11 +64,11 @@ describe("/v2/user/forgotPassword", () => {
         chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.isString(completeResp.getCookie("gb_jwt_session"));
         chai.assert.isString(completeResp.getCookie("gb_jwt_signature"));
 

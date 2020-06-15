@@ -235,7 +235,7 @@ async function verifyEmail(token: string): Promise<cassava.RouterResponse> {
     log.info("User", tokenAction.email, "has verified their email address");
 
     user.login.emailVerified = true;
-    return await loginUserByEmailAction(user);
+    return await loginUserByEmailAction(user, {location: "/app/#/"});
 }
 
 async function acceptInvitation(token: string): Promise<cassava.RouterResponse> {
@@ -314,5 +314,5 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return await loginUserByEmailAction(user);
+    return await loginUserByEmailAction(user, {location: "/app/#/"});
 }

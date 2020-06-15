@@ -264,23 +264,17 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
     chai.assert.isString(resetPasswordToken);
 
     const password = generateId();
-    const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+    const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
         token: resetPasswordToken,
         password
     });
-    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
-
-    const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-        email,
-        password
-    });
-    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
+    chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
 
     return {
-        loginResp: loginResp,
+        loginResp: completeResp,
         email: email,
         password: password,
-        userId: loginResp.body.user.id
+        userId: completeResp.body.user.id
     };
 }
 
