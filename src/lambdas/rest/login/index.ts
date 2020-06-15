@@ -142,14 +142,19 @@ async function loginUserByPassword(params: { email: string, plaintextPassword: s
 }
 
 /**
- * Login the user by an email action (link) and redirect to the webapp.
+ * Login the user by an email action (link).
  * If MFA is enabled the user will still be required to enter it.
+ *
+ * @param user the User to log in
+ * @param redirect Sends a redirect response when set.
  */
-export async function loginUserByEmailAction(user: DbUser, redirectLocation: string = "/app/#/"): Promise<cassava.RouterResponse & { body: LoginResult }> {
+export async function loginUserByEmailAction(user: DbUser, redirect?: { location: string }): Promise<cassava.RouterResponse & { body: LoginResult }> {
     const response = await loginUserFirstFactorAccepted(user, {});
-    response.body = null;
-    response.statusCode = cassava.httpStatusCode.redirect.FOUND;
-    response.headers["Location"] = redirectLocation;
+    if (redirect) {
+        response.body = null;
+        response.statusCode = cassava.httpStatusCode.redirect.FOUND;
+        response.headers["Location"] = redirect.location;
+    }
     return response;
 }
 

@@ -122,5 +122,5 @@ export async function completeChangeEmail(token: string): Promise<cassava.Router
     await sendEmailAddressChangedEmail(user.email);
     await DbTokenAction.del(tokenAction);
 
-    return loginUserByEmailAction(newUser, "/app/#/changeEmailComplete");
+    return loginUserByEmailAction(newUser, {location: "/app/#/changeEmailComplete"});
 }

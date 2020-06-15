@@ -77,11 +77,14 @@ describe("/v2/account/invitations", () => {
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isUndefined(completeResp.body.messageCode);
+        chai.assert.isString(completeResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(completeResp.getCookie("gb_jwt_signature"));
 
         const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
@@ -203,11 +206,11 @@ describe("/v2/account/invitations", () => {
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
     });
 
     it("can invite a user to an account that already has its own account", async () => {
