@@ -224,7 +224,7 @@ describe("/v2/user/mfa", () => {
                 device: "+15008675309"
             });
             chai.assert.equal(anotherEnableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.equal(smses.length, smsesLengthBeforeAnotherEnable, "should not be able to send another SMS after disabling MFA")
+            chai.assert.equal(smses.length, smsesLengthBeforeAnotherEnable, "should not be able to send another SMS even after disabling MFA")
         });
 
         it("cannot jump straight to the complete step", async () => {

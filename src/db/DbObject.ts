@@ -5,6 +5,7 @@ export interface DbObject {
     sk: string;
     pk2?: string;
     sk2?: string;
+    ttl?: Date | number;
 }
 
 export namespace DbObject {

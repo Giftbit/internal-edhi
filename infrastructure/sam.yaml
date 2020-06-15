@@ -71,32 +71,13 @@ Resources:
             ProjectionType: ALL
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: ShortName
           Value: ObjectTable
-        - Key: Service
-          Value: Edhi
-
-  # Separate from ObjectTable to support TTL.
-  TokenActionTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      AttributeDefinitions:
-        - AttributeName: token
-          AttributeType: S
-      KeySchema:
-        - AttributeName: token
-          KeyType: HASH
-      SSESpecification:
-        SSEEnabled: true
-      BillingMode: PAY_PER_REQUEST
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-      Tags:
-        - Key: ShortName
-          Value: TokenActionTable
         - Key: Service
           Value: Edhi
 
@@ -146,7 +127,6 @@ Resources:
           SECURE_CONFIG_KEY_STRIPE: stripe_connect.json
           SECURE_CONFIG_KEY_TWILIO: twilio.json
           SENTRY_DSN: !Ref SentryDsn
-          TOKEN_ACTION_TABLE: !Ref TokenActionTable
       Policies:
         - Version: 2012-10-17
           Statement:

@@ -58,16 +58,9 @@ export const objectSchema2: dynameh.TableSchema = {
     partitionKeyField: "pk2",
     partitionKeyType: "string",
     sortKeyField: "sk2",
-    sortKeyType: "string"
-};
-
-export const tokenActionSchema: dynameh.TableSchema = {
-    tableName: process.env["TOKEN_ACTION_TABLE"],
-    partitionKeyField: "token",
-    partitionKeyType: "string",
+    sortKeyType: "string",
     ttlField: "ttl"
 };
 
 export const objectDynameh = dynameh.scope(objectSchema);
 export const objectDynameh2 = dynameh.scope(objectSchema2);
-export const tokenActionDynameh = dynameh.scope(tokenActionSchema);
