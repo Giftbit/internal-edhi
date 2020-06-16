@@ -246,6 +246,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
+            chai.assert.isTrue(loginResp.body.user.additionalAuthenticationRequired);
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -407,6 +408,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
+            chai.assert.isTrue(loginResp.body.user.additionalAuthenticationRequired);
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
