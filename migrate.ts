@@ -178,6 +178,7 @@ async function main(): Promise<void> {
                     } : undefined,
                     defaultLoginAccountId: row.giftbit_user_id,
                 },
+                limitedActions: {},
                 createdDate: row.date_created.toISOString()
             };
 
