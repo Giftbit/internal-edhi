@@ -118,12 +118,22 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [];
     const createdDate = createdDateNow();
 
-    let user = await DbUser.get(params.email);
-    if (user) {
-        log.info("Inviting existing User", user.userId);
+    const invitingUser = await DbUser.getByAuth(auth);
+    if (DbUser.limitedActions.isThrottled(invitingUser, "accountInvitation")) {
+        log.info("User", invitingUser.userId, invitingUser.email, "has invited too many users in the past 24 hours and is being throttled.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "You have reached the maximum number of invitations you can send.  Please wait 24 hours.");
+    }
+    updates.push(DbUser.buildUpdateInput(
+        invitingUser,
+        DbUser.limitedActions.buildAddUpdateAction("accountInvitation")
+    ));
+
+    let invitedUser = await DbUser.get(params.email);
+    if (invitedUser) {
+        log.info("Inviting existing User", invitedUser.userId);
     } else {
         const userId = DbUser.generateUserId();
-        user = {
+        invitedUser = {
             email: params.email,
             userId,
             login: {
@@ -134,7 +144,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
             limitedActions: {},
             createdDate
         };
-        const putUserReq = DbUser.buildPutInput(user);
+        const putUserReq = DbUser.buildPutInput(invitedUser);
         updates.push(putUserReq);
 
         const userUniqueness: DbUserUniqueness = {
@@ -143,10 +153,10 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         const putUserUniquenessReq = DbUserUniqueness.buildPutInput(userUniqueness);
         updates.push(putUserUniquenessReq);
 
-        log.info("Inviting new User", user.userId);
+        log.info("Inviting new User", invitedUser.userId);
     }
 
-    let accountUser = await DbAccountUser.get(accountId, user.userId);
+    let accountUser = await DbAccountUser.get(accountId, invitedUser.userId);
     if (accountUser) {
         log.info("Inviting existing AccountUser", accountUser.accountId, accountUser.userId);
         if (accountUser.pendingInvitation) {
@@ -190,7 +200,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         expiresDate.setDate(expiresDate.getDate() + 5);
         accountUser = {
             accountId: accountId,
-            userId: user.userId,
+            userId: invitedUser.userId,
             userDisplayName: params.email,
             accountDisplayName: account.name,
             pendingInvitation: {
@@ -209,7 +219,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     const writeReq = objectDynameh.requestBuilder.buildTransactWriteItemsInput(...updates);
     await dynamodb.transactWriteItems(writeReq).promise();
 
-    await sendAccountUserInvitation({email: params.email, accountId: accountId, userId: user.userId});
+    await sendAccountUserInvitation({email: params.email, accountId: accountId, userId: invitedUser.userId});
 
     return Invitation.fromDbAccountUser(accountUser);
 }

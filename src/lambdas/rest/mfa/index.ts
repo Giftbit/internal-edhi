@@ -9,8 +9,6 @@ import {sendSms} from "../../../utils/smsUtils";
 import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 import log = require("loglevel");
 
-const maxEnableSmsMfaAttempts = 8;
-
 export function installMfaRest(router: cassava.Router): void {
     router.route("/v2/user/mfa")
         .method("GET")
@@ -119,11 +117,9 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     log.info("Beginning SMS MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
-    if (DbUser.limitedActions.count(user, "enableSmsMfa") > maxEnableSmsMfaAttempts) {
-        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA too many times and is prevented from trying further to prevent abuse.  Pretending the code sent anyways.");
-        return {
-            message: `Code sent to ${params.device}`
-        };
+    if (DbUser.limitedActions.isThrottled(user, "enableSmsMfa")) {
+        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA too many times and is throttled.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
     }
 
     const code = generateCode();
@@ -224,14 +220,19 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
 
-    await DbUser.update(user, {
-        action: "remove",
-        attribute: "login.mfa.smsAuthState"
-    }, {
-        action: "put",
-        attribute: "login.mfa.smsDevice",
-        value: user.login.mfa.smsAuthState.device
-    }, DbUser.limitedActions.buildClearUpdateAction("enableSmsMfa"));
+    await DbUser.update(
+        user,
+        {
+            action: "remove",
+            attribute: "login.mfa.smsAuthState"
+        },
+        {
+            action: "put",
+            attribute: "login.mfa.smsDevice",
+            value: user.login.mfa.smsAuthState.device
+        },
+        DbUser.limitedActions.buildClearAllUpdateAction("enableSmsMfa")
+    );
     log.info("Code matches, SMS MFA enabled for", user.userId, user.login.mfa.smsAuthState.device);
 
     return {

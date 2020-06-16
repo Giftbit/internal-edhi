@@ -12,9 +12,21 @@ export function createdDateNow(): string {
     return new Date().toISOString();
 }
 
-export function createdDatePast(years?: number, months?: number, days?: number): string {
+export function createdDatePast(years?: number, months?: number, days?: number, hours?: number, minutes?: number): string {
     const date = new Date();
-    date.setFullYear(date.getFullYear() - (years || 0), date.getMonth() - (months || 0), date.getDate() - (days || 0));
+    date.setFullYear(date.getFullYear() - (years ?? 0), date.getMonth() - (months ?? 0), date.getDate() - (days ?? 0));
+    if (hours || minutes) {
+        date.setHours(date.getHours() - (hours ?? 0), date.getMinutes() - (minutes ?? 0));
+    }
+    return date.toISOString();
+}
+
+export function createdDateFuture(years?: number, months?: number, days?: number, hours?: number, minutes?: number): string {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() + (years ?? 0), date.getMonth() + (months ?? 0), date.getDate() + (days ?? 0));
+    if (hours || minutes) {
+        date.setHours(date.getHours() + (hours ?? 0), date.getMinutes() + (minutes ?? 0));
+    }
     return date.toISOString();
 }
 

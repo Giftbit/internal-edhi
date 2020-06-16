@@ -8,7 +8,7 @@ export async function sendFailedLoginTimeoutEmail(user: DbUser, failedLoginTimou
     log.info("Sending failed login timeout email to", user.email);
 
     const body = failedLoginTimeoutEmail
-        .replace(/{{failedLoginCount}}/g, DbUser.limitedActions.count(user, "failedLogin").toString())
+        .replace(/{{failedLoginCount}}/g, (DbUser.limitedActions.countAll(user, "failedLogin")).toString())
         .replace(/{{failedLoginTimoutMinutes}}/, failedLoginTimoutMinutes.toString())
         .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 

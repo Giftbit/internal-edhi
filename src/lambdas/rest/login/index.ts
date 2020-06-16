@@ -2,7 +2,7 @@ import * as cassava from "cassava";
 import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as uuid from "uuid";
-import {createdDateNow, createdDatePast} from "../../../db/dynamodb";
+import {createdDateFuture, createdDateNow, createdDatePast} from "../../../db/dynamodb";
 import {validatePassword} from "../../../utils/passwordUtils";
 import {sendRegistrationVerificationEmail} from "../registration/sendRegistrationVerificationEmail";
 import {DbUser} from "../../../db/DbUser";
@@ -17,7 +17,6 @@ import {User} from "../../../model/User";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import log = require("loglevel");
 
-const maxFailedLoginAttempts = 10;
 const failedLoginTimoutMinutes = 60;
 const trustedDeviceExpirationSeconds = 14 * 24 * 60 * 60;
 const totpUsedCodeTimeoutMillis = 3 * 60 * 1000;
@@ -352,12 +351,10 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
             attribute: "login.lastLoginDate",
             value: createdDateNow()
         },
-        ...additionalUpdates
+        ...additionalUpdates,
+        ...DbUser.limitedActions.buildClearOutdatedUpdateActions(user)
     ];
 
-    if (DbUser.limitedActions.count(user, "failedLogin") > 0) {
-        userUpdates.push(DbUser.limitedActions.buildClearUpdateAction("failedLogin"));
-    }
     if (user.login.lockedUntilDate) {
         userUpdates.push({
             action: "remove",
@@ -385,21 +382,24 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
 }
 
 async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<never> {
-    if (DbUser.limitedActions.count(user, "failedLogin") + 1 < maxFailedLoginAttempts) {
-        await DbUser.limitedActions.add(user, "failedLogin");
-    } else {
-        log.info("Too many failed login attempts for user", user.email, user.limitedActions["failedLogin"]);
+    if (DbUser.limitedActions.isThrottled(user, "failedLogin")) {
+        log.info("Too many failed login attempts for user", user.userId, user.email, user.limitedActions["failedLogin"]);
 
-        const lockedUntilDate = new Date();
-        lockedUntilDate.setMinutes(lockedUntilDate.getMinutes() + failedLoginTimoutMinutes);
-        await DbUser.update(user,
-            DbUser.limitedActions.buildClearUpdateAction("failedLogin"),
-            {
-                action: "put",
-                attribute: "login.lockedUntilDate",
-                value: lockedUntilDate.toISOString()
-            });
-        await sendFailedLoginTimeoutEmail(user, failedLoginTimoutMinutes);
+        await Promise.all([
+            DbUser.update(
+                user,
+                DbUser.limitedActions.buildClearAllUpdateAction("failedLogin"),
+                {
+                    action: "put",
+                    attribute: "login.lockedUntilDate",
+                    value: createdDateFuture(0, 0, 0, 0, failedLoginTimoutMinutes)
+                }
+            ),
+            sendFailedLoginTimeoutEmail(user, failedLoginTimoutMinutes)
+        ])
+    } else {
+        log.info("Failed login attempt for user", user.userId, user.email, sourceIp);
+        await DbUser.limitedActions.add(user, "failedLogin");
     }
 
     throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);

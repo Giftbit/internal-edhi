@@ -64,4 +64,48 @@ describe("DbUser", () => {
         const frozenUser = await DbUser.get(user.email);
         chai.assert.isTrue(frozenUser.login.frozen);
     });
+
+    describe("limitedActions", () => {
+        it("tracks added limited actions, throttles the action, and cleans up outdated", async () => {
+            let user = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.equal(DbUser.limitedActions.countAll(user, "failedLogin"), 0);
+
+            for (let i = 0; i < 3; i++) {
+                await DbUser.limitedActions.add(user, "failedLogin");
+            }
+            user = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.equal(DbUser.limitedActions.countAll(user, "failedLogin"), 3);
+            chai.assert.isFalse(DbUser.limitedActions.isThrottled(user, "failedLogin"));
+
+            for (let i = 0; i < 7; i++) {
+                await DbUser.limitedActions.add(user, "failedLogin");
+            }
+            user = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.equal(DbUser.limitedActions.countAll(user, "failedLogin"), 10);
+            chai.assert.isTrue(DbUser.limitedActions.isThrottled(user, "failedLogin"));
+
+            // Manually push back three limited actions by 2 days
+            const threeLimitedActions = Array.from(user.limitedActions["failedLogin"]);
+            threeLimitedActions.length = 3;
+            for (const d of threeLimitedActions) {
+                const dOlder = new Date(d);
+                dOlder.setDate(dOlder.getDate() - 2);
+                user.limitedActions["failedLogin"].delete(d);
+                user.limitedActions["failedLogin"].add(dOlder.toISOString());
+            }
+            await DbUser.update(user, {
+                action: "put",
+                attribute: "limitedActions",
+                value: user.limitedActions
+            });
+
+            // Clean up outdated actions.
+            await DbUser.update(user, ...DbUser.limitedActions.buildClearOutdatedUpdateActions(user));
+
+            // Refresh the user and now those outdated actions should be gone.
+            user = await DbUser.get(testUtils.defaultTestUser.email);
+            chai.assert.equal(DbUser.limitedActions.countAll(user, "failedLogin"), 7);
+            chai.assert.isFalse(DbUser.limitedActions.isThrottled(user, "failedLogin"));
+        })
+    });
 });

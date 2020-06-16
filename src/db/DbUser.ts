@@ -6,7 +6,7 @@ import {DbObject} from "./DbObject";
 import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {stripUserIdTestMode} from "../utils/userUtils";
-import {createdDateNow, dynamodb, objectDynameh} from "./dynamodb";
+import {createdDateNow, createdDatePast, dynamodb, objectDynameh} from "./dynamodb";
 
 /**
  * A user (person) of the system.
@@ -28,6 +28,11 @@ export interface DbUser {
      */
     login: DbUser.Login;
 
+    /**
+     * Maps action type to a string token that limits the number
+     * of times the action can be taken.
+     * @see DbUser.limitedActions
+     */
     limitedActions: { [key: string]: Set<string> };
 
     /**
@@ -367,11 +372,37 @@ export namespace DbUser {
         return "user-" + uuid.v4().replace(/-/g, "");
     }
 
+    /**
+     * Functions to manipulate `limitedActions` on the DbUser.
+     * Limited actions can be taken a limited number of times
+     * to prevent abuse.
+     */
     export namespace limitedActions {
         export type Action = "failedLogin" | "accountInvitation" | "enableSmsMfa";
 
-        export function count(user: DbUser, action: Action): number {
-            return user.limitedActions[action]?.size ?? 0;
+        const config = {
+            failedLogin: {
+                maxAge: 24,
+                maxCount: 10
+            },
+            accountInvitation: {
+                maxAge: 24,
+                maxCount: 12
+            },
+            enableSmsMfa: {
+                maxAge: 24,
+                maxCount: 8
+            }
+        };
+
+        export function isThrottled(user: DbUser, action: Action): boolean {
+            if (!user.limitedActions[action]) {
+                return false;
+            }
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAge);
+            return Array.from(user.limitedActions[action])
+                .filter(v => v > comparator)
+                .length >= config[action].maxCount;
         }
 
         export async function add(user: DbUser, action: Action): Promise<void> {
@@ -397,18 +428,49 @@ export namespace DbUser {
             };
         }
 
-        export async function clear(user: DbUser, action: Action): Promise<void> {
-            await DbUser.update(user, buildClearUpdateAction(action));
+        /**
+         * Build the Dynameh update action that will clear stale data.
+         * @param user
+         */
+        export function buildClearOutdatedUpdateActions(user: DbUser): dynameh.UpdateExpressionAction[] {
+            return [
+                buildClearOutdatedUpdateAction(user, "failedLogin"),
+                buildClearOutdatedUpdateAction(user, "accountInvitation"),
+                buildClearOutdatedUpdateAction(user, "enableSmsMfa"),
+            ].filter(a => !!a);
+        }
+
+        function buildClearOutdatedUpdateAction(user: DbUser, action: Action): dynameh.UpdateExpressionAction {
+            if (!user.limitedActions[action]) {
+                return null;
+            }
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAge);
+            const valuesToRemove = Array.from(user.limitedActions[action])
+                .filter(v => v < comparator);
+            if (valuesToRemove.length) {
+                return {
+                    action: "set_delete",
+                    attribute: `limitedActions.${action}`,
+                    values: new Set(valuesToRemove)
+                }
+            }
+            return null;
+        }
+
+        export function countAll(user: DbUser, action: Action): number {
+            return user.limitedActions[action]?.size ?? 0;
+        }
+
+        export async function clearAll(user: DbUser, action: Action): Promise<void> {
+            await DbUser.update(user, buildClearAllUpdateAction(action));
             delete user.limitedActions[action];
         }
 
-        export function buildClearUpdateAction(action: Action): dynameh.UpdateExpressionAction {
+        export function buildClearAllUpdateAction(action: Action): dynameh.UpdateExpressionAction {
             return {
                 action: "remove",
                 attribute: `limitedActions.${action}`
             };
         }
-
-        // We could add some code here to expire limited actions.
     }
 }

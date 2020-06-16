@@ -30,7 +30,7 @@ describe("/v2/user/mfa", () => {
 
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
-        await DbUser.limitedActions.clear(testUtils.defaultTestUser.user, "enableSmsMfa");
+        await DbUser.limitedActions.clearAll(testUtils.defaultTestUser.user, "enableSmsMfa");
     });
 
     it("returns 404 when no MFA is set", async () => {
@@ -200,32 +200,57 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, completeResp.bodyRaw);
         });
 
-        it("will not keep spamming SMS messages after too many attempts", async () => {
+        it("will throttle to 8 attempts in a day", async () => {
+            const maxMfaAttempts = 8;
+
             const smses: smsUtils.SendSmsParams[] = [];
             sinonSandbox.stub(smsUtils, "sendSms")
                 .callsFake(async params => {
                     smses.push(params);
                 });
 
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < maxMfaAttempts; i++) {
                 const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
                     device: "+15008675309"
                 });
                 chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+                chai.assert.lengthOf(smses, i + 1);
             }
 
-            chai.assert.isAtLeast(smses.length, 3, "should definitely be able to try more than this");
-            chai.assert.isAtMost(smses.length, 15, "should not be able to get away with this many");
+            const throttledEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(throttledEnableMfaResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+            chai.assert.lengthOf(smses, maxMfaAttempts);
 
             const disableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "DELETE");
             chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
 
-            const smsesLengthBeforeAnotherEnable = smses.length;
-            const anotherEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+            const stillThrottledEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
                 device: "+15008675309"
             });
-            chai.assert.equal(anotherEnableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
-            chai.assert.equal(smses.length, smsesLengthBeforeAnotherEnable, "should not be able to send another SMS even after disabling MFA")
+            chai.assert.equal(stillThrottledEnableMfaResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+            chai.assert.lengthOf(smses, maxMfaAttempts);
+
+            // Manually push back all limited actions by 2 days
+            const dbUser = await DbUser.get(testUtils.defaultTestUser.email);
+            for (const d of Array.from(dbUser.limitedActions["enableSmsMfa"])) {
+                const dOlder = new Date(d);
+                dOlder.setDate(dOlder.getDate() - 2);
+                dbUser.limitedActions["enableSmsMfa"].delete(d);
+                dbUser.limitedActions["enableSmsMfa"].add(dOlder.toISOString());
+            }
+            await DbUser.update(dbUser, {
+                action: "put",
+                attribute: "limitedActions",
+                value: dbUser.limitedActions
+            });
+
+            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.lengthOf(smses, maxMfaAttempts + 1);
         });
 
         it("cannot jump straight to the complete step", async () => {
