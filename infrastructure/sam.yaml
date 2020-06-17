@@ -167,15 +167,6 @@ Resources:
                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*/index/EdhiIx2"
             - Effect: Allow
               Action:
-                - dynamodb:DescribeTable
-                - dynamodb:DeleteItem
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-              Resource:
-                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TokenActionTable}"
-                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TokenActionTable}/*"
-            - Effect: Allow
-              Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
