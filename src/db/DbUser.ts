@@ -31,9 +31,17 @@ export interface DbUser {
     /**
      * Maps action type to a string token that limits the number
      * of times the action can be taken.
+     *
+     * This should act as `limitedActions: { [key: DbUser.limitedActions.Action]: Set<string> };`
+     * but TypeScript doesn't allow union types in the key.  Add another
+     * property here when adding a new Action and nothing else.
      * @see DbUser.limitedActions
      */
-    limitedActions: { [key: string]: Set<string> };
+    limitedActions: {
+        failedLogin?: Set<string>;
+        accountInvitation?: Set<string>;
+        enableSmsMfa?: Set<string>;
+    };
 
     /**
      * Date the user was created.
@@ -356,7 +364,7 @@ export namespace DbUser {
                 value: signedBits[2],
                 options: {
                     httpOnly: true,
-                    maxAge: 30 * 60,
+                    maxAgeHours: 30 * 60,
                     path: "/",
                     secure: true
                 }
@@ -382,15 +390,15 @@ export namespace DbUser {
 
         const config = {
             failedLogin: {
-                maxAge: 24,
+                maxAgeHours: 24,
                 maxCount: 10
             },
             accountInvitation: {
-                maxAge: 24,
+                maxAgeHours: 24,
                 maxCount: 12
             },
             enableSmsMfa: {
-                maxAge: 24,
+                maxAgeHours: 24,
                 maxCount: 8
             }
         };
@@ -399,7 +407,7 @@ export namespace DbUser {
             if (!user.limitedActions[action]) {
                 return false;
             }
-            const comparator = createdDatePast(0, 0, 0, config[action].maxAge);
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAgeHours);
             return Array.from(user.limitedActions[action])
                 .filter(v => v > comparator)
                 .length >= config[action].maxCount;
@@ -444,7 +452,7 @@ export namespace DbUser {
             if (!user.limitedActions[action]) {
                 return null;
             }
-            const comparator = createdDatePast(0, 0, 0, config[action].maxAge);
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAgeHours);
             const valuesToRemove = Array.from(user.limitedActions[action])
                 .filter(v => v < comparator);
             if (valuesToRemove.length) {

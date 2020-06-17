@@ -17,7 +17,7 @@ import {User} from "../../../model/User";
 import {isTestModeUserId} from "../../../utils/userUtils";
 import log = require("loglevel");
 
-const failedLoginTimoutMinutes = 60;
+const failedLoginTimeoutMinutes = 60;
 const trustedDeviceExpirationSeconds = 14 * 24 * 60 * 60;
 const totpUsedCodeTimeoutMillis = 3 * 60 * 1000;
 
@@ -392,10 +392,10 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
                 {
                     action: "put",
                     attribute: "login.lockedUntilDate",
-                    value: createdDateFuture(0, 0, 0, 0, failedLoginTimoutMinutes)
+                    value: createdDateFuture(0, 0, 0, 0, failedLoginTimeoutMinutes)
                 }
             ),
-            sendFailedLoginTimeoutEmail(user, failedLoginTimoutMinutes)
+            sendFailedLoginTimeoutEmail(user, failedLoginTimeoutMinutes)
         ])
     } else {
         log.info("Failed login attempt for user", user.userId, user.email, sourceIp);
