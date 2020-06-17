@@ -10,6 +10,9 @@ module.exports = {
         "plugin:@typescript-eslint/recommended",
     ],
     rules: {
+        "@typescript-eslint/explicit-module-boundary-types": ["error", {
+            allowArgumentsExplicitlyTypedAsAny: true
+        }],
         "@typescript-eslint/explicit-function-return-type": ["error", {
             allowExpressions: true,
             allowTypedFunctionExpressions: true
