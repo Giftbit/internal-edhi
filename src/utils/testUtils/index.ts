@@ -42,6 +42,7 @@ export namespace defaultTestUser {
             "promoter",
             "reporter",
             "securityManager",
+            "self",
             "teamAdmin",
             "webPortal"
         ]
@@ -104,7 +105,7 @@ export namespace defaultTestUser {
                 "promoter",
                 "reporter",
                 "securityManager",
-                "teamAdmin",
+                "self",
                 "webPortal"
             ]
         });
