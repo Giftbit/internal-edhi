@@ -50,7 +50,7 @@ export async function sendEmail(params: SendEmailParams): Promise<aws.SES.SendEm
 export async function isValidEmailAddress(emailAddress: string): Promise<boolean> {
     // Email regexes are famously more complicated than you'd think they should be.
     // see https://emailregex.com/
-    if (!/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(emailAddress)) {
+    if (!/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(emailAddress)) {
         log.info("Email address", emailAddress, "is not valid by regex");
         return false;
     }

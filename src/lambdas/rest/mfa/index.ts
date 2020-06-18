@@ -6,6 +6,7 @@ import {DbUser} from "../../../db/DbUser";
 import {MfaStatus} from "../../../model/MfaStatus";
 import {createdDateNow} from "../../../db/dynamodb";
 import {sendSms} from "../../../utils/smsUtils";
+import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 import log = require("loglevel");
 
 export function installMfaRest(router: cassava.Router): void {
@@ -116,6 +117,11 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     log.info("Beginning SMS MFA enable for", auth.teamMemberId);
 
     const user = await DbUser.getByAuth(auth);
+    if (DbUser.limitedActions.isThrottled(user, "enableSmsMfa")) {
+        log.info("User", user.userId, user.email, "has attempted to enable SMS MFA too many times and is throttled.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+    }
+
     const code = generateCode();
     const smsAuthState: DbUser.SmsAuthState = {
         action: "enable",
@@ -130,7 +136,7 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             attribute: "login.mfa.smsAuthState",
             action: "put",
             value: smsAuthState
-        });
+        }, DbUser.limitedActions.buildAddUpdateAction("enableSmsMfa"));
     } else {
         const mfa: DbUser.Mfa = {
             smsAuthState,
@@ -140,7 +146,7 @@ async function startEnableSmsMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
             attribute: "login.mfa",
             action: "put",
             value: mfa
-        });
+        }, DbUser.limitedActions.buildAddUpdateAction("enableSmsMfa"));
     }
 
     await sendSms({
@@ -189,7 +195,7 @@ async function startEnableTotpMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge
     };
 }
 
-async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: { code: string }): Promise<CompleteEnableMfaResult> {
     log.info("Completing MFA enable for", auth.teamMemberId);
     const user = await DbUser.getByAuth(auth);
 
@@ -203,7 +209,7 @@ async function completeEnableMfa(auth: giftbitRoutes.jwtauth.AuthorizationBadge,
     throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Not in the process of enabling MFA.");
 }
 
-async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Promise<CompleteEnableMfaResult> {
     if (user.login.mfa.smsAuthState.expiresDate < createdDateNow()) {
         log.info("SMS MFA not enabled for", user.userId, "code expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code has expired.  Please try again.");
@@ -214,14 +220,19 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the code submitted was incorrect.");
     }
 
-    await DbUser.update(user, {
-        action: "remove",
-        attribute: "login.mfa.smsAuthState"
-    }, {
-        action: "put",
-        attribute: "login.mfa.smsDevice",
-        value: user.login.mfa.smsAuthState.device
-    });
+    await DbUser.update(
+        user,
+        {
+            action: "remove",
+            attribute: "login.mfa.smsAuthState"
+        },
+        {
+            action: "put",
+            attribute: "login.mfa.smsDevice",
+            value: user.login.mfa.smsAuthState.device
+        },
+        DbUser.limitedActions.buildClearAllUpdateAction("enableSmsMfa")
+    );
     log.info("Code matches, SMS MFA enabled for", user.userId, user.login.mfa.smsAuthState.device);
 
     return {
@@ -230,7 +241,7 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
     };
 }
 
-async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Promise<{ complete: boolean, message: string }> {
+async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Promise<CompleteEnableMfaResult> {
     if (user.login.mfa.totpSetup.expiresDate < createdDateNow()) {
         log.info("TOTP MFA not enabled for", user.userId, "the enable process has expired");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Sorry, the process to enable MFA has expired.  Please start again.");

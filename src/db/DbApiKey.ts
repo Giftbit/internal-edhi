@@ -101,7 +101,7 @@ export namespace DbApiKey {
     }
 
     export async function del(apiKey: DbApiKey): Promise<void> {
-        const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(toDbObject(apiKey));
+        const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(getKeys(apiKey));
 
         // Store a copy of the deleted API key for future reference.
         const deletedObject: DbObject = {

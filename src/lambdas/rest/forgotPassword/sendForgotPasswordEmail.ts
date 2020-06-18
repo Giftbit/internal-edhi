@@ -1,5 +1,5 @@
 import {sendEmail} from "../../../utils/emailUtils";
-import {TokenAction} from "../../../db/TokenAction";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import {DbUser} from "../../../db/DbUser";
 import log = require("loglevel");
 
@@ -16,8 +16,8 @@ export async function sendForgotPasswordEmail(email: string): Promise<void> {
         return;
     }
 
-    const tokenAction = TokenAction.generate("resetPassword", 24, {email: email});
-    await TokenAction.put(tokenAction);
+    const tokenAction = DbTokenAction.generate("resetPassword", 24, {email: email});
+    await DbTokenAction.put(tokenAction);
 
     const resetPasswordLink = `https://${process.env["LIGHTRAIL_WEBAPP_DOMAIN"]}/app/#/resetPassword?token=${encodeURIComponent(tokenAction.token)}`;
     const body = forgotPasswordEmail

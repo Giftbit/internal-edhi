@@ -31,8 +31,9 @@ describe("/v2/account/invitations", () => {
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         sinonSandbox.restore();
+        await DbUser.limitedActions.clearAll(testUtils.defaultTestUser.user, "accountInvitation");
     });
 
     it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
@@ -390,4 +391,50 @@ describe("/v2/account/invitations", () => {
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
     });
+
+    it("will throttle to 12 invitations in a day", async () => {
+        const invitationEmails: emailUtils.SendEmailParams[] = [];
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                invitationEmails.push(params);
+                return null;
+            });
+
+        for (let i = 0; i < 12; i++) {
+            const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+                email: testUtils.generateValidEmailAddress(),
+                userPrivilegeType: "FULL_ACCESS"
+            });
+            chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+            chai.assert.lengthOf(invitationEmails, i + 1);
+        }
+
+        const rateLimitedInvitationResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: testUtils.generateValidEmailAddress(),
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(rateLimitedInvitationResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.lengthOf(invitationEmails, 12);
+
+        // Manually push back all limited actions by 2 days
+        const dbUser = await DbUser.get(testUtils.defaultTestUser.email);
+        for (const d of Array.from(dbUser.limitedActions["accountInvitation"])) {
+            const dOlder = new Date(d);
+            dOlder.setDate(dOlder.getDate() - 2);
+            dbUser.limitedActions["accountInvitation"].delete(d);
+            dbUser.limitedActions["accountInvitation"].add(dOlder.toISOString());
+        }
+        await DbUser.update(dbUser, {
+            action: "put",
+            attribute: "limitedActions",
+            value: dbUser.limitedActions
+        });
+
+        const laterInvitationResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: testUtils.generateValidEmailAddress(),
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(laterInvitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.lengthOf(invitationEmails, 13);
+    }).timeout(30000);
 });

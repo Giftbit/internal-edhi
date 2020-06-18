@@ -1,7 +1,6 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendChangeEmailAddressEmail} from "./sendChangeEmailAddressEmail";
-import {TokenAction} from "../../../db/TokenAction";
 import {DbUser} from "../../../db/DbUser";
 import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
@@ -9,6 +8,7 @@ import {DbAccountUser} from "../../../db/DbAccountUser";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
 import {loginUserByEmailAction} from "../login";
 import {isValidEmailAddress} from "../../../utils/emailUtils";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -65,7 +65,7 @@ export function installChangeEmailUnauthedRest(router: cassava.Router): void {
 }
 
 export async function completeChangeEmail(token: string): Promise<cassava.RouterResponse> {
-    const tokenAction = await TokenAction.get(token);
+    const tokenAction = await DbTokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "changeEmail") {
         log.warn("Could not find changeEmail TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error confirming the change of email address.  Maybe the email link timed out.");
@@ -120,7 +120,7 @@ export async function completeChangeEmail(token: string): Promise<cassava.Router
     log.info("Changed (authoritative data) email address for", tokenAction.userId, "to", tokenAction.email);
 
     await sendEmailAddressChangedEmail(user.email);
-    await TokenAction.del(tokenAction);
+    await DbTokenAction.del(tokenAction);
 
     return loginUserByEmailAction(newUser, {location: "/app/#/changeEmailComplete"});
 }

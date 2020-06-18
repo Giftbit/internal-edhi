@@ -4,7 +4,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
 import * as uuid from "uuid";
 import * as emailUtils from "../emailUtils";
-import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
+import {dynamodb, objectDynameh, objectSchema2} from "../../db/dynamodb";
 import {DbAccountUser} from "../../db/DbAccountUser";
 import {DbUser} from "../../db/DbUser";
 import {DbUserUniqueness} from "../../db/DbUserUniqueness";
@@ -62,6 +62,7 @@ export namespace defaultTestUser {
             frozen: false,
             defaultLoginAccountId: accountId + "-TEST"
         },
+        limitedActions: {},
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userUniqueness: DbUserUniqueness = {
@@ -123,6 +124,7 @@ export namespace defaultTestUser {
                 frozen: false,
                 defaultLoginAccountId: accountId + "-TEST"
             },
+            limitedActions: {},
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userUniqueness: DbUserUniqueness = {
@@ -156,7 +158,6 @@ export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
         await dynamodb.deleteTable(objectDynameh.requestBuilder.buildDeleteTableInput()).promise();
-        await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {
         if (err.code !== "ResourceNotFoundException") {
             throw err;
@@ -165,7 +166,6 @@ export async function resetDb(): Promise<void> {
 
     log.trace("creating tables");
     await dynamodb.createTable(objectDynameh.requestBuilder.buildCreateTableInput([objectSchema2])).promise();
-    await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
 
     log.trace("adding default data");
     await DbUser.put(defaultTestUser.user);
