@@ -5,6 +5,7 @@ import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbUser} from "../../../db/DbUser";
+import {blocklistApiKey} from "./blocklistApiKey";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
@@ -109,8 +110,5 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
     }
 
     await DbApiKey.del(apiKey);
-
-    // At this point we've forgotten about the API key but not actually revoked it anywhere.
-    // Users will expect the API key will stop working and we're not meeting those expectations.
-    // That will need to be fixed very soon and this is where that call needs to happen.
+    await blocklistApiKey(apiKey);
 }
