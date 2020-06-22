@@ -152,7 +152,7 @@ export async function loginUserByEmailAction(user: DbUser, redirect?: { location
     if (redirect) {
         response.body = null;
         response.statusCode = cassava.httpStatusCode.redirect.FOUND;
-        response.headers["Location"] = redirect.location;
+        cassava.RouterResponse.setHeader(response, "Location", redirect.location);
     }
     return response;
 }
