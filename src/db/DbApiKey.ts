@@ -62,10 +62,6 @@ export namespace DbApiKey {
         return fromDbObject(await DbObject.get("Account/" + accountId, "ApiKey/" + tokenId));
     }
 
-    export async function getByUser(userId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.getSecondary("User/" + userId, "ApiKey/" + tokenId));
-    }
-
     export async function put(apiKey: DbApiKey): Promise<void> {
         if (isTestModeUserId(apiKey.accountId) !== isTestModeUserId(apiKey.userId)) {
             throw new Error(`accountId and userId must both be live or both be test mode accountId=${apiKey.accountId} userId=${apiKey.userId}`);
@@ -107,9 +103,9 @@ export namespace DbApiKey {
 
         const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + accountId, "begins_with", "ApiKey/");
         objectDynameh.requestBuilder.addFilter(req, {
-            attribute: "pk2",
+            attribute: "userId",
             operator: "=",
-            values: ["User/" + userId]
+            values: [userId]
         });
         const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);

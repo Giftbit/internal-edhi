@@ -41,23 +41,6 @@ describe("DbApiKey", () => {
         chai.assert.deepEqual(apiKeyByAccount, apiKey);
     });
 
-    it("can put and get an ApiKey by User", async () => {
-        const apiKey: DbApiKey = {
-            accountId: testUtils.generateId(),
-            userId: testUtils.generateId(),
-            name: "Test Key",
-            tokenId: DbApiKey.generateTokenId(),
-            tokenVersion: 3,
-            roles: [],
-            scopes: [],
-            createdDate: createdDateNow()
-        };
-        await DbApiKey.put(apiKey);
-
-        const apiKeyByUser = await DbApiKey.getByUser(apiKey.userId, apiKey.tokenId);
-        chai.assert.deepEqual(apiKeyByUser, apiKey);
-    });
-
     it("can get ApiKeys by Account or AccountUser", async () => {
         const accountId1 = testUtils.generateId();
         const accountId2 = testUtils.generateId();

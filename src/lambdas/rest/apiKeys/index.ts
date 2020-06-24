@@ -1,4 +1,3 @@
-import * as aws from "aws-sdk";
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbApiKey} from "../../../db/DbApiKey";
@@ -6,6 +5,7 @@ import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbUser} from "../../../db/DbUser";
+import {sendSqsMessage} from "../../../utils/sqsUtils";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
@@ -109,20 +109,5 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
     }
 
     await DbApiKey.del(apiKey);
-    await invokeApiKeyBlocklister(apiKey);
-}
-
-async function invokeApiKeyBlocklister(apiKey: DbApiKey): Promise<void> {
-    const sqs = new aws.SQS({
-        apiVersion: "2012-11-05",
-        credentials: new aws.EnvironmentCredentials("AWS"),
-        region: process.env["AWS_REGION"]
-    });
-
-    const resp = await sqs.sendMessage({
-        QueueUrl: process.env["API_KEY_BLOCKERLISTER_QUEUE_URL"],
-        MessageBody: JSON.stringify({apiKeyTokenId: apiKey.tokenId})
-    }).promise();
-    log.debug("ApiKeyBlocklisterQueue resp", resp);
-
+    await sendSqsMessage(process.env["API_KEY_BLOCKLISTER_QUEUE_URL"], {apiKeyTokenId: apiKey.tokenId});
 }

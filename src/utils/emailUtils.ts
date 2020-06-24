@@ -2,11 +2,7 @@ import * as aws from "aws-sdk";
 import dns = require("dns");
 import log = require("loglevel");
 
-const ses = new aws.SES({
-    apiVersion: "2010-12-01",
-    credentials: new aws.EnvironmentCredentials("AWS"),
-    region: process.env["AWS_REGION"]
-});
+let ses: aws.SES;
 
 export interface SendEmailParams {
     toAddress: string;
@@ -41,6 +37,14 @@ export async function sendEmail(params: SendEmailParams): Promise<aws.SES.SendEm
     }
     if (params.replyToAddress) {
         eParams.ReplyToAddresses = [params.replyToAddress];
+    }
+
+    if (!ses) {
+        ses = new aws.SES({
+            apiVersion: "2010-12-01",
+            credentials: new aws.EnvironmentCredentials("AWS"),
+            region: process.env["AWS_REGION"]
+        });
     }
 
     log.info("Sending email:", eParams);

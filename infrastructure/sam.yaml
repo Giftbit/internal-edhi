@@ -117,7 +117,7 @@ Resources:
           - !Ref EdhiApiGateway5XXGreaterThanZeroAlarm
       Environment:
         Variables:
-          API_KEY_BLOCKERLISTER_QUEUE_URL: !Ref ApiKeyBlocklisterQueue
+          API_KEY_BLOCKLISTER_QUEUE_URL: !Ref ApiKeyBlocklisterQueue
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
           ENCRYPTION_SECRET_ID: !Ref EdhiSecret
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain

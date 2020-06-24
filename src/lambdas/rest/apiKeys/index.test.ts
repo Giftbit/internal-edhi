@@ -2,6 +2,7 @@ import * as cassava from "cassava";
 import * as chai from "chai";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
+import * as sqsUtils from "../../../utils/sqsUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
@@ -60,9 +61,16 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        let sqsCalled = false;
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                sqsCalled = true;
+                return Promise.resolve();
+            });
+
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        // NOTE: this is where we would check that a call to blacklist the token happens
+        chai.assert.isTrue(sqsCalled)
 
         const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyPostDeleteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
@@ -108,6 +116,11 @@ describe("/v2/account/apiKeys", () => {
         const deleteTestKeyLiveFailResp = await router.testPostLoginRequest<ApiKey>(liveSwitchResp, `/v2/account/apiKeys/${createTestKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteTestKeyLiveFailResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, "can't delete the test key with the live token");
 
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                return Promise.resolve();
+            });
+
         const deleteTestKeyResp = await router.testWebAppRequest<ApiKey>(`/v2/account/apiKeys/${createTestKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteTestKeyResp.statusCode, cassava.httpStatusCode.success.OK);
 
@@ -143,8 +156,15 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        let sqsCalled = false;
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                sqsCalled = true;
+                return Promise.resolve();
+            });
+
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        // NOTE: this is where we would check that a call to blacklist the token happens
+        chai.assert.isTrue(sqsCalled);
     });
 });
