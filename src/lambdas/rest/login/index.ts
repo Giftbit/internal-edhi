@@ -444,7 +444,7 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         messageCode = "AccountMaxInactiveDays";
         badge = DbUser.getOrphanBadge(user);
     } else {
-        badge = DbUser.getBadge(accountUser, liveMode, true);
+        badge = DbUser.getBadge(accountUser, liveMode);
     }
 
     return {

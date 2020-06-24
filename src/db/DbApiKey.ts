@@ -3,6 +3,8 @@ import * as uuid from "uuid";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
 import {isTestModeUserId} from "../utils/userUtils";
+import * as giftbitRoutes from "giftbit-cassava-routes";
+import {DbDeletedApiKey} from "./DbDeletedApiKey";
 
 /**
  * ApiKeys are unusual in Edhi: there are separate live and test mode versions.
@@ -52,26 +54,7 @@ export namespace DbApiKey {
         }
         return {
             pk: "Account/" + apiKey.accountId,
-            sk: "ApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.userId,
-            sk2: "ApiKey/" + apiKey.tokenId,
-        };
-    }
-
-    /**
-     * Get the DB keys for the deleted API key.  This isn't publicly exposed
-     * because we don't actually do anything with these yet.  We're just keeping
-     * them around for future reference.
-     */
-    function getDeletedKeys(apiKey: DbApiKey): DbObject {
-        if (!apiKey || !apiKey.accountId || !apiKey.userId || !apiKey.tokenId) {
-            throw new Error("Not a valid ApiKey.");
-        }
-        return {
-            pk: "Account/" + apiKey.accountId,
-            sk: "DeletedApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.userId,
-            sk2: "DeletedApiKey/" + apiKey.tokenId,
+            sk: "ApiKey/" + apiKey.tokenId
         };
     }
 
@@ -104,10 +87,7 @@ export namespace DbApiKey {
         const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(getKeys(apiKey));
 
         // Store a copy of the deleted API key for future reference.
-        const deletedObject: DbObject = {
-            ...apiKey,
-            ...getDeletedKeys(apiKey)
-        };
+        const deletedObject = DbDeletedApiKey.toDbObject(DbDeletedApiKey.fromDbApiKey(apiKey));
         const putDeletedReq = objectDynameh.requestBuilder.buildPutInput(deletedObject);
 
         const req = objectDynameh.requestBuilder.buildTransactWriteItemsInput(deleteReq, putDeletedReq);
@@ -133,6 +113,20 @@ export namespace DbApiKey {
         });
         const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
+    }
+
+    export function getBadge(apiKey: DbApiKey, liveMode: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+        const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+        auth.userId = apiKey.accountId + (liveMode ? "" : "-TEST");
+        auth.teamMemberId = apiKey.userId + (liveMode ? "" : "-TEST");
+        auth.roles = apiKey.roles;
+        auth.scopes = apiKey.scopes;
+        auth.issuer = "EDHI";
+        auth.audience = "API";
+        auth.expirationTime = null;
+        auth.issuedAtTime = new Date();
+        auth.uniqueIdentifier = apiKey.tokenId;
+        return auth;
     }
 
     export function generateTokenId(): string {

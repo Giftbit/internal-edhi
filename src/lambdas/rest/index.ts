@@ -28,7 +28,7 @@ logPrefix.apply(log, {
 });
 
 // Set the log level when running in Lambda.
-log.setLevel(log.levels.INFO);
+log.setLevel(process.env.LOG_LEVEL as any || log.levels.INFO);
 
 const router = new cassava.Router();
 
