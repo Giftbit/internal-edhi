@@ -24,7 +24,7 @@ export async function rebuildApiKeyBlocklist(): Promise<void> {
         Scope: "CLOUDFRONT"
     }).promise();
 
-    const updateReq = await buildBlockApiKeyUpdateWebAclRequest(getWebAclResp.WebACL, getWebAclResp.LockToken);
+    const updateReq = await buildUpdateWebAclRequest(getWebAclResp.WebACL, getWebAclResp.LockToken);
     log.debug("update WAF request", updateReq);
 
     log.info("Sending WAF update...");
@@ -44,9 +44,9 @@ function getWebAclDetails(webAclArn: string): { id: string, name: string } {
 }
 
 /**
- * Build the request to update the WAF WebACL to block the given ApiKey.
+ * Build the request to update the WAF WebACL to block deleted ApiKeys.
  */
-async function buildBlockApiKeyUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, lockToken: string): Promise<aws.WAFV2.UpdateWebACLRequest> {
+async function buildUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, lockToken: string): Promise<aws.WAFV2.UpdateWebACLRequest> {
     const update: aws.WAFV2.UpdateWebACLRequest = {
         DefaultAction: webAcl.DefaultAction,
         Id: webAcl.Id,
@@ -62,7 +62,7 @@ async function buildBlockApiKeyUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, loc
     const deletedApiKeys = await DbDeletedApiKey.getAll();
     log.info("Building blocklist rule for", deletedApiKeys.length, "deleted api keys");
     if (deletedApiKeys.length % 100 === 0) {
-        giftbitRoutes.sentry.sendErrorNotification(new Error(`Building API key blocklist for ${deletedApiKeys.length} deleted API keys.  This is not necessarily an error.  Only 747 API keys can be blocklisted using the WebACL.  After that keys need to be rotated into another mechanism to blocklist them.`));
+        giftbitRoutes.sentry.sendErrorNotification(new Error(`Building API key blocklist for ${deletedApiKeys.length} deleted API keys.  This is not necessarily an error.  Only 747 API keys can be blocklisted using the WebACL.  After that keys need to be rotated into another mechanism to blocklist them.  This is something we will have to build before it gets there.`));
     }
 
     if (deletedApiKeys.length === 0) {
@@ -108,7 +108,7 @@ export async function buildBlockApiKeyStatement(apiKey: DbDeletedApiKey): Promis
         const apiTokenHash = DbApiKey.getTokenHash(apiToken);
         if (apiTokenHash !== apiKey.tokenHash) {
             log.error("apiKey=", apiKey);
-            throw new Error(`Generated an ApiKey token with a hash that does not match the expected hash!  The token we're trying to block does not match the one given to the user. tokenId=${apiKey.tokenId}expected token hash=${apiKey.tokenHash}actual token hash=${apiTokenHash}`);
+            throw new Error(`Generated an ApiKey token with a hash that does not match the expected hash!  The token we're trying to block does not match the one given to the user. tokenId=${apiKey.tokenId} expected token hash=${apiKey.tokenHash} actual token hash=${apiTokenHash}`);
         }
     }
 
