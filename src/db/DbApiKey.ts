@@ -152,6 +152,6 @@ export namespace DbApiKey {
     }
 
     export function generateTokenId(): string {
-        return "badge-" + uuid.v4().replace(/-/g, "");
+        return "tok-" + uuid.v4().replace(/-/g, "");
     }
 }

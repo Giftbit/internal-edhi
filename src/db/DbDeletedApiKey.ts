@@ -1,6 +1,6 @@
 import {DbObject} from "./DbObject";
 import {DbApiKey} from "./DbApiKey";
-import {createdDateNow, dynamodb, objectDynameh2} from "./dynamodb";
+import {createdDateNow, dynamodb, objectDynameh} from "./dynamodb";
 
 export interface DbDeletedApiKey extends DbApiKey {
     deletedDate: string;
@@ -36,15 +36,12 @@ export namespace DbDeletedApiKey {
         }
 
         return {
-            pk: "Account/" + apiKey.accountId,
-            sk: "DeletedApiKey/" + apiKey.tokenId,
-
             // Putting all the deleted API keys in the same partition makes it queryable.
             // As best I understand DynamoDB this partition might grow large as the number of
             // deleted keys grows but because it won't be accessed often it won't become a
             // hot partition and that's ok.
-            pk2: "DeletedApiKey/",
-            sk2: "DeletedApiKey/" + apiKey.tokenId
+            pk: "DeletedApiKey/",
+            sk: "DeletedApiKey/" + apiKey.tokenId
         };
     }
 
@@ -56,8 +53,9 @@ export namespace DbDeletedApiKey {
     }
 
     export async function getAll(): Promise<DbDeletedApiKey[]> {
-        const req = objectDynameh2.requestBuilder.buildQueryInput("DeletedApiKey/");
-        const objects = await objectDynameh2.queryHelper.queryAll(dynamodb, req);
+        const req = objectDynameh.requestBuilder.buildQueryInput("DeletedApiKey/");
+        req.ConsistentRead = true;
+        const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
     }
 }
