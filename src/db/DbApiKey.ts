@@ -1,4 +1,5 @@
 import * as aws from "aws-sdk";
+import * as crypto from "crypto";
 import * as uuid from "uuid";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
@@ -12,15 +13,28 @@ import {DbDeletedApiKey} from "./DbDeletedApiKey";
  */
 export interface DbApiKey {
 
-    accountId: string;
-    userId: string;
+    /**
+     * Name of the API key.
+     */
     name: string;
 
-    tokenId: string;
-    tokenVersion: number;
+    // Identifiers and permissions.
+    accountId: string;
+    userId: string;
     roles: string[];
     scopes: string[];
+
+    // Metadata.
+    tokenId: string;
+    tokenVersion: number;
     createdDate: string;
+
+    /**
+     * A SHA1 hash in base64 of the token generated from this ApiKey.
+     * With this we can verify that we reconstructed the token correctly.
+     * This value does not exist on migrated ApiKeys.
+     */
+    tokenHash?: string;
 
 }
 
@@ -111,18 +125,30 @@ export namespace DbApiKey {
         return objects.map(fromDbObject);
     }
 
-    export function getBadge(apiKey: DbApiKey, liveMode: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(apiKey: DbApiKey): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
-        auth.userId = apiKey.accountId + (liveMode ? "" : "-TEST");
-        auth.teamMemberId = apiKey.userId + (liveMode ? "" : "-TEST");
+        auth.userId = apiKey.accountId;
+        auth.teamMemberId = apiKey.userId;
         auth.roles = apiKey.roles;
         auth.scopes = apiKey.scopes;
         auth.issuer = "EDHI";
         auth.audience = "API";
         auth.expirationTime = null;
-        auth.issuedAtTime = new Date();
+        auth.issuedAtTime = new Date(apiKey.createdDate);
         auth.uniqueIdentifier = apiKey.tokenId;
         return auth;
+    }
+
+    /**
+     * Get a hash of the token generated from this ApiKey.  This hash
+     * can then be stored in the ApiKey itself.
+     */
+    export function getTokenHash(token: string): string {
+        const tokenParts = token.split(".");
+        if (tokenParts.length !== 3) {
+            throw new Error(`tokenParts.length !== 3 (got ${tokenParts.length}).  This is not a token.`);
+        }
+        return crypto.createHash("sha1").update(token, "ascii").digest("base64");
     }
 
     export function generateTokenId(): string {

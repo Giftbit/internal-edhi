@@ -89,10 +89,11 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
         scopes: accountUser.scopes,
         createdDate: createdDateNow()
     };
-    await DbApiKey.put(apiKey);
 
-    const badge = DbApiKey.getBadge(apiKey, !auth.isTestUser());
+    const badge = DbApiKey.getBadge(apiKey);
     const apiToken = await DbUser.getBadgeApiToken(badge);
+    apiKey.tokenHash = DbApiKey.getTokenHash(apiToken);
+    await DbApiKey.put(apiKey);
 
     log.info("Created API key with tokenId", apiKey.tokenId);
 

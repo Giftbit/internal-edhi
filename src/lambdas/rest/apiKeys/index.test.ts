@@ -13,6 +13,8 @@ import {ApiKey} from "../../../model/ApiKey";
 import chaiExclude from "chai-exclude";
 import {LoginResult} from "../../../model/LoginResult";
 import {setUserIdTestMode} from "../../../utils/userUtils";
+import {User} from "../../../model/User";
+import {DbApiKey} from "../../../db/DbApiKey";
 
 chai.use(chaiExclude);
 
@@ -48,6 +50,9 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(createKeyResp.body.name, name);
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.createdDate);
+
+        const dbApiKey = await DbApiKey.getByAccount(createKeyResp.body.accountId, createKeyResp.body.tokenId);
+        chai.assert.isString(dbApiKey.tokenHash, "the hash is set");
 
         const pingWithApiKeyResp = await router.testApiKeyRequest(createKeyResp.body.token, "/v2/user/ping", "GET");
         chai.assert.equal(pingWithApiKeyResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -87,6 +92,10 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(createTestKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createTestKeyResp.body.userId, setUserIdTestMode(testUtils.defaultTestUser.userId));
 
+        const testKeyUserResp = await router.testApiKeyRequest<User>(createTestKeyResp.body.token, "/v2/user", "GET");
+        chai.assert.equal(testKeyUserResp.statusCode, 200);
+        chai.assert.equal(testKeyUserResp.body.mode, "test");
+
         const testKeyJson: giftbitRoutes.jwtauth.JwtPayload = JSON.parse(Buffer.from(createTestKeyResp.body.token.split(".")[1], "base64").toString("ascii"));
         chai.assert.isTrue(giftbitRoutes.jwtauth.JwtPayload.isTestUser(testKeyJson), JSON.stringify(testKeyJson));
 
@@ -99,6 +108,10 @@ describe("/v2/account/apiKeys", () => {
         const createLiveKeyResp = await router.testPostLoginRequest<ApiKey>(liveSwitchResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
+
+        const liveKeyUserResp = await router.testApiKeyRequest<User>(createLiveKeyResp.body.token, "/v2/user", "GET");
+        chai.assert.equal(liveKeyUserResp.statusCode, 200);
+        chai.assert.equal(liveKeyUserResp.body.mode, "live");
 
         const liveKeyJson: giftbitRoutes.jwtauth.JwtPayload = JSON.parse(Buffer.from(createLiveKeyResp.body.token.split(".")[1], "base64").toString("ascii"));
         chai.assert.isFalse(giftbitRoutes.jwtauth.JwtPayload.isTestUser(liveKeyJson), JSON.stringify(liveKeyJson));

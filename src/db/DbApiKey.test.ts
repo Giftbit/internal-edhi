@@ -2,11 +2,13 @@ import * as chai from "chai";
 import * as testUtils from "../utils/testUtils";
 import {DbApiKey} from "./DbApiKey";
 import {createdDateNow} from "./dynamodb";
+import {DbUser} from "./DbUser";
 
 describe("DbApiKey", () => {
 
     before(async () => {
         await testUtils.resetDb();
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     it("returns the original object in fromDbObject(toDbObject())", () => {

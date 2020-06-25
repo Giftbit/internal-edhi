@@ -2,7 +2,6 @@ import * as aws from "aws-sdk";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbApiKey} from "../../db/DbApiKey";
 import {DbUser} from "../../db/DbUser";
-import {isTestModeUserId} from "../../utils/userUtils";
 import {DbDeletedApiKey} from "../../db/DbDeletedApiKey";
 import log = require("loglevel");
 
@@ -95,11 +94,22 @@ async function buildBlockApiKeyUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, loc
     return update;
 }
 
-async function buildBlockApiKeyStatement(apiKey: DbDeletedApiKey): Promise<aws.WAFV2.Statement> {
-    const badge = DbApiKey.getBadge(apiKey, isTestModeUserId(apiKey.userId));
+/**
+ * Exported for testing only.
+ * @private
+ */
+export async function buildBlockApiKeyStatement(apiKey: DbDeletedApiKey): Promise<aws.WAFV2.Statement> {
+    const badge = DbApiKey.getBadge(apiKey);
     const apiToken = await DbUser.getBadgeApiToken(badge);
-    const apiTokenParts = apiToken.split(".", 3);
-    const base64Signature = Buffer.from("." + apiTokenParts[2], "ascii").toString("base64");
+    const base64Signature = Buffer.from("." + apiToken.split(".", 3)[2], "ascii").toString("base64");
+
+    if (apiKey.tokenHash) {
+        const apiTokenHash = DbApiKey.getTokenHash(apiToken);
+        if (apiTokenHash !== apiKey.tokenHash) {
+            log.error("apiKey=", apiKey);
+            throw new Error(`Generated an ApiKey token with a hash that does not match the expected hash!  The token we're trying to block does not match the one given to the user. tokenId=${apiKey.tokenId}expected token hash=${apiKey.tokenHash}actual token hash=${apiTokenHash}`);
+        }
+    }
 
     return {
         ByteMatchStatement: {
