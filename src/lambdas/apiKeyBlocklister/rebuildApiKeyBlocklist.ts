@@ -16,6 +16,7 @@ export async function rebuildApiKeyBlocklist(): Promise<void> {
         region: "us-east-1"
     });
 
+    log.info("Fetching current WAF config...");
     const webAclDetails = getWebAclDetails(process.env["WEB_ACL_ARN"]);
     const getWebAclResp = await waf.getWebACL({
         Id: webAclDetails.id,
@@ -26,6 +27,7 @@ export async function rebuildApiKeyBlocklist(): Promise<void> {
     const updateReq = await buildBlockApiKeyUpdateWebAclRequest(getWebAclResp.WebACL, getWebAclResp.LockToken);
     log.debug("update WAF request", updateReq);
 
+    log.info("Sending WAF update...");
     const updateResp = await waf.updateWebACL(updateReq).promise();
     log.debug("update WAF response", updateResp);
 }
