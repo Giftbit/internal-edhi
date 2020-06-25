@@ -57,7 +57,6 @@ export namespace DbDeletedApiKey {
 
     export async function getAll(): Promise<DbDeletedApiKey[]> {
         const req = objectDynameh2.requestBuilder.buildQueryInput("DeletedApiKey/");
-        req.ConsistentRead = true;
         const objects = await objectDynameh2.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
     }

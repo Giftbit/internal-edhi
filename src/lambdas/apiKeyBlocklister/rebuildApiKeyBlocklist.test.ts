@@ -56,9 +56,7 @@ describe("rebuildApiKeyBlocklist", () => {
                 ["SearchString"]
             );
 
-            const decodedSearchString = Buffer.from(statement.ByteMatchStatement.SearchString as string, "base64").toString("ascii");
-            chai.assert.equal(decodedSearchString[0], ".", "search string starts with a .");
-            chai.assert.endsWith(token, decodedSearchString, "the decoded search string is the end of the token");
+            chai.assert.endsWith(token, statement.ByteMatchStatement.SearchString as string, "the decoded search string is the end of the token");
         });
 
         it("builds a statement that blocks an API key created in 2020-06", async () => {
@@ -78,7 +76,7 @@ describe("rebuildApiKeyBlocklist", () => {
                 statement.ByteMatchStatement,
                 {
                     // Must be this signature.  Never change it.
-                    SearchString: Buffer.from(".KPwyR8xlitBx4FgSEjtyUTtoHappBd7MDq9KizNCYro", "ascii").toString("base64"),
+                    SearchString: ".KPwyR8xlitBx4FgSEjtyUTtoHappBd7MDq9KizNCYro",
                     FieldToMatch: {
                         SingleHeader: {
                             Name: "authorization"

@@ -38,8 +38,8 @@ function getWebAclDetails(webAclArn: string): { id: string, name: string } {
     }
     const parts = /^arn:aws:wafv2:us-east-1:\d+:global\/webacl\/([^/]+)\/([0-9a-f-]+)$/.exec(webAclArn);
     return {
-        id: parts[1],
-        name: parts[2]
+        id: parts[2],
+        name: parts[1]
     };
 }
 
@@ -103,7 +103,6 @@ async function buildBlockApiKeyUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, loc
 export async function buildBlockApiKeyStatement(apiKey: DbDeletedApiKey): Promise<aws.WAFV2.Statement> {
     const badge = DbApiKey.getBadge(apiKey);
     const apiToken = await DbUser.getBadgeApiToken(badge);
-    const base64Signature = Buffer.from("." + apiToken.split(".", 3)[2], "ascii").toString("base64");
 
     if (apiKey.tokenHash) {
         const apiTokenHash = DbApiKey.getTokenHash(apiToken);
@@ -115,7 +114,7 @@ export async function buildBlockApiKeyStatement(apiKey: DbDeletedApiKey): Promis
 
     return {
         ByteMatchStatement: {
-            SearchString: base64Signature,
+            SearchString: "." + apiToken.split(".", 3)[2],
             FieldToMatch: {
                 SingleHeader: {
                     Name: "authorization"

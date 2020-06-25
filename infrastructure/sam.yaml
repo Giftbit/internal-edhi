@@ -272,6 +272,7 @@ Resources:
       Environment:
         Variables:
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+          OBJECT_TABLE: !Ref ObjectTable
           SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
           SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
           SENTRY_DSN: !Ref SentryDsn
@@ -298,9 +299,14 @@ Resources:
                     !Sub "arn:aws:s3:::${SecureConfigBucket}/*"
             - Effect: Allow
               Action:
-                - ses:SendEmail
-                - ses:SendRawEmail
-              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${LightrailEmailDomain}"
+                - dynamodb:BatchGetItem
+                - dynamodb:DescribeTable
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*/index/EdhiIx2"
             - Effect: Allow
               Action:
                 - wafv2:GetWebACL
@@ -323,5 +329,5 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt ApiKeyBlocklisterQueue.Arn
-            BatchSize: 100
+            BatchSize: 10
             Enabled: true
