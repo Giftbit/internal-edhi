@@ -110,5 +110,8 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
     }
 
     await DbApiKey.del(apiKey);
+
+    // The message content isn't used because the rule is always rebuilt from scratch.
+    // We'll put something in there anyways to aid debuggability.
     await sendSqsMessage(process.env["API_KEY_BLOCKLISTER_QUEUE_URL"], {apiKeyTokenId: apiKey.tokenId});
 }
