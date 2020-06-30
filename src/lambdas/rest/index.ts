@@ -16,7 +16,7 @@ import log = require("loglevel");
 // request the lambda received (AWS modifies log calls, loglevel binds to the
 // version of console.log that exists when it is initialized).
 // See https://github.com/pimterry/loglevel/blob/master/lib/loglevel.js
-// tslint:disable-next-line:no-console
+// eslint-disable-next-line no-console
 log.methodFactory = () => (...args) => console.log(...args);
 
 // Prefix log messages with the level.

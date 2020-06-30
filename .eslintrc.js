@@ -57,12 +57,25 @@ module.exports = {
             args: "none"
         }],
 
+        // Use the logger instead.
+        "no-console": "error",
+
         // Needed to allow functions exported from namespaces.
         "no-inner-declarations": "off",
 
         "no-constant-condition": ["error", {
             // Allow the while(true) pattern.
             checkLoops: false
+        }],
+
+        "no-restricted-properties": [2, {
+            object: "describe",
+            property: "only",
+            message: "This is ok for development but should not be checked in."
+        }, {
+            object: "it",
+            property: "only",
+            message: "This is ok for development but should not be checked in."
         }],
 
         // Not everybody understands the regex spec in that level of detail to recognize
