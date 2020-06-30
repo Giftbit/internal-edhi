@@ -6,7 +6,7 @@ import {DbUser} from "../db/DbUser";
 
 // Derived from https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10-million-password-list-top-100000.txt
 // with length < 8 and all digits removed then sorted case-sensitive.
-const commonPasswords: string[] = require("./commonPasswords.json");
+import commonPasswords = require("./commonPasswords.json");
 
 export async function hashPassword(plaintextPassword: string): Promise<DbUser.Password> {
     if (typeof plaintextPassword !== "string") {
