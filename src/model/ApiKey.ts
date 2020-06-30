@@ -5,7 +5,6 @@ export interface ApiKey {
     accountId: string;
     userId: string;
     name: string;
-
     tokenId: string;
     roles: string[];
     scopes: string[];

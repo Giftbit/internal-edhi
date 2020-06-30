@@ -2,11 +2,13 @@ import * as chai from "chai";
 import * as testUtils from "../utils/testUtils";
 import {DbApiKey} from "./DbApiKey";
 import {createdDateNow} from "./dynamodb";
+import {DbUser} from "./DbUser";
 
 describe("DbApiKey", () => {
 
     before(async () => {
         await testUtils.resetDb();
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
     it("returns the original object in fromDbObject(toDbObject())", () => {
@@ -39,23 +41,6 @@ describe("DbApiKey", () => {
 
         const apiKeyByAccount = await DbApiKey.getByAccount(apiKey.accountId, apiKey.tokenId);
         chai.assert.deepEqual(apiKeyByAccount, apiKey);
-    });
-
-    it("can put and get an ApiKey by User", async () => {
-        const apiKey: DbApiKey = {
-            accountId: testUtils.generateId(),
-            userId: testUtils.generateId(),
-            name: "Test Key",
-            tokenId: DbApiKey.generateTokenId(),
-            tokenVersion: 3,
-            roles: [],
-            scopes: [],
-            createdDate: createdDateNow()
-        };
-        await DbApiKey.put(apiKey);
-
-        const apiKeyByUser = await DbApiKey.getByUser(apiKey.userId, apiKey.tokenId);
-        chai.assert.deepEqual(apiKeyByUser, apiKey);
     });
 
     it("can get ApiKeys by Account or AccountUser", async () => {

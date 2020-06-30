@@ -41,6 +41,10 @@ Parameters:
     Type: String
     Description: You can find your project’s DSN in the “Client Keys” section of your “Project Settings” in Sentry.
     AllowedPattern: https://[0-9a-f]+@o[0-9a-f]+.ingest.sentry.io/[0-9]+
+  WebAclArn:
+    Type: String
+    Description: ARN of the WebACL protecting the REST API
+    AllowedPattern: arn:aws:wafv2:us-east-1:\d+:global/webacl/.*/.*
 
 Resources:
   ObjectTable:
@@ -113,6 +117,7 @@ Resources:
           - !Ref EdhiApiGateway5XXGreaterThanZeroAlarm
       Environment:
         Variables:
+          API_KEY_BLOCKLISTER_QUEUE_URL: !Ref ApiKeyBlocklisterQueue
           AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
           ENCRYPTION_SECRET_ID: !Ref EdhiSecret
           LIGHTRAIL_DOMAIN: !Ref LightrailDomain
@@ -175,6 +180,11 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource:
                 - !Ref EdhiSecret
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt ApiKeyBlocklisterQueue.Arn
       Tags:
         ShortName: RestFunction
         Service: Edhi
@@ -242,3 +252,82 @@ Resources:
       Period: 60
       Statistic: Sum
       Threshold: 0
+
+  ApiKeyBlocklisterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 604800 # in seconds (7 days)
+      VisibilityTimeout: 900 # in seconds (15 minutes)
+
+  ApiKeyBlocklisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../dist/apiKeyBlocklister/apiKeyBlocklister.zip
+      Handler: index.handler
+      Runtime: nodejs10.x
+      MemorySize: 256
+      Timeout: 300 # seconds, 300 max
+      ReservedConcurrentExecutions: 1
+      AutoPublishAlias: live # see https://github.com/awslabs/serverless-application-model/blob/master/docs/safe_lambda_deployments.rst
+      Environment:
+        Variables:
+          AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+          OBJECT_TABLE: !Ref ObjectTable
+          SECURE_CONFIG_BUCKET: !Ref SecureConfigBucket
+          SECURE_CONFIG_KEY_JWT: authentication_badge_key.json
+          SENTRY_DSN: !Ref SentryDsn
+          WEB_ACL_ARN: !Ref WebAclArn
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${SecureConfigBucket}/authentication_badge_key.json"
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:DescribeKey
+              Resource:
+                - !Ref SecureConfigKmsArn
+              Condition:
+                StringLike:
+                  "kms:ViaService":
+                    !Sub "s3.${AWS::Region}.amazonaws.com"
+                  "kms:EncryptionContext:aws:s3:arn":
+                    !Sub "arn:aws:s3:::${SecureConfigBucket}/*"
+            - Effect: Allow
+              Action:
+                - dynamodb:BatchGetItem
+                - dynamodb:DescribeTable
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*"
+                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ObjectTable}/*/index/EdhiIx2"
+            - Effect: Allow
+              Action:
+                - wafv2:GetWebACL
+                - wafv2:UpdateWebACL
+              Resource:
+                - !Ref WebAclArn
+            - Effect: Allow
+              Action:
+                - sqs:ChangeMessageVisibility
+                - sqs:DeleteMessage
+                - sqs:ReceiveMessage
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt ApiKeyBlocklisterQueue.Arn
+      Tags:
+        ShortName: ApiKeyBlocklister
+        Service: Edhi
+      Events:
+        InvokeQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ApiKeyBlocklisterQueue.Arn
+            BatchSize: 10
+            Enabled: true

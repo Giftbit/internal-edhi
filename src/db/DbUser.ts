@@ -285,15 +285,15 @@ export namespace DbUser {
         return user;
     }
 
-    export function getBadge(accountUser: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(accountUser: DbAccountUser, liveMode: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.userId = accountUser.accountId + (liveMode ? "" : "-TEST");
         auth.teamMemberId = accountUser.userId + (liveMode ? "" : "-TEST");
         auth.roles = accountUser.roles;
         auth.scopes = accountUser.scopes;
         auth.issuer = "EDHI";
-        auth.audience = shortLived ? "WEBAPP" : "API";
-        auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60 * 1000) : null;
+        auth.audience = "WEBAPP";
+        auth.expirationTime = new Date(Date.now() + 180 * 60 * 1000);
         auth.issuedAtTime = new Date();
         return auth;
     }

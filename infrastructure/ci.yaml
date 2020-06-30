@@ -245,8 +245,9 @@ Resources:
               - lambda:AddPermission
               - lambda:CreateAlias
               - lambda:CreateFunction
-              - lambda:DeleteFunction
               - lambda:DeleteAlias
+              - lambda:DeleteFunction
+              - lambda:DeleteFunctionConcurrency
               - lambda:GetAlias
               - lambda:GetFunction
               - lambda:GetFunctionConfiguration
@@ -254,9 +255,11 @@ Resources:
               - lambda:ListAliases
               - lambda:ListVersionsByFunction
               - lambda:PublishVersion
+              - lambda:PutFunctionConcurrency
               - lambda:RemovePermission
               - lambda:TagResource
               - lambda:UntagResource
+              - lambda:UpdateAlias
               - lambda:UpdateFunctionCode
               - lambda:UpdateFunctionConfiguration
             Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
@@ -327,20 +330,15 @@ Resources:
           #              - s3:PutBucketTagging
           #            Resource: "*"
           # SQS
-          #          - Effect: Allow
-          #            Action:
-          #              - sqs:AddPermission
-          #              - sqs:CreateQueue
-          #              - sqs:DeleteQueue
-          #              - sqs:GetQueueAttributes
-          #              - sqs:RemovePermission
-          #              - sqs:SetQueueAttributes
-          #            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
-          # ElasticsearchService
-          #          - Effect: Allow
-          #            Action:
-          #              - es:*
-          #            Resource: "*"
+          - Effect: Allow
+            Action:
+              - sqs:AddPermission
+              - sqs:CreateQueue
+              - sqs:DeleteQueue
+              - sqs:GetQueueAttributes
+              - sqs:RemovePermission
+              - sqs:SetQueueAttributes
+            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
           - Effect: Allow
             Action:
               - secretsmanager:CreateSecret

@@ -13,6 +13,7 @@ import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import {generateTotpSecret} from "../secretsUtils";
 import {LoginResult} from "../../model/LoginResult";
 import {Invitation} from "../../model/Invitation";
+import rolesConfig = require("./rolesConfig.json");
 import log = require("loglevel");
 
 if (!process.env["TEST_ENV"]) {
@@ -148,7 +149,7 @@ export namespace defaultTestUser {
  */
 export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     authConfigPromise: Promise.resolve({secretkey: "secret"}),
-    rolesConfigPromise: Promise.resolve(require("./rolesConfig.json")),
+    rolesConfigPromise: Promise.resolve(rolesConfig),
     infoLogFunction: (): void => {
         // too noisy for testing
     },
