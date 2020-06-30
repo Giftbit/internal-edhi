@@ -33,6 +33,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     maxInactiveDays: {
                         type: ["number", "null"],
@@ -70,6 +71,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:create");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     name: {
                         type: "string",
@@ -97,6 +99,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireIds("teamMemberId");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     accountId: {
                         type: "string",
@@ -107,11 +110,13 @@ export function installAccountRest(router: cassava.Router): void {
                         enum: ["live", "test"]
                     }
                 },
-                required: ["accountId", "mode"],
+                required: ["mode"],
                 additionalProperties: false
             });
 
-            return await switchAccount(auth, evt.body.accountId, evt.body.mode === "live");
+            const accountId = evt.body.accountId ?? auth.userId;
+            const liveMode = evt.body.mode === "live";
+            return await switchAccount(auth, accountId, liveMode);
         });
 
     router.route("/v2/account/users")
@@ -152,6 +157,7 @@ export function installAccountRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:users:update");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     lockedByInactivity: {
                         type: "boolean"
@@ -312,12 +318,21 @@ async function createAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, par
 }
 
 async function switchAccount(auth: giftbitRoutes.jwtauth.AuthorizationBadge, accountId: string, liveMode: boolean): Promise<cassava.RouterResponse & { body: LoginResult }> {
-    const accountUser = await DbAccountUser.get(accountId, auth.teamMemberId);
-    if (!accountUser || accountUser.pendingInvitation) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    if (!accountId) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Cannot switch.  User is not logged into an account and accountId is not set.");
     }
 
     const user = await DbUser.getByAuth(auth);
+    const accountUser = await DbAccountUser.get(accountId, user.userId);
+    if (!accountUser) {
+        log.warn("Could not switch user", user.userId, "to account", accountId, "AccountUser not found");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+    if (accountUser.pendingInvitation) {
+        log.warn("Could not switch user", user.userId, "to account", accountId, "invitation is still pending");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN);
+    }
+
     await DbUser.update(user, {
         action: "put",
         attribute: "login.defaultLoginAccountId",

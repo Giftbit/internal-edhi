@@ -4,7 +4,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
 import * as uuid from "uuid";
 import * as emailUtils from "../emailUtils";
-import {dynamodb, objectDynameh, objectSchema2, tokenActionDynameh} from "../../db/dynamodb";
+import {dynamodb, objectDynameh, objectSchema2} from "../../db/dynamodb";
 import {DbAccountUser} from "../../db/DbAccountUser";
 import {DbUser} from "../../db/DbUser";
 import {DbUserUniqueness} from "../../db/DbUserUniqueness";
@@ -13,6 +13,7 @@ import {ParsedProxyResponse, TestRouter} from "./TestRouter";
 import {generateTotpSecret} from "../secretsUtils";
 import {LoginResult} from "../../model/LoginResult";
 import {Invitation} from "../../model/Invitation";
+import rolesConfig = require("./rolesConfig.json");
 import log = require("loglevel");
 
 if (!process.env["TEST_ENV"]) {
@@ -23,7 +24,7 @@ if (!process.env["TEST_ENV"]) {
 export namespace defaultTestUser {
     export const accountId = "user-testaccount";
     export const userId = "user-testuser";
-    export const email = "default-test-user@example.com";
+    export const email = "default-test-user@gmail.com";
     export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
         "g": {
             "gui": accountId + "-TEST",
@@ -42,6 +43,7 @@ export namespace defaultTestUser {
             "promoter",
             "reporter",
             "securityManager",
+            "self",
             "teamAdmin",
             "webPortal"
         ]
@@ -62,6 +64,7 @@ export namespace defaultTestUser {
             frozen: false,
             defaultLoginAccountId: accountId + "-TEST"
         },
+        limitedActions: {},
         createdDate: "2017-03-07T18:34:06.603Z"
     };
     export const userUniqueness: DbUserUniqueness = {
@@ -84,7 +87,7 @@ export namespace defaultTestUser {
 
     export namespace teamMate {
         export const userId = "user-testteammate";
-        export const email = "teammate@example.com";
+        export const email = "teammate@gmail.com";
         export const auth = new giftbitRoutes.jwtauth.AuthorizationBadge({
             "g": {
                 "gui": accountId + "-TEST",
@@ -103,7 +106,7 @@ export namespace defaultTestUser {
                 "promoter",
                 "reporter",
                 "securityManager",
-                "teamAdmin",
+                "self",
                 "webPortal"
             ]
         });
@@ -123,6 +126,7 @@ export namespace defaultTestUser {
                 frozen: false,
                 defaultLoginAccountId: accountId + "-TEST"
             },
+            limitedActions: {},
             createdDate: "2019-04-08T21:09:21.127Z"
         };
         export const userUniqueness: DbUserUniqueness = {
@@ -145,8 +149,8 @@ export namespace defaultTestUser {
  */
 export const authRoute: cassava.routes.Route = new giftbitRoutes.jwtauth.JwtAuthorizationRoute({
     authConfigPromise: Promise.resolve({secretkey: "secret"}),
-    rolesConfigPromise: Promise.resolve(require("./rolesConfig.json")),
-    infoLogFunction: () => {
+    rolesConfigPromise: Promise.resolve(rolesConfig),
+    infoLogFunction: (): void => {
         // too noisy for testing
     },
     errorLogFunction: log.error
@@ -156,7 +160,6 @@ export async function resetDb(): Promise<void> {
     log.trace("deleting existing tables");
     try {
         await dynamodb.deleteTable(objectDynameh.requestBuilder.buildDeleteTableInput()).promise();
-        await dynamodb.deleteTable(tokenActionDynameh.requestBuilder.buildDeleteTableInput()).promise();
     } catch (err) {
         if (err.code !== "ResourceNotFoundException") {
             throw err;
@@ -165,7 +168,6 @@ export async function resetDb(): Promise<void> {
 
     log.trace("creating tables");
     await dynamodb.createTable(objectDynameh.requestBuilder.buildCreateTableInput([objectSchema2])).promise();
-    await dynamodb.createTable(tokenActionDynameh.requestBuilder.buildCreateTableInput()).promise();
 
     log.trace("adding default data");
     await DbUser.put(defaultTestUser.user);
@@ -192,7 +194,7 @@ export async function testRegisterNewUser(router: TestRouter, sinonSandbox: sino
             return null;
         });
 
-    const email = `unittest-${generateId()}@example.com`;
+    const email = generateValidEmailAddress();
     const password = generateId();
     const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
         email,
@@ -252,7 +254,7 @@ export async function testInviteExistingUser(email: string, router: TestRouter, 
  * @return the login response, which can be passsed into TestRouter.testPostLoginRequest()
  */
 export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.SinonSandbox): Promise<{ loginResp: ParsedProxyResponse<LoginResult>, email: string, password: string, userId: string }> {
-    const email = generateId() + "@example.com";
+    const email = generateValidEmailAddress();
     const invite = await testInviteExistingUser(email, router, sinonSandbox);
     const acceptInvitationResp = invite.acceptInvitationResp;
 
@@ -264,23 +266,17 @@ export async function testInviteNewUser(router: TestRouter, sinonSandbox: sinon.
     chai.assert.isString(resetPasswordToken);
 
     const password = generateId();
-    const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+    const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
         token: resetPasswordToken,
         password
     });
     chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
 
-    const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-        email,
-        password
-    });
-    chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
-
     return {
-        loginResp: loginResp,
+        loginResp: completeResp,
         email: email,
         password: password,
-        userId: loginResp.body.user.id
+        userId: completeResp.body.user.id
     };
 }
 
@@ -323,4 +319,8 @@ export async function testEnableSmsMfa(email: string): Promise<void> {
 
 export function generateId(length?: number): string {
     return (uuid.v4() + uuid.v4()).substring(0, length != null ? length : 20);
+}
+
+export function generateValidEmailAddress(): string {
+    return `unittest-${uuid.v4().substr(0, 8)}@gmail.com`;
 }

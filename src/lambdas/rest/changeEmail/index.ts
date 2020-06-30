@@ -1,12 +1,14 @@
 import * as cassava from "cassava";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendChangeEmailAddressEmail} from "./sendChangeEmailAddressEmail";
-import {TokenAction} from "../../../db/TokenAction";
 import {DbUser} from "../../../db/DbUser";
 import {objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {sendEmailAddressChangedEmail} from "./sendEmailAddressChangedEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
+import {loginUserByEmailAction} from "../login";
+import {isValidEmailAddress} from "../../../utils/emailUtils";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import log = require("loglevel");
 
 export function installChangeEmailAuthedRest(router: cassava.Router): void {
@@ -18,6 +20,7 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
             auth.requireIds("teamMemberId");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string",
@@ -28,13 +31,7 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            if (await isEmailAddressInUse(evt.body.email)) {
-                // Don't initiate the process but don't acknowledge it either.
-                // We don't want to expose an attack on determining who has an account.
-            } else {
-                await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), evt.body.email);
-            }
-
+            await initiateChangeEmailAddress(auth, evt.body.email);
             return {
                 body: {
                     // This is really lazy but it's not worth the time to soften this rough edge right now.
@@ -44,27 +41,31 @@ export function installChangeEmailAuthedRest(router: cassava.Router): void {
         });
 }
 
-async function isEmailAddressInUse(email: string): Promise<boolean> {
-    return !!await DbUser.get(email);
+async function initiateChangeEmailAddress(auth: giftbitRoutes.jwtauth.AuthorizationBadge, email: string): Promise<void> {
+    auth.requireIds("teamMemberId");
+
+    if (!await isValidEmailAddress(email)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
+    }
+
+    if (await await DbUser.get(email)) {
+        // Don't initiate the process but don't acknowledge it either.
+        // We don't want to expose an attack on determining who has an account.
+    } else {
+        await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), email);
+    }
 }
 
 export function installChangeEmailUnauthedRest(router: cassava.Router): void {
     router.route("/v2/user/changeEmail/complete")
         .method("GET")
         .handler(async evt => {
-            await completeChangeEmail(evt.queryStringParameters.token);
-
-            return {
-                body: {
-                    // This is really lazy but it's not worth the time to soften this rough edge right now.
-                    message: "You have successfully changed your email address.  Please log in to continue."
-                }
-            };
+            return await completeChangeEmail(evt.queryStringParameters.token);
         });
 }
 
-export async function completeChangeEmail(token: string): Promise<void> {
-    const tokenAction = await TokenAction.get(token);
+export async function completeChangeEmail(token: string): Promise<cassava.RouterResponse> {
+    const tokenAction = await DbTokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "changeEmail") {
         log.warn("Could not find changeEmail TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "There was an error confirming the change of email address.  Maybe the email link timed out.");
@@ -119,5 +120,7 @@ export async function completeChangeEmail(token: string): Promise<void> {
     log.info("Changed (authoritative data) email address for", tokenAction.userId, "to", tokenAction.email);
 
     await sendEmailAddressChangedEmail(user.email);
-    await TokenAction.del(tokenAction);
+    await DbTokenAction.del(tokenAction);
+
+    return loginUserByEmailAction(newUser, {location: "/app/#/changeEmailComplete"});
 }

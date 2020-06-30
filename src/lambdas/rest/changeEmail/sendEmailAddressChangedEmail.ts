@@ -6,7 +6,8 @@ const emailAddressedChangedEmail = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.
 export async function sendEmailAddressChangedEmail(email: string): Promise<void> {
     log.info("Sending email address changed email to", email);
 
-    const body = emailAddressedChangedEmail.replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
+    const body = emailAddressedChangedEmail
+        .replace(/{{copyrightYear}}/g, new Date().getFullYear() + "");
 
     await sendEmail({
         toAddress: email,

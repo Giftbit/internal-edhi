@@ -9,6 +9,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {Account} from "../../../model/Account";
+import {LoginResult} from "../../../model/LoginResult";
 
 describe("/v2/user/forgotPassword", () => {
 
@@ -36,7 +37,7 @@ describe("/v2/user/forgotPassword", () => {
             });
 
         const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
-            email: "nosuchuser@example.com"
+            email: testUtils.generateValidEmailAddress()
         });
         chai.assert.isFalse(gotEmail);
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -63,7 +64,7 @@ describe("/v2/user/forgotPassword", () => {
         chai.assert.isString(resetPasswordToken, "Found reset password url in email body.");
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });

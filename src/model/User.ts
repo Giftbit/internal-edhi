@@ -1,3 +1,4 @@
+import * as giftbitRoutes from "giftbit-cassava-routes";
 import {DbUser} from "../db/DbUser";
 
 export interface User {
@@ -5,21 +6,21 @@ export interface User {
     email: string;
     hasMfa: boolean;
 
-    /**
-     * Only set when this object refers to the logged in User.
-     */
+    // Below are only set when this object refers to the logged in User.
     mode?: "test" | "live";
+    additionalAuthenticationRequired?: boolean;
 }
 
 export namespace User {
-    export function getFromDbUser(dbUuser: DbUser, mode?: "test" | "live"): User {
+    export function getFromDbUser(dbUuser: DbUser, auth?: giftbitRoutes.jwtauth.AuthorizationBadge): User {
         const user: User = {
             id: dbUuser.userId,
             email: dbUuser.email,
             hasMfa: DbUser.hasMfaActive(dbUuser)
         };
-        if (mode) {
-            user.mode = mode;
+        if (auth) {
+            user.mode = auth.isTestUser() ? "test" : "live";
+            user.additionalAuthenticationRequired = auth.hasScope("lightrailV2:authenticate");
         }
         return user;
     }

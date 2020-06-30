@@ -6,7 +6,7 @@ import {DbObject} from "./DbObject";
 import {DbAccountUser} from "./DbAccountUser";
 import {RouterResponseCookie} from "cassava/dist/RouterResponse";
 import {stripUserIdTestMode} from "../utils/userUtils";
-import {dynamodb, objectDynameh} from "./dynamodb";
+import {createdDateNow, createdDatePast, dynamodb, objectDynameh} from "./dynamodb";
 
 /**
  * A user (person) of the system.
@@ -27,6 +27,21 @@ export interface DbUser {
      * Login details.
      */
     login: DbUser.Login;
+
+    /**
+     * Maps action type to a string token that limits the number
+     * of times the action can be taken.
+     *
+     * This should act as `limitedActions: { [key: DbUser.limitedActions.Action]: Set<string> };`
+     * but TypeScript doesn't allow union types in the key.  Add another
+     * property here when adding a new Action and nothing else.
+     * @see DbUser.limitedActions
+     */
+    limitedActions: {
+        failedLogin?: Set<string>;
+        accountInvitation?: Set<string>;
+        enableSmsMfa?: Set<string>;
+    };
 
     /**
      * Date the user was created.
@@ -81,13 +96,6 @@ export namespace DbUser {
          * The default accountId a user will log in to.
          */
         defaultLoginAccountId: string;
-
-        /**
-         * A history of recent failed log in attempt Dates.  Too many
-         * failed logins will time lock the account.  A successful login
-         * clears the Set.
-         */
-        failedLoginAttempts?: Set<string>;
     }
 
     export interface Password {
@@ -277,15 +285,15 @@ export namespace DbUser {
         return user;
     }
 
-    export function getBadge(accountUser: DbAccountUser, liveMode: boolean, shortLived: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
+    export function getBadge(accountUser: DbAccountUser, liveMode: boolean): giftbitRoutes.jwtauth.AuthorizationBadge {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.userId = accountUser.accountId + (liveMode ? "" : "-TEST");
         auth.teamMemberId = accountUser.userId + (liveMode ? "" : "-TEST");
         auth.roles = accountUser.roles;
         auth.scopes = accountUser.scopes;
         auth.issuer = "EDHI";
-        auth.audience = shortLived ? "WEBAPP" : "API";
-        auth.expirationTime = shortLived ? new Date(Date.now() + 180 * 60 * 1000) : null;
+        auth.audience = "WEBAPP";
+        auth.expirationTime = new Date(Date.now() + 180 * 60 * 1000);
         auth.issuedAtTime = new Date();
         return auth;
     }
@@ -310,7 +318,7 @@ export namespace DbUser {
         const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
         auth.teamMemberId = user.userId;
         auth.roles = [];
-        auth.scopes = ["lightrailV2:authenticate"];
+        auth.scopes = auth.effectiveScopes = ["lightrailV2:authenticate", "lightrailV2:user:read"];
         auth.issuer = "EDHI";
         auth.audience = "WEBAPP";
         auth.expirationTime = new Date(Date.now() + 15 * 60 * 1000);
@@ -356,7 +364,7 @@ export namespace DbUser {
                 value: signedBits[2],
                 options: {
                     httpOnly: true,
-                    maxAge: 30 * 60,
+                    maxAgeHours: 30 * 60,
                     path: "/",
                     secure: true
                 }
@@ -370,5 +378,107 @@ export namespace DbUser {
 
     export function generateUserId(): string {
         return "user-" + uuid.v4().replace(/-/g, "");
+    }
+
+    /**
+     * Functions to manipulate `limitedActions` on the DbUser.
+     * Limited actions can be taken a limited number of times
+     * to prevent abuse.
+     */
+    export namespace limitedActions {
+        export type Action = "failedLogin" | "accountInvitation" | "enableSmsMfa";
+
+        const config = {
+            failedLogin: {
+                maxAgeHours: 24,
+                maxCount: 10
+            },
+            accountInvitation: {
+                maxAgeHours: 24,
+                maxCount: 12
+            },
+            enableSmsMfa: {
+                maxAgeHours: 24,
+                maxCount: 8
+            }
+        };
+
+        export function isThrottled(user: DbUser, action: Action): boolean {
+            if (!user.limitedActions[action]) {
+                return false;
+            }
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAgeHours);
+            return Array.from(user.limitedActions[action])
+                .filter(v => v > comparator)
+                .length >= config[action].maxCount;
+        }
+
+        export async function add(user: DbUser, action: Action): Promise<void> {
+            const value = createdDateNow();
+            await DbUser.update(user, {
+                action: "set_add",
+                attribute: `limitedActions.${action}`,
+                values: new Set([value])
+            });
+            if (!user.limitedActions[action]) {
+                user.limitedActions[action] = new Set([value])
+            } else {
+                user.limitedActions[action].add(value);
+            }
+        }
+
+        export function buildAddUpdateAction(action: Action): dynameh.UpdateExpressionAction {
+            const value = createdDateNow();
+            return {
+                action: "set_add",
+                attribute: `limitedActions.${action}`,
+                values: new Set([value])
+            };
+        }
+
+        /**
+         * Build the Dynameh update action that will clear stale data.
+         * @param user
+         */
+        export function buildClearOutdatedUpdateActions(user: DbUser): dynameh.UpdateExpressionAction[] {
+            return [
+                buildClearOutdatedUpdateAction(user, "failedLogin"),
+                buildClearOutdatedUpdateAction(user, "accountInvitation"),
+                buildClearOutdatedUpdateAction(user, "enableSmsMfa"),
+            ].filter(a => !!a);
+        }
+
+        function buildClearOutdatedUpdateAction(user: DbUser, action: Action): dynameh.UpdateExpressionAction {
+            if (!user.limitedActions[action]) {
+                return null;
+            }
+            const comparator = createdDatePast(0, 0, 0, config[action].maxAgeHours);
+            const valuesToRemove = Array.from(user.limitedActions[action])
+                .filter(v => v < comparator);
+            if (valuesToRemove.length) {
+                return {
+                    action: "set_delete",
+                    attribute: `limitedActions.${action}`,
+                    values: new Set(valuesToRemove)
+                }
+            }
+            return null;
+        }
+
+        export function countAll(user: DbUser, action: Action): number {
+            return user.limitedActions[action]?.size ?? 0;
+        }
+
+        export async function clearAll(user: DbUser, action: Action): Promise<void> {
+            await DbUser.update(user, buildClearAllUpdateAction(action));
+            delete user.limitedActions[action];
+        }
+
+        export function buildClearAllUpdateAction(action: Action): dynameh.UpdateExpressionAction {
+            return {
+                action: "remove",
+                attribute: `limitedActions.${action}`
+            };
+        }
     }
 }

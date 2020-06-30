@@ -65,7 +65,7 @@ describe("/v2/user/contactCustomerSupport", () => {
             "Cause your friends don't dance and if they don't dance\n" +
             "Well they're are no friends of mine";
         const contactResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
-            customerSupportEmail: "manwithhat@example.com",
+            customerSupportEmail: "manwithhat@gmail.com",
             subject: subject,
             message: message
         });

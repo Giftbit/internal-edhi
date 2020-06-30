@@ -1,8 +1,11 @@
 import * as aws from "aws-sdk";
+import * as crypto from "crypto";
 import * as uuid from "uuid";
 import {DbObject} from "./DbObject";
 import {dynamodb, objectDynameh} from "./dynamodb";
 import {isTestModeUserId} from "../utils/userUtils";
+import * as giftbitRoutes from "giftbit-cassava-routes";
+import {DbDeletedApiKey} from "./DbDeletedApiKey";
 
 /**
  * ApiKeys are unusual in Edhi: there are separate live and test mode versions.
@@ -10,15 +13,28 @@ import {isTestModeUserId} from "../utils/userUtils";
  */
 export interface DbApiKey {
 
-    accountId: string;
-    userId: string;
+    /**
+     * Name of the API key.
+     */
     name: string;
 
-    tokenId: string;
-    tokenVersion: number;
+    // Identifiers and permissions.
+    accountId: string;
+    userId: string;
     roles: string[];
     scopes: string[];
+
+    // Metadata.
+    tokenId: string;
+    tokenVersion: number;
     createdDate: string;
+
+    /**
+     * A SHA1 hash in base64 of the token generated from this ApiKey.
+     * With this we can verify that we reconstructed the token correctly.
+     * This value does not exist on migrated ApiKeys.
+     */
+    tokenHash?: string;
 
 }
 
@@ -52,35 +68,12 @@ export namespace DbApiKey {
         }
         return {
             pk: "Account/" + apiKey.accountId,
-            sk: "ApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.userId,
-            sk2: "ApiKey/" + apiKey.tokenId,
-        };
-    }
-
-    /**
-     * Get the DB keys for the deleted API key.  This isn't publicly exposed
-     * because we don't actually do anything with these yet.  We're just keeping
-     * them around for future reference.
-     */
-    function getDeletedKeys(apiKey: DbApiKey): DbObject {
-        if (!apiKey || !apiKey.accountId || !apiKey.userId || !apiKey.tokenId) {
-            throw new Error("Not a valid ApiKey.");
-        }
-        return {
-            pk: "Account/" + apiKey.accountId,
-            sk: "DeletedApiKey/" + apiKey.tokenId,
-            pk2: "User/" + apiKey.userId,
-            sk2: "DeletedApiKey/" + apiKey.tokenId,
+            sk: "ApiKey/" + apiKey.tokenId
         };
     }
 
     export async function getByAccount(accountId: string, tokenId: string): Promise<DbApiKey> {
         return fromDbObject(await DbObject.get("Account/" + accountId, "ApiKey/" + tokenId));
-    }
-
-    export async function getByUser(userId: string, tokenId: string): Promise<DbApiKey> {
-        return fromDbObject(await DbObject.getSecondary("User/" + userId, "ApiKey/" + tokenId));
     }
 
     export async function put(apiKey: DbApiKey): Promise<void> {
@@ -101,13 +94,10 @@ export namespace DbApiKey {
     }
 
     export async function del(apiKey: DbApiKey): Promise<void> {
-        const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(toDbObject(apiKey));
+        const deleteReq = objectDynameh.requestBuilder.buildDeleteInput(getKeys(apiKey));
 
         // Store a copy of the deleted API key for future reference.
-        const deletedObject: DbObject = {
-            ...apiKey,
-            ...getDeletedKeys(apiKey)
-        };
+        const deletedObject = DbDeletedApiKey.toDbObject(DbDeletedApiKey.fromDbApiKey(apiKey));
         const putDeletedReq = objectDynameh.requestBuilder.buildPutInput(deletedObject);
 
         const req = objectDynameh.requestBuilder.buildTransactWriteItemsInput(deleteReq, putDeletedReq);
@@ -127,12 +117,38 @@ export namespace DbApiKey {
 
         const req = objectDynameh.requestBuilder.buildQueryInput("Account/" + accountId, "begins_with", "ApiKey/");
         objectDynameh.requestBuilder.addFilter(req, {
-            attribute: "pk2",
+            attribute: "userId",
             operator: "=",
-            values: ["User/" + userId]
+            values: [userId]
         });
         const objects = await objectDynameh.queryHelper.queryAll(dynamodb, req);
         return objects.map(fromDbObject);
+    }
+
+    export function getBadge(apiKey: DbApiKey): giftbitRoutes.jwtauth.AuthorizationBadge {
+        const auth = new giftbitRoutes.jwtauth.AuthorizationBadge();
+        auth.userId = apiKey.accountId;
+        auth.teamMemberId = apiKey.userId;
+        auth.roles = apiKey.roles;
+        auth.scopes = apiKey.scopes;
+        auth.issuer = "EDHI";
+        auth.audience = "API";
+        auth.expirationTime = null;
+        auth.issuedAtTime = new Date(apiKey.createdDate);
+        auth.uniqueIdentifier = apiKey.tokenId;
+        return auth;
+    }
+
+    /**
+     * Get a hash of the token generated from this ApiKey.  This hash
+     * can then be stored in the ApiKey itself.
+     */
+    export function getTokenHash(token: string): string {
+        const tokenParts = token.split(".");
+        if (tokenParts.length !== 3) {
+            throw new Error(`tokenParts.length !== 3 (got ${tokenParts.length}).  This is not a token.`);
+        }
+        return crypto.createHash("sha1").update(token, "ascii").digest("base64");
     }
 
     export function generateTokenId(): string {

@@ -14,6 +14,7 @@ import {AccountUser} from "../../../model/AccountUser";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
 import {Account} from "../../../model/Account";
 import {LoginResult} from "../../../model/LoginResult";
+import {User} from "../../../model/User";
 
 chai.use(chaiExclude);
 
@@ -30,8 +31,9 @@ describe("/v2/account/invitations", () => {
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         sinonSandbox.restore();
+        await DbUser.limitedActions.clearAll(testUtils.defaultTestUser.user, "accountInvitation");
     });
 
     it("can invite a brand new user, list it, get it, accept it, not delete it after acceptance", async () => {
@@ -42,7 +44,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -76,11 +78,14 @@ describe("/v2/account/invitations", () => {
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
         chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.isUndefined(completeResp.body.messageCode);
+        chai.assert.isString(completeResp.getCookie("gb_jwt_session"));
+        chai.assert.isString(completeResp.getCookie("gb_jwt_signature"));
 
         const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
             email,
@@ -90,6 +95,10 @@ describe("/v2/account/invitations", () => {
         chai.assert.isUndefined(loginResp.body.messageCode);
         chai.assert.isString(loginResp.getCookie("gb_jwt_session"));
         chai.assert.isString(loginResp.getCookie("gb_jwt_signature"));
+
+        const userResp = await router.testPostLoginRequest<User>(loginResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
 
         const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
         chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, JSON.stringify(pingResp.body));
@@ -113,7 +122,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -155,7 +164,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = testUtils.generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
             userPrivilegeType: "FULL_ACCESS"
@@ -198,7 +207,7 @@ describe("/v2/account/invitations", () => {
         chai.assert.isString(resetPasswordToken);
 
         const password = generateId();
-        const completeResp = await router.testUnauthedRequest<any>(`/v2/user/forgotPassword/complete`, "POST", {
+        const completeResp = await router.testUnauthedRequest<LoginResult>(`/v2/user/forgotPassword/complete`, "POST", {
             token: resetPasswordToken,
             password
         });
@@ -238,6 +247,14 @@ describe("/v2/account/invitations", () => {
         chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
         chai.assert.isString(acceptInvitationResp.headers["Location"]);
 
+        const userResp = await router.testPostLoginRequest<User>(acceptInvitationResp, "/v2/user", "GET");
+        chai.assert.equal(userResp.statusCode, cassava.httpStatusCode.success.OK, userResp.bodyRaw);
+        chai.assert.equal(userResp.body.mode, "test", "new users must start in test mode");
+
+        const accountResp = await router.testPostLoginRequest<Account>(acceptInvitationResp, "/v2/account", "GET");
+        chai.assert.equal(accountResp.statusCode, cassava.httpStatusCode.success.OK, accountResp.bodyRaw);
+        chai.assert.equal(accountResp.body.id, testUtils.defaultTestUser.accountId);
+
         const listAccountsResp = await router.testPostLoginRequest<SwitchableAccount[]>(newUser.loginResp, "/v2/user/accounts", "GET");
         chai.assert.lengthOf(listAccountsResp.body, 2);
         chai.assert.isDefined(listAccountsResp.body.find(tm => tm.accountId !== testUtils.defaultTestUser.accountId), listAccountsResp.bodyRaw);
@@ -276,7 +293,7 @@ describe("/v2/account/invitations", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
 
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
             email: email,
@@ -354,10 +371,70 @@ describe("/v2/account/invitations", () => {
 
     it("cannot send an invitation with userPrivilegeType and roles", async () => {
         const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
-            email: `${generateId()}@example.com`,
+            email: `${generateId()}@lightrail.com`,
             userPrivilegeType: "FULL_ACCESS",
             roles: ["lineCook"]
         });
         chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
     });
+
+    it("cannot send an invitation to an invalid email address", async () => {
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: generateId()
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
+    });
+
+    it("cannot send an invitation to an email address domain with no MX record", async () => {
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: `${generateId()}@example.com`
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, inviteResp.bodyRaw);
+    });
+
+    it("will throttle to 12 invitations in a day", async () => {
+        const invitationEmails: emailUtils.SendEmailParams[] = [];
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                invitationEmails.push(params);
+                return null;
+            });
+
+        for (let i = 0; i < 12; i++) {
+            const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+                email: testUtils.generateValidEmailAddress(),
+                userPrivilegeType: "FULL_ACCESS"
+            });
+            chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+            chai.assert.lengthOf(invitationEmails, i + 1);
+        }
+
+        const rateLimitedInvitationResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: testUtils.generateValidEmailAddress(),
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(rateLimitedInvitationResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.lengthOf(invitationEmails, 12);
+
+        // Manually push back all limited actions by 2 days
+        const dbUser = await DbUser.get(testUtils.defaultTestUser.email);
+        for (const d of Array.from(dbUser.limitedActions["accountInvitation"])) {
+            const dOlder = new Date(d);
+            dOlder.setDate(dOlder.getDate() - 2);
+            dbUser.limitedActions["accountInvitation"].delete(d);
+            dbUser.limitedActions["accountInvitation"].add(dOlder.toISOString());
+        }
+        await DbUser.update(dbUser, {
+            action: "put",
+            attribute: "limitedActions",
+            value: dbUser.limitedActions
+        });
+
+        const laterInvitationResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: testUtils.generateValidEmailAddress(),
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(laterInvitationResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.lengthOf(invitationEmails, 13);
+    }).timeout(30000);
 });

@@ -9,6 +9,7 @@ import {installUnauthedRestRoutes} from "../installUnauthedRestRoutes";
 import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
+import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
 
 describe("/v2/user/mfa", () => {
 
@@ -29,6 +30,7 @@ describe("/v2/user/mfa", () => {
 
         // Reset MFA status.
         await router.testWebAppRequest("/v2/user/mfa", "DELETE");
+        await DbUser.limitedActions.clearAll(testUtils.defaultTestUser.user, "enableSmsMfa");
     });
 
     it("returns 404 when no MFA is set", async () => {
@@ -157,8 +159,8 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(sms.to, "+15008675309");
             chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
 
-            // const token = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
-            // chai.assert.isString(token, "got token from sms");
+            const token = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(token, "got token from sms");
 
             const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
                 code: "ABC"
@@ -198,6 +200,59 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT, completeResp.bodyRaw);
         });
 
+        it("will throttle to 8 attempts in a day", async () => {
+            const maxMfaAttempts = 8;
+
+            const smses: smsUtils.SendSmsParams[] = [];
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .callsFake(async params => {
+                    smses.push(params);
+                });
+
+            for (let i = 0; i < maxMfaAttempts; i++) {
+                const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                    device: "+15008675309"
+                });
+                chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+                chai.assert.lengthOf(smses, i + 1);
+            }
+
+            const throttledEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(throttledEnableMfaResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+            chai.assert.lengthOf(smses, maxMfaAttempts);
+
+            const disableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "DELETE");
+            chai.assert.equal(disableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+
+            const stillThrottledEnableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(stillThrottledEnableMfaResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+            chai.assert.lengthOf(smses, maxMfaAttempts);
+
+            // Manually push back all limited actions by 2 days
+            const dbUser = await DbUser.get(testUtils.defaultTestUser.email);
+            for (const d of Array.from(dbUser.limitedActions["enableSmsMfa"])) {
+                const dOlder = new Date(d);
+                dOlder.setDate(dOlder.getDate() - 2);
+                dbUser.limitedActions["enableSmsMfa"].delete(d);
+                dbUser.limitedActions["enableSmsMfa"].add(dOlder.toISOString());
+            }
+            await DbUser.update(dbUser, {
+                action: "put",
+                attribute: "limitedActions",
+                value: dbUser.limitedActions
+            });
+
+            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.lengthOf(smses, maxMfaAttempts + 1);
+        });
+
         it("cannot jump straight to the complete step", async () => {
             const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
                 code: "ABCDEF"
@@ -215,7 +270,7 @@ describe("/v2/user/mfa", () => {
             chai.assert.isString(enableMfaResp.body.secret);
             chai.assert.include(enableMfaResp.body.uri, `secret=${enableMfaResp.body.secret}`, "secret is properly encoded in uri");
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -224,7 +279,7 @@ describe("/v2/user/mfa", () => {
             const mfaNotEnabledResp = await router.testWebAppRequest("/v2/user/mfa", "GET");
             chai.assert.equal(mfaNotEnabledResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, "not enabled yet");
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -243,13 +298,13 @@ describe("/v2/user/mfa", () => {
 
             const code = await generateSkewedOtpCode(enableMfaResp.body.secret, -2000);
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: code
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: code
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
@@ -290,13 +345,13 @@ describe("/v2/user/mfa", () => {
             });
             chai.assert.equal(setBadCode4Resp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
 
-            const setFirstCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
             });
             chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
-            const setSecondCodeResp = await router.testWebAppRequest<{ complete: boolean }>("/v2/user/mfa/complete", "POST", {
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
             });
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);

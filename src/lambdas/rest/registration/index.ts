@@ -1,23 +1,20 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
+import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
-import {
-    createdDateNow,
-    dynamodb,
-    objectDynameh,
-    tokenActionDynameh,
-    transactWriteItemsFixed
-} from "../../../db/dynamodb";
+import {createdDateNow, dynamodb, objectDynameh, transactWriteItemsFixed} from "../../../db/dynamodb";
 import {hashPassword} from "../../../utils/passwordUtils";
 import {sendRegistrationVerificationEmail} from "./sendRegistrationVerificationEmail";
 import {DbAccountUser} from "../../../db/DbAccountUser";
-import {TokenAction} from "../../../db/TokenAction";
 import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbUser} from "../../../db/DbUser";
 import {DbAccount} from "../../../db/DbAccount";
 import {sendRegistrationRecoveryEmail} from "./sendRegistrationRecoveryEmail";
 import {getRolesForUserPrivilege} from "../../../utils/rolesUtils";
-import * as dynameh from "dynameh";
+import {loginUserByEmailAction} from "../login";
+import {isValidEmailAddress} from "../../../utils/emailUtils";
+import {setUserIdTestMode} from "../../../utils/userUtils";
+import {DbTokenAction} from "../../../db/DbTokenAction";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -25,6 +22,7 @@ export function installRegistrationRest(router: cassava.Router): void {
         .method("POST")
         .handler(async evt => {
             evt.validateBody({
+                type: "object",
                 properties: {
                     email: {
                         type: "string",
@@ -64,15 +62,7 @@ export function installRegistrationRest(router: cassava.Router): void {
                 throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.BAD_REQUEST, "Missing 'token' query param.");
             }
 
-            await verifyEmail(evt.queryStringParameters.token);
-
-            return {
-                body: null,
-                statusCode: cassava.httpStatusCode.redirect.FOUND,
-                headers: {
-                    Location: "/app/#"
-                }
-            };
+            return await verifyEmail(evt.queryStringParameters.token);
         });
 
     router.route("/v2/user/register/acceptInvitation")
@@ -87,6 +77,10 @@ export function installRegistrationRest(router: cassava.Router): void {
 }
 
 async function registerNewUser(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+    if (!await isValidEmailAddress(params.email)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
+    }
+
     // Previously the first user in a team had the same userId as the team.
     // We no longer do that but you should be aware that is possible.
     const accountId = DbAccount.generateAccountId();
@@ -102,8 +96,9 @@ async function registerNewUser(params: { email: string, plaintextPassword: strin
             password: await hashPassword(params.plaintextPassword),
             emailVerified: false,
             frozen: false,
-            defaultLoginAccountId: accountId
+            defaultLoginAccountId: setUserIdTestMode(accountId)
         },
+        limitedActions: {},
         createdDate
     };
     const putUserReq = DbUser.buildPutInput(user);
@@ -178,7 +173,7 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
     }, {
         action: "put",
         attribute: "login.defaultLoginAccountId",
-        value: accountId
+        value: setUserIdTestMode(accountId)
     });
     objectDynameh.requestBuilder.addCondition(updateUserReq, {
         attribute: "login.password",
@@ -213,8 +208,8 @@ async function registerExistingUser(user: DbUser, accountId: string, params: { e
     await sendRegistrationVerificationEmail(params.email);
 }
 
-async function verifyEmail(token: string): Promise<void> {
-    const tokenAction = await TokenAction.get(token);
+async function verifyEmail(token: string): Promise<cassava.RouterResponse> {
+    const tokenAction = await DbTokenAction.get(token);
     if (!tokenAction || tokenAction.action !== "emailVerification") {
         log.warn("Could not find emailVerification TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the email verification expired.");
@@ -231,19 +226,22 @@ async function verifyEmail(token: string): Promise<void> {
         value: true
     });
 
-    await TokenAction.del(tokenAction);
+    await DbTokenAction.del(tokenAction);
     log.info("User", tokenAction.email, "has verified their email address");
+
+    user.login.emailVerified = true;
+    return await loginUserByEmailAction(user, {location: "/app/#/"});
 }
 
 async function acceptInvitation(token: string): Promise<cassava.RouterResponse> {
-    const acceptInvitationTokenAction = await TokenAction.get(token);
+    const acceptInvitationTokenAction = await DbTokenAction.get(token);
     if (!acceptInvitationTokenAction || acceptInvitationTokenAction.action !== "acceptAccountInvitation") {
         log.warn("Cannot accept account invitation: can't find acceptInvitation TokenAction for token", token);
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, "There was an error completing your registration.  Maybe the invitation expired.");
     }
 
     const updates: (aws.DynamoDB.PutItemInput | aws.DynamoDB.DeleteItemInput | aws.DynamoDB.UpdateItemInput)[] = [
-        tokenActionDynameh.requestBuilder.buildDeleteInput(acceptInvitationTokenAction)
+        objectDynameh.requestBuilder.buildDeleteInput(DbTokenAction.getKeys(acceptInvitationTokenAction))
     ];
 
     const user = await DbUser.getById(acceptInvitationTokenAction.userId);
@@ -254,9 +252,10 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         {
             action: "put",
             attribute: "login.defaultLoginAccountId",
-            value: acceptInvitationTokenAction.accountId
+            value: setUserIdTestMode(acceptInvitationTokenAction.accountId)
         }
     ];
+    user.login.defaultLoginAccountId = setUserIdTestMode(acceptInvitationTokenAction.accountId);
     if (!user.login.emailVerified) {
         // Accepting the invite verifies the email address.
         userUpdateActions.push({
@@ -299,8 +298,8 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
 
     if (!user.login.password) {
         log.info("User", acceptInvitationTokenAction.email, "has no password, setting up password reset");
-        const setPasswordTokenAction = TokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
-        await TokenAction.put(setPasswordTokenAction);
+        const setPasswordTokenAction = DbTokenAction.generate("resetPassword", 24, {email: acceptInvitationTokenAction.email});
+        await DbTokenAction.put(setPasswordTokenAction);
         return {
             body: null,
             statusCode: cassava.httpStatusCode.redirect.FOUND,
@@ -310,11 +309,5 @@ async function acceptInvitation(token: string): Promise<cassava.RouterResponse> 
         };
     }
 
-    return {
-        body: null,
-        statusCode: cassava.httpStatusCode.redirect.FOUND,
-        headers: {
-            Location: "/app/#"
-        }
-    };
+    return await loginUserByEmailAction(user, {location: "/app/#/"});
 }

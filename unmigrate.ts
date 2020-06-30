@@ -61,4 +61,5 @@ logPrefix.apply(log, {
 });
 log.setLevel(process.env["DEBUG"] ? log.levels.DEBUG : log.levels.INFO);
 
+// eslint-disable-next-line no-console
 main().then(res => console.log("success", res)).catch(err => console.error("fail", err));

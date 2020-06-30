@@ -5,6 +5,7 @@ import {createdDateNow} from "../../../db/dynamodb";
 import {ApiKey} from "../../../model/ApiKey";
 import {DbAccountUser} from "../../../db/DbAccountUser";
 import {DbUser} from "../../../db/DbUser";
+import {sendSqsMessage} from "../../../utils/sqsUtils";
 import log = require("loglevel");
 
 export function installApiKeysRest(router: cassava.Router): void {
@@ -28,6 +29,7 @@ export function installApiKeysRest(router: cassava.Router): void {
             auth.requireScopes("lightrailV2:account:apiKeys:create");
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     name: {
                         type: "string",
@@ -87,11 +89,11 @@ async function createApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, name
         scopes: accountUser.scopes,
         createdDate: createdDateNow()
     };
-    await DbApiKey.put(apiKey);
 
-    const badge = DbUser.getBadge(accountUser, !auth.isTestUser(), false);
-    badge.uniqueIdentifier = apiKey.tokenId;
+    const badge = DbApiKey.getBadge(apiKey);
     const apiToken = await DbUser.getBadgeApiToken(badge);
+    apiKey.tokenHash = DbApiKey.getTokenHash(apiToken);
+    await DbApiKey.put(apiKey);
 
     log.info("Created API key with tokenId", apiKey.tokenId);
 
@@ -109,7 +111,7 @@ async function deleteApiKey(auth: giftbitRoutes.jwtauth.AuthorizationBadge, toke
 
     await DbApiKey.del(apiKey);
 
-    // At this point we've forgotten about the API key but not actually revoked it anywhere.
-    // Users will expect the API key will stop working and we're not meeting those expectations.
-    // That will need to be fixed very soon and this is where that call needs to happen.
+    // The message content isn't used because the rule is always rebuilt from scratch.
+    // We'll put something in there anyways to aid debuggability.
+    await sendSqsMessage(process.env["API_KEY_BLOCKLISTER_QUEUE_URL"], {apiKeyTokenId: apiKey.tokenId});
 }

@@ -71,14 +71,14 @@ describe("/v2/user/login", () => {
 
     it("422s when missing a password", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: "user@example.com"
+            email: testUtils.generateValidEmailAddress()
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
 
     it("cannot login with a user who does not exist", async () => {
         const resp = await router.testUnauthedRequest("/v2/user/login", "POST", {
-            email: "nonexistant@example.com",
+            email: testUtils.generateValidEmailAddress(),
             password: generateId()
         });
         chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
@@ -194,7 +194,7 @@ describe("/v2/user/login", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress()
         const password = generateId();
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email,
@@ -246,6 +246,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
+            chai.assert.isTrue(loginResp.body.user.additionalAuthenticationRequired);
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");
@@ -407,6 +408,7 @@ describe("/v2/user/login", () => {
             });
             chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
+            chai.assert.isTrue(loginResp.body.user.additionalAuthenticationRequired);
 
             const pingResp = await router.testPostLoginRequest(loginResp, "/v2/user/ping", "GET");
             chai.assert.equal(pingResp.statusCode, cassava.httpStatusCode.success.OK, "token has permission to call ping");

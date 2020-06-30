@@ -12,6 +12,7 @@ export function installCustomerSupportRest(router: cassava.Router): void {
             const auth: giftbitRoutes.jwtauth.AuthorizationBadge = evt.meta["auth"];
 
             evt.validateBody({
+                type: "object",
                 properties: {
                     customerSupportEmail: {
                         type: "string",

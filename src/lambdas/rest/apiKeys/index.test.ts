@@ -2,6 +2,7 @@ import * as cassava from "cassava";
 import * as chai from "chai";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import * as sinon from "sinon";
+import * as sqsUtils from "../../../utils/sqsUtils";
 import * as testUtils from "../../../utils/testUtils";
 import {generateId} from "../../../utils/testUtils";
 import {TestRouter} from "../../../utils/testUtils/TestRouter";
@@ -12,6 +13,8 @@ import {ApiKey} from "../../../model/ApiKey";
 import chaiExclude from "chai-exclude";
 import {LoginResult} from "../../../model/LoginResult";
 import {setUserIdTestMode} from "../../../utils/userUtils";
+import {User} from "../../../model/User";
+import {DbApiKey} from "../../../db/DbApiKey";
 
 chai.use(chaiExclude);
 
@@ -48,6 +51,9 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.isString(createKeyResp.body.token);
         chai.assert.isString(createKeyResp.body.createdDate);
 
+        const dbApiKey = await DbApiKey.getByAccount(createKeyResp.body.accountId, createKeyResp.body.tokenId);
+        chai.assert.isString(dbApiKey.tokenHash, "the hash is set");
+
         const pingWithApiKeyResp = await router.testApiKeyRequest(createKeyResp.body.token, "/v2/user/ping", "GET");
         chai.assert.equal(pingWithApiKeyResp.statusCode, cassava.httpStatusCode.success.OK);
 
@@ -60,9 +66,16 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        let sqsCalled = false;
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                sqsCalled = true;
+                return Promise.resolve();
+            });
+
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        // NOTE: this is where we would check that a call to blacklist the token happens
+        chai.assert.isTrue(sqsCalled)
 
         const getKeyPostDeleteResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "GET");
         chai.assert.equal(getKeyPostDeleteResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
@@ -79,6 +92,10 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(createTestKeyResp.statusCode, cassava.httpStatusCode.success.CREATED);
         chai.assert.equal(createTestKeyResp.body.userId, setUserIdTestMode(testUtils.defaultTestUser.userId));
 
+        const testKeyUserResp = await router.testApiKeyRequest<User>(createTestKeyResp.body.token, "/v2/user", "GET");
+        chai.assert.equal(testKeyUserResp.statusCode, 200);
+        chai.assert.equal(testKeyUserResp.body.mode, "test");
+
         const testKeyJson: giftbitRoutes.jwtauth.JwtPayload = JSON.parse(Buffer.from(createTestKeyResp.body.token.split(".")[1], "base64").toString("ascii"));
         chai.assert.isTrue(giftbitRoutes.jwtauth.JwtPayload.isTestUser(testKeyJson), JSON.stringify(testKeyJson));
 
@@ -91,6 +108,10 @@ describe("/v2/account/apiKeys", () => {
         const createLiveKeyResp = await router.testPostLoginRequest<ApiKey>(liveSwitchResp, "/v2/account/apiKeys", "POST", {
             name: generateId()
         });
+
+        const liveKeyUserResp = await router.testApiKeyRequest<User>(createLiveKeyResp.body.token, "/v2/user", "GET");
+        chai.assert.equal(liveKeyUserResp.statusCode, 200);
+        chai.assert.equal(liveKeyUserResp.body.mode, "live");
 
         const liveKeyJson: giftbitRoutes.jwtauth.JwtPayload = JSON.parse(Buffer.from(createLiveKeyResp.body.token.split(".")[1], "base64").toString("ascii"));
         chai.assert.isFalse(giftbitRoutes.jwtauth.JwtPayload.isTestUser(liveKeyJson), JSON.stringify(liveKeyJson));
@@ -107,6 +128,11 @@ describe("/v2/account/apiKeys", () => {
 
         const deleteTestKeyLiveFailResp = await router.testPostLoginRequest<ApiKey>(liveSwitchResp, `/v2/account/apiKeys/${createTestKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteTestKeyLiveFailResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, "can't delete the test key with the live token");
+
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                return Promise.resolve();
+            });
 
         const deleteTestKeyResp = await router.testWebAppRequest<ApiKey>(`/v2/account/apiKeys/${createTestKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteTestKeyResp.statusCode, cassava.httpStatusCode.success.OK);
@@ -143,8 +169,15 @@ describe("/v2/account/apiKeys", () => {
         chai.assert.equal(listKeysResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.deepEqual(listKeysResp.body, [getKeyResp.body]);
 
+        let sqsCalled = false;
+        sinonSandbox.stub(sqsUtils, "sendSqsMessage")
+            .callsFake(() => {
+                sqsCalled = true;
+                return Promise.resolve();
+            });
+
         const deleteKeyResp = await router.testApiRequest<ApiKey>(`/v2/account/apiKeys/${createKeyResp.body.tokenId}`, "DELETE");
         chai.assert.equal(deleteKeyResp.statusCode, cassava.httpStatusCode.success.OK);
-        // NOTE: this is where we would check that a call to blacklist the token happens
+        chai.assert.isTrue(sqsCalled);
     });
 });

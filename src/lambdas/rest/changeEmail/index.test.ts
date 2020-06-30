@@ -26,6 +26,16 @@ describe("/v2/user/changeEmail", () => {
         sinonSandbox.restore();
     });
 
+    it("requires authorization", async () => {
+        const resp = await router.testUnauthedRequest("/v2/user/changeEmail", "POST");
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+    });
+
+    it("requires a body", async () => {
+        const resp = await router.testWebAppRequest("/v2/user/changeEmail", "POST");
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+    });
+
     it("cannot change to an invalid email address", async () => {
         let changeEmailAddressEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
@@ -41,6 +51,21 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isUndefined(changeEmailAddressEmail);
     });
 
+    it("cannot change to an email address domain with no MX record", async () => {
+        let changeEmailAddressEmail: string;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                changeEmailAddressEmail = params.htmlBody;
+                return null;
+            });
+
+        const resp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
+            email: `${generateId()}@example.com`
+        });
+        chai.assert.equal(resp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
+        chai.assert.isUndefined(changeEmailAddressEmail);
+    });
+
     it("changes nothing until the email link is clicked", async () => {
         let changeEmailAddressEmail: string;
         sinonSandbox.stub(emailUtils, "sendEmail")
@@ -49,7 +74,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });
@@ -78,7 +103,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });
@@ -94,7 +119,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailToken, "found complete email address change link");
 
         const completeResp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken}`, "GET");
-        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.redirect.FOUND);
         chai.assert.isDefined(emailAddressChangedEmail);
         chai.assert.include(emailAddressChangedEmail.htmlBody, "Copyright " + new Date().getFullYear(), "copyright is set for this year");
         chai.assert.match(emailAddressChangedEmail.htmlBody, /Copyright 20\d\d/, "copyright is full year");
@@ -143,7 +168,7 @@ describe("/v2/user/changeEmail", () => {
                 return null;
             });
 
-        const email = generateId() + "@example.com";
+        const email = testUtils.generateValidEmailAddress();
         const changeEmailResp1 = await router.testWebAppRequest("/v2/user/changeEmail", "POST", {
             email
         });
@@ -160,7 +185,7 @@ describe("/v2/user/changeEmail", () => {
         chai.assert.isDefined(changeEmailToken1, "found complete email address change link");
 
         const complete1Resp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken1}`, "GET");
-        chai.assert.equal(complete1Resp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(complete1Resp.statusCode, cassava.httpStatusCode.redirect.FOUND);
 
         const changeEmailToken2 = /https:\/\/.*changeEmail\/complete\?token=([a-zA-Z0-9]*)/.exec(changeEmailAddressEmail2.htmlBody)[1];
         chai.assert.isDefined(changeEmailToken2, "found complete email address change link");

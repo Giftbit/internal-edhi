@@ -8,6 +8,9 @@ import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {User} from "../../../model/User";
 import {initializeIntercomSecrets} from "../../../utils/intercomUtils";
 import {SwitchableAccount} from "../../../model/SwitchableAccount";
+import {LoginResult} from "../../../model/LoginResult";
+import {DbUser} from "../../../db/DbUser";
+import {initializeEncryptionSecret} from "../../../utils/secretsUtils";
 
 describe("/v2/user", () => {
 
@@ -22,6 +25,8 @@ describe("/v2/user", () => {
         await initializeIntercomSecrets(Promise.resolve({
             secretKey: intercomTestSecret
         }));
+        DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
+        initializeEncryptionSecret(Promise.resolve(crypto.randomBytes(32).toString("hex")));
     });
 
     it("can get the current user", async () => {
@@ -30,6 +35,24 @@ describe("/v2/user", () => {
         chai.assert.equal(getUserResp.body.email, testUtils.defaultTestUser.email);
         chai.assert.equal(getUserResp.body.id, testUtils.defaultTestUser.userId);
         chai.assert.equal(getUserResp.body.mode, "test");
+        chai.assert.equal(getUserResp.body.additionalAuthenticationRequired, false);
+    });
+
+    it("can get the current user in the middle of mfa login", async () => {
+        await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: testUtils.defaultTestUser.email,
+            password: testUtils.defaultTestUser.password
+        });
+        chai.assert.equal(loginResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(loginResp.body.messageCode, "MfaAuthRequired");
+
+        const getUserResp = await router.testPostLoginRequest<User>(loginResp, "/v2/user", "GET");
+        chai.assert.equal(getUserResp.statusCode, cassava.httpStatusCode.success.OK);
+        chai.assert.equal(getUserResp.body.email, testUtils.defaultTestUser.email);
+        chai.assert.equal(getUserResp.body.id, testUtils.defaultTestUser.userId);
+        chai.assert.equal(getUserResp.body.additionalAuthenticationRequired, true);
     });
 
     describe("/v2/user/accounts", () => {
