@@ -220,6 +220,10 @@ Resources:
             Resource: "arn:aws:logs:*:*:*"
           - Effect: Allow
             Action:
+              - application-autoscaling:*
+            Resource: "*"
+          - Effect: Allow
+            Action:
               - cloudformation:CreateChangeSet
               - cloudformation:ListChangeSets
             Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/*"
@@ -240,6 +244,10 @@ Resources:
               - iam:PassRole
               - iam:PutRolePolicy
             Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-*"
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable"
           - Effect: Allow
             Action:
               - lambda:AddPermission
