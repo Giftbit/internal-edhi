@@ -63,7 +63,7 @@ export async function completeChangePassword(newPlaintextPassword: string, user:
     const userPasswordHistory = await DbUserPasswordHistory.get(user.userId);
     if (await passwordIsInHistory(newPlaintextPassword, user, userPasswordHistory)) {
         log.warn("Can't change user password for", user.email, "the new password is in the history");
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "The new password is being reused.", "ReusedPassword");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "New password must be different from recent passwords.", "ReusedPassword");
     }
 
     const userNewPassword: DbUser.Password = await hashPassword(newPlaintextPassword);
