@@ -17,14 +17,20 @@ import readline = require("readline");
 //     dev:     ssh -L localhost:3307:lightrail-mysql.vpc:3306 jeff.g@52.42.17.208
 //     staging: ssh -L localhost:3308:lightrail-mysql.vpc:3306 jeff.g@34.211.59.235
 //     prod:    ssh -L localhost:3309:lightrail-mysql.vpc:3306 jeff.g@34.211.158.64
+// If you can't connect at all check that your IP is allowed to connect to the bastion host.
 // If you get "Permission denied" maybe restart the bastion host in the web console.
+// Collect AWS credentials: aws sts assume-role --role-arn "arn:aws:iam::939876203001:role/InfrastructureAdmin" --role-session-name Migration --serial-number arn:aws:iam::939876203001:mfa/jeff.g --token-code 123456
+// Run: ./node_modules/.bin/ts-node migrate.ts
 
 async function main(): Promise<void> {
     const mysqlHost = "localhost";
     const mysqlPort = +await readLine("MySQL port (3307): ", "3307");
     const mysqlUser = "dev-160928";
     const mysqlPassword = await readPassword("MySQL database password: ");
-    const encryptionSecret = await readPassword("Password encryption secret: ");
+    const encryptionSecret = await readPassword("Edhi encryption secret: ");
+    const awsAccessKeyId = await readPassword("AWS access key ID: ");
+    const awsSecretAccessKey = await readPassword("AWS secret access key: ");
+    const awsSessionToken = await readPassword("AWS session token: ");
 
     if (!/^[0-9A-Fa-f]{64}$/.test(encryptionSecret)) {
         throw new Error("Encryption secret must be 64 hex characters.");
@@ -217,7 +223,11 @@ async function main(): Promise<void> {
 
     const dynamodb = new aws.DynamoDB({
         apiVersion: "2012-08-10",
-        credentials: new aws.SharedIniFileCredentials(),
+        credentials: new aws.Credentials({
+            accessKeyId: awsAccessKeyId,
+            secretAccessKey: awsSecretAccessKey,
+            sessionToken: awsSessionToken
+        }),
         region: "us-west-2"
     });
 
