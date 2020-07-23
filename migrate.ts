@@ -3,10 +3,11 @@ import * as dynameh from "dynameh";
 import * as logPrefix from "loglevel-plugin-prefix";
 import {DbUser} from "./src/db/DbUser";
 import {DbObject} from "./src/db/DbObject";
+import {DbUserUniqueness} from "./src/db/DbUserUniqueness";
 import log = require("loglevel");
 import readline = require("readline");
 
-// Collect AWS credentials: aws sts assume-role --role-arn "arn:aws:iam::939876203001:role/InfrastructureAdmin" --role-session-name Migration --serial-number arn:aws:iam::939876203001:mfa/jeff.g --token-code 123456
+// Collect AWS credentials: aws sts assume-role --role-arn "arn:aws:iam::`aws sts get-caller-identity --query Account --output text`:role/InfrastructureAdmin" --role-session-name Migration --serial-number arn:aws:iam::`aws sts get-caller-identity --query Account --output text`:mfa/jeff.g --token-code 167281
 // Run: ./node_modules/.bin/ts-node migrate.ts
 
 async function main(): Promise<void> {
@@ -45,8 +46,20 @@ async function main(): Promise<void> {
         values: ["User/"]
     });
     const scanRes: (DbUser & DbObject)[] = await dynameh.scanHelper.scanAll(dynamodb, scanReq);
-    const badDbObjects = scanRes.filter(user => user.email !== user.email.toLowerCase());
 
+    const userUniquenesses = scanRes.filter(user => !user.email && user.pk.startsWith("User/user-"));
+    log.info("Migrating", userUniquenesses.length, "UserUniquenesses");
+    for (const userUniqueness of userUniquenesses) {
+        const newUserUniqueness: DbUserUniqueness & DbObject = DbUserUniqueness.toDbObject({userId: userUniqueness.userId});
+        log.info("Migrating", userUniqueness.pk, "to", newUserUniqueness.pk);
+        const putReq = dynameh.requestBuilder.buildPutInput(tableSchema, newUserUniqueness);
+        await dynamodb.putItem(putReq).promise();
+
+        const delReq = dynameh.requestBuilder.buildDeleteInput(tableSchema, userUniqueness);
+        await dynamodb.deleteItem(delReq).promise();
+    }
+
+    const badDbObjects = scanRes.filter(user => user.email && user.pk.includes("@") && user.pk.substr(1) !== user.pk.substr(1).toLowerCase());
     log.info("Migrating", badDbObjects.length, "to lower case");
     for (const badDbObject of badDbObjects) {
         const goodDbObject = DbUser.toDbObject(DbUser.fromDbObject(badDbObject));

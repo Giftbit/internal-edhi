@@ -43,14 +43,14 @@ export namespace DbUserUniqueness {
             throw new Error("Not a valid UserDetails.");
         }
         return {
-            pk: "User/" + userUniqueness.userId,
-            sk: "User/" + userUniqueness.userId
+            pk: "UserUniqueness/" + userUniqueness.userId,
+            sk: "UserUniqueness/" + userUniqueness.userId
         };
     }
 
     export async function get(userId: string): Promise<DbUserUniqueness> {
         userId = stripUserIdTestMode(userId);
-        return fromDbObject(await DbObject.get("User/" + userId, "User/" + userId));
+        return fromDbObject(await DbObject.get("UserUniqueness/" + userId, "UserUniqueness/" + userId));
     }
 
     export async function put(userUniqueness: DbUserUniqueness): Promise<void> {
