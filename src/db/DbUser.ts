@@ -216,15 +216,15 @@ export namespace DbUser {
             throw new Error("Not a valid User.");
         }
         return {
-            pk: "User/" + user.email,
-            sk: "User/" + user.email,
+            pk: "User/" + user.email.toLowerCase(),
+            sk: "User/" + user.email.toLowerCase(),
             pk2: "User/" + user.userId,
-            sk2: "User/" + user.userId,
+            sk2: "User/" + user.userId
         };
     }
 
     export async function get(email: string): Promise<DbUser> {
-        return fromDbObject(await DbObject.get("User/" + email, "User/" + email));
+        return fromDbObject(await DbObject.get("User/" + email.toLowerCase(), "User/" + email.toLowerCase()));
     }
 
     export async function put(user: DbUser): Promise<void> {
