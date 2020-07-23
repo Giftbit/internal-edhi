@@ -100,6 +100,14 @@ describe("/v2/user/login", () => {
         await assertFullyLoggedIn(resp);
     });
 
+    it("can login the test user with an email address with capItaLs", async () => {
+        const resp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: testUtils.defaultTestUser.email.substr(0, 5) + testUtils.defaultTestUser.email.substr(5).toUpperCase(),
+            password: testUtils.defaultTestUser.password
+        });
+        await assertFullyLoggedIn(resp);
+    });
+
     it("can log in a user that was removed from their only account (and they can create a new account)", async () => {
         const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
