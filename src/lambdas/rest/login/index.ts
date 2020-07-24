@@ -374,7 +374,17 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
         }
     }
 
-    await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
+    try {
+        await DbUser.conditionalUpdate(user, userUpdates, updateConditions);
+    } catch (err) {
+        if (err.code === "ConditionalCheckFailedException") {
+            log.warn("Complete login DynamoDB ConditionalCheckFailedException.  Possible replay attack, or duplicated call from network error.  updateConditions=", updateConditions, "err=", err);
+            // There's a good chance this isn't malicious so we won't go through
+            // completeLoginFailure() and mark it as a failed attempt.
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        }
+        throw err;
+    }
 
     const accountUser = await DbAccountUser.getForUserLogin(user);
     const liveMode = !isTestModeUserId(user.login.defaultLoginAccountId);
@@ -446,6 +456,8 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
     } else {
         badge = DbUser.getBadge(accountUser, liveMode);
     }
+
+    log.info("Login response for user", user.email, user.userId, "message=", message, "messageCode=", messageCode);
 
     return {
         body: {
