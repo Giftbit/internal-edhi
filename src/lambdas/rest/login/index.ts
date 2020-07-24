@@ -447,6 +447,8 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         badge = DbUser.getBadge(accountUser, liveMode);
     }
 
+    log.info("Login response for user", user.email, user.userId, "message=", message, "messageCode=", messageCode);
+
     return {
         body: {
             user: User.getFromDbUser(user, badge),
