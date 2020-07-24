@@ -1,9 +1,8 @@
 import * as aws from "aws-sdk";
 import * as dynameh from "dynameh";
 import * as logPrefix from "loglevel-plugin-prefix";
-import {DbUser} from "./src/db/DbUser";
 import {DbObject} from "./src/db/DbObject";
-import {DbUserUniqueness} from "./src/db/DbUserUniqueness";
+import {DbAccountUser} from "./src/db/DbAccountUser";
 import log = require("loglevel");
 import readline = require("readline");
 
@@ -43,37 +42,25 @@ async function main(): Promise<void> {
     const scanReq = dynameh.requestBuilder.buildScanInput(tableSchema, {
         attribute: "pk",
         operator: "begins_with",
-        values: ["User/"]
+        values: ["Account/"]
+    }, {
+        attribute: "sk",
+        operator: "begins_with",
+        values: ["AccountUser/"]
     });
-    const scanRes: (DbUser & DbObject)[] = await dynameh.scanHelper.scanAll(dynamodb, scanReq);
+    const scanRes: (DbAccountUser & DbObject)[] = await dynameh.scanHelper.scanAll(dynamodb, scanReq);
 
-    const userUniquenesses = scanRes.filter(user => !user.email && user.pk.startsWith("User/user-"));
-    log.info("Migrating", userUniquenesses.length, "UserUniquenesses");
-    for (const userUniqueness of userUniquenesses) {
-        const newUserUniqueness: DbUserUniqueness & DbObject = DbUserUniqueness.toDbObject({userId: userUniqueness.userId});
-        log.info("Migrating", userUniqueness.pk, "to", newUserUniqueness.pk);
-        const putReq = dynameh.requestBuilder.buildPutInput(tableSchema, newUserUniqueness);
-        await dynamodb.putItem(putReq).promise();
+    const accountUsersWithoutSelf = scanRes.filter(u => u.roles.indexOf("self") === -1)
+    log.info("Updating", accountUsersWithoutSelf.length, "account users");
 
-        const delReq = dynameh.requestBuilder.buildDeleteInput(tableSchema, userUniqueness);
-        await dynamodb.deleteItem(delReq).promise();
-    }
-
-    const badDbObjects = scanRes.filter(user => user.email && user.pk.includes("@") && user.pk.substr(1) !== user.pk.substr(1).toLowerCase());
-    log.info("Migrating", badDbObjects.length, "to lower case");
-    for (const badDbObject of badDbObjects) {
-        const goodDbObject = DbUser.toDbObject(DbUser.fromDbObject(badDbObject));
-
-        log.info("Migrating", badDbObject.pk, "to", goodDbObject.pk);
-        if (goodDbObject.pk === badDbObject.pk || goodDbObject.sk === badDbObject.sk) {
-            throw new Error("Switcheroo didn't fix pk or sk, what?")
-        }
-
-        const putReq = dynameh.requestBuilder.buildPutInput(tableSchema, goodDbObject);
-        await dynamodb.putItem(putReq).promise();
-
-        const deleteReq = dynameh.requestBuilder.buildDeleteInput(tableSchema, badDbObject);
-        await dynamodb.deleteItem(deleteReq).promise();
+    for (const accountUser of accountUsersWithoutSelf) {
+        const updateReq = dynameh.requestBuilder.buildUpdateInputFromActions(tableSchema, accountUser, {
+            action: "list_append",
+            attribute: "roles",
+            values: ["self"]
+        });
+        log.info("Updating", accountUser.userId);
+        await dynamodb.updateItem(updateReq).promise();
     }
 
     log.info("Done!");
@@ -109,6 +96,7 @@ function readPassword(prompt: string): Promise<string> {
     });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function readLine(prompt: string, defaultValue?: string): Promise<string> {
     return new Promise<string>(resolve => {
         const rl = readline.createInterface({
