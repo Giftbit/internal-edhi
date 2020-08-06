@@ -10,6 +10,7 @@ import {installAuthedRestRoutes} from "../installAuthedRestRoutes";
 import {DbUser} from "../../../db/DbUser";
 import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
 import {CompleteEnableMfaResult} from "../../../model/CompleteEnableMfaResult";
+import {MfaStatus} from "../../../model/MfaStatus";
 
 describe("/v2/user/mfa", () => {
 
@@ -67,6 +68,10 @@ describe("/v2/user/mfa", () => {
                 code: code
             });
             chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK, completeResp.bodyRaw);
+
+            const mfaEnabledResp = await router.testWebAppRequest<MfaStatus>("/v2/user/mfa", "GET");
+            chai.assert.equal(mfaEnabledResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(mfaEnabledResp.body.device, "+15008675309");
         });
 
         it("can can be enabled with a case insensitive code", async () => {
@@ -285,8 +290,9 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isTrue(setSecondCodeResp.body.complete, setSecondCodeResp.bodyRaw);
 
-            const mfaEnabledResp = await router.testWebAppRequest("/v2/user/mfa", "GET");
+            const mfaEnabledResp = await router.testWebAppRequest<MfaStatus>("/v2/user/mfa", "GET");
             chai.assert.equal(mfaEnabledResp.statusCode, cassava.httpStatusCode.success.OK, "now it's enabled");
+            chai.assert.equal(mfaEnabledResp.body.device, "totp");
         });
 
         it("cannot be enabled by entering the same code twice", async () => {
