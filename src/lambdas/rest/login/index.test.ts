@@ -14,6 +14,7 @@ import * as smsUtils from "../../../utils/smsUtils";
 import {generateSkewedOtpCode, initializeEncryptionSecret} from "../../../utils/secretsUtils";
 import {LoginResult} from "../../../model/LoginResult";
 import {Account} from "../../../model/Account";
+import {DbAccount} from "../../../db/DbAccount";
 
 describe("/v2/user/login", () => {
 
@@ -108,7 +109,7 @@ describe("/v2/user/login", () => {
         await assertFullyLoggedIn(resp);
     });
 
-    it("can log in a user that was removed from their only account (and they can create a new account)", async () => {
+    it("can login a user that was removed from their only account (and they can create a new account)", async () => {
         const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
         const deleteUserResp = await router.testApiRequest(`/v2/account/users/${newUser.userId}`, "DELETE");
@@ -133,6 +134,27 @@ describe("/v2/user/login", () => {
         });
         chai.assert.equal(switchAccountResp.statusCode, cassava.httpStatusCode.success.OK, switchAccountResp.bodyRaw);
         chai.assert.isUndefined(switchAccountResp.body.messageCode);
+    });
+
+    it("can login a user to a frozen Account, but they get an orphaned badge", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+
+        const accountResp = await router.testPostLoginRequest<Account>(newUser.loginResp, "/v2/account", "GET");
+        const account = await DbAccount.get(accountResp.body.id);
+        account.frozen = "frozen for unit test";
+        await DbAccount.update(account, {
+            action: "put",
+            attribute: "frozen",
+            value: account.frozen
+        });
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: newUser.email,
+            password: newUser.password
+        });
+        chai.assert.equal(loginResp.body.messageCode, "AccountFrozen");
+
+        assertNotFullyLoggedIn(loginResp);
     });
 
     it("locks the user for an hour after 10 unsuccessful login attempts", async () => {

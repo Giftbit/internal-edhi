@@ -71,10 +71,11 @@ export namespace DbUser {
         emailVerified: boolean;
 
         /**
-         * Frozen users cannot log in.  We don't yet have any controls for
-         * setting this but it may be useful in the future.
+         * When truthy the User is frozen and cannot log in.
+         * When a string it's the reason the User was frozen.
+         * Currently this only gets set manually.
          */
-        frozen: boolean;
+        frozen: boolean | string;
 
         /**
          * Login can be time locked on too many login failures.
