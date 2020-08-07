@@ -74,6 +74,37 @@ describe("/v2/user/mfa", () => {
             chai.assert.equal(mfaEnabledResp.body.device, "+15008675309");
         });
 
+        it("can be enabled, switching from TOTP MFA", async () => {
+            await testUtils.testEnableTotpMfa(testUtils.defaultTestUser.email);
+
+            let sms: smsUtils.SendSmsParams;
+            sinonSandbox.stub(smsUtils, "sendSms")
+                .onFirstCall()
+                .callsFake(async params => {
+                    sms = params;
+                });
+
+            const enableMfaResp = await router.testWebAppRequest("/v2/user/mfa", "POST", {
+                device: "+15008675309"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isDefined(sms);
+            chai.assert.equal(sms.to, "+15008675309");
+            chai.assert.match(sms.body, /\b([A-Z0-9]{6})\b/);
+
+            const code = /\b([A-Z0-9]{6})\b/.exec(sms.body)[1];
+            chai.assert.isString(code, "got code from sms");
+
+            const completeResp = await router.testWebAppRequest("/v2/user/mfa/complete", "POST", {
+                code: code
+            });
+            chai.assert.equal(completeResp.statusCode, cassava.httpStatusCode.success.OK, completeResp.bodyRaw);
+
+            const mfaEnabledResp = await router.testWebAppRequest<MfaStatus>("/v2/user/mfa", "GET");
+            chai.assert.equal(mfaEnabledResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.equal(mfaEnabledResp.body.device, "+15008675309");
+        });
+
         it("can can be enabled with a case insensitive code", async () => {
             let sms: smsUtils.SendSmsParams;
             sinonSandbox.stub(smsUtils, "sendSms")
@@ -283,6 +314,33 @@ describe("/v2/user/mfa", () => {
 
             const mfaNotEnabledResp = await router.testWebAppRequest("/v2/user/mfa", "GET");
             chai.assert.equal(mfaNotEnabledResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND, "not enabled yet");
+
+            const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
+                code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
+            });
+            chai.assert.equal(setSecondCodeResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isTrue(setSecondCodeResp.body.complete, setSecondCodeResp.bodyRaw);
+
+            const mfaEnabledResp = await router.testWebAppRequest<MfaStatus>("/v2/user/mfa", "GET");
+            chai.assert.equal(mfaEnabledResp.statusCode, cassava.httpStatusCode.success.OK, "now it's enabled");
+            chai.assert.equal(mfaEnabledResp.body.device, "totp");
+        });
+
+        it("can be enabled, switching from SMS MFA", async () => {
+            await testUtils.testEnableSmsMfa(testUtils.defaultTestUser.email);
+
+            const enableMfaResp = await router.testWebAppRequest<{ secret: string, uri: string }>("/v2/user/mfa", "POST", {
+                device: "totp"
+            });
+            chai.assert.equal(enableMfaResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isString(enableMfaResp.body.secret);
+            chai.assert.include(enableMfaResp.body.uri, `secret=${enableMfaResp.body.secret}`, "secret is properly encoded in uri");
+
+            const setFirstCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
+                code: await generateSkewedOtpCode(enableMfaResp.body.secret, -15000)
+            });
+            chai.assert.equal(setFirstCodeResp.statusCode, cassava.httpStatusCode.success.OK);
+            chai.assert.isFalse(setFirstCodeResp.body.complete, setFirstCodeResp.bodyRaw);
 
             const setSecondCodeResp = await router.testWebAppRequest<CompleteEnableMfaResult>("/v2/user/mfa/complete", "POST", {
                 code: await generateSkewedOtpCode(enableMfaResp.body.secret, 15000)
