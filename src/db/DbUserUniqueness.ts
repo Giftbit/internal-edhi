@@ -40,7 +40,7 @@ export namespace DbUserUniqueness {
 
     export function getKeys(userUniqueness: DbUserUniqueness): DbObject {
         if (!userUniqueness || !userUniqueness.userId) {
-            throw new Error("Not a valid UserDetails.");
+            throw new Error("Not a valid UserUniqueness.");
         }
         return {
             pk: "UserUniqueness/" + userUniqueness.userId,
