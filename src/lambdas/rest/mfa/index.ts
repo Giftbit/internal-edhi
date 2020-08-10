@@ -227,6 +227,14 @@ async function completeEnableSmsMfa(user: DbUser, params: { code: string }): Pro
             attribute: "login.mfa.smsAuthState"
         },
         {
+            action: "remove",
+            attribute: "login.mfa.totpSecret"
+        },
+        {
+            action: "remove",
+            attribute: "login.mfa.totpUsedCodes"
+        },
+        {
             action: "put",
             attribute: "login.mfa.smsDevice",
             value: user.login.mfa.smsAuthState.device
@@ -259,18 +267,27 @@ async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Pr
 
     if (user.login.mfa.totpSetup.lastCodes.length > 0) {
         log.info("Code matches, TOTP MFA enabled for", user.userId);
-        await DbUser.update(user, {
-            action: "remove",
-            attribute: "login.mfa.totpSetup"
-        }, {
-            action: "put",
-            attribute: "login.mfa.totpSecret",
-            value: user.login.mfa.totpSetup.secret
-        }, {
-            action: "put",
-            attribute: "login.mfa.totpUsedCodes",
-            value: {}
-        });
+        await DbUser.update(
+            user,
+            {
+                action: "remove",
+                attribute: "login.mfa.totpSetup"
+            },
+            {
+                action: "remove",
+                attribute: "login.mfa.smsDevice"
+            },
+            {
+                action: "put",
+                attribute: "login.mfa.totpSecret",
+                value: user.login.mfa.totpSetup.secret
+            },
+            {
+                action: "put",
+                attribute: "login.mfa.totpUsedCodes",
+                value: {}
+            }
+        );
         return {
             complete: true,
             message: "Success."
@@ -292,12 +309,12 @@ async function completeEnableTotpMfa(user: DbUser, params: { code: string }): Pr
 async function getMfaStatus(auth: giftbitRoutes.jwtauth.AuthorizationBadge, trusted: boolean): Promise<MfaStatus> {
     const user = await DbUser.getByAuth(auth);
 
-    if (user.login.mfa && user.login.mfa.smsDevice) {
+    if (user.login?.mfa?.smsDevice) {
         return {
             device: trusted ? user.login.mfa.smsDevice : user.login.mfa.smsDevice.replace(/./g, (match, offset, s) => offset < s.length - 4 ? "•" : match)
         };
     }
-    if (user.login.mfa && user.login.mfa.totpSecret) {
+    if (user.login?.mfa?.totpSecret) {
         return {
             device: "totp"
         };
