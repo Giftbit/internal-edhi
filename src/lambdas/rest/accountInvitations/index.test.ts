@@ -149,6 +149,50 @@ describe("/v2/account/invitations", () => {
         chai.assert.match(acceptInvitationResp.headers["Location"], /\/app\/#\/resetPassword\?token=[a-zA-Z0-9]*/);
     });
 
+    it("can resend an invitation and change user permissions", async () => {
+        let firstInviteEmail: emailUtils.SendEmailParams;
+        let reinviteEmail: emailUtils.SendEmailParams;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .onFirstCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                firstInviteEmail = params;
+                return null;
+            })
+            .onSecondCall()
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                reinviteEmail = params;
+                return null;
+            });
+
+        const email = testUtils.generateValidEmailAddress();
+        const inviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: email,
+            userPrivilegeType: "FULL_ACCESS"
+        });
+        chai.assert.equal(inviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(firstInviteEmail);
+        chai.assert.isUndefined(reinviteEmail);
+
+        const reinviteResp = await router.testApiRequest<Invitation>("/v2/account/invitations", "POST", {
+            email: email,
+            roles: ["self", "webPortal", "pointOfSale", "teamAdmin"],
+            scopes: ["foo"]
+        });
+        chai.assert.equal(reinviteResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.isDefined(reinviteEmail);
+
+        const acceptInvitationLink = /(https:\/\/[a-z.]+\/v2\/user\/register\/acceptInvitation\?token=[a-zA-Z0-9]*)/.exec(firstInviteEmail.htmlBody)[1];
+        chai.assert.isString(acceptInvitationLink);
+
+        const acceptInvitationToken = /\?token=([a-zA-Z0-9]*)/.exec(acceptInvitationLink)[1];
+        chai.assert.isString(acceptInvitationToken);
+
+        const acceptInvitationResp = await router.testUnauthedRequest(`/v2/user/register/acceptInvitation?token=${acceptInvitationToken}`, "GET");
+        chai.assert.equal(acceptInvitationResp.statusCode, cassava.httpStatusCode.redirect.FOUND, acceptInvitationResp.bodyRaw);
+        chai.assert.isString(acceptInvitationResp.headers["Location"]);
+        chai.assert.match(acceptInvitationResp.headers["Location"], /\/app\/#\/resetPassword\?token=[a-zA-Z0-9]*/);
+    });
+
     it("can cancel an invitation and then resend it", async () => {
         let firstInviteEmail: emailUtils.SendEmailParams;
         let reinviteEmail: emailUtils.SendEmailParams;

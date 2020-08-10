@@ -1,11 +1,12 @@
 import * as aws from "aws-sdk";
 import * as cassava from "cassava";
+import * as dynameh from "dynameh";
 import * as giftbitRoutes from "giftbit-cassava-routes";
 import {getRolesForUserPrivilege, UserPrivilege} from "../../../utils/rolesUtils";
 import {Invitation} from "../../../model/Invitation";
 import {stripUserIdTestMode} from "../../../utils/userUtils";
 import {DbAccount} from "../../../db/DbAccount";
-import {createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
+import {createdDateFuture, createdDateNow, dynamodb, objectDynameh} from "../../../db/dynamodb";
 import {DbUser} from "../../../db/DbUser";
 import {DbUserUniqueness} from "../../../db/DbUserUniqueness";
 import {DbAccountUser} from "../../../db/DbAccountUser";
@@ -108,7 +109,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
     }
 
     const accountId = stripUserIdTestMode(auth.userId);
-    log.info("Inviting User", params.email, "to Account", accountId);
+    log.info("Inviting User", params.email, "to Account", accountId, "params=", params);
 
     const account = await DbAccount.get(auth.userId);
     if (!account) {
@@ -158,34 +159,38 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
 
     let accountUser = await DbAccountUser.get(accountId, invitedUser.userId);
     if (accountUser) {
-        log.info("Inviting existing AccountUser", accountUser.accountId, accountUser.userId);
+        log.info("AccountUser already exists");
         if (accountUser.pendingInvitation) {
-            updates.push(DbAccountUser.buildUpdateInput(accountUser, {
-                action: "put",
-                attribute: "pendingInvitation.createdDate",
-                value: createdDate
-            }));
+            log.info("AccountUser has a pending invitation");
+            const accountUserUpdates: dynameh.UpdateExpressionAction[] = [
+                {
+                    action: "put",
+                    attribute: "pendingInvitation.createdDate",
+                    value: createdDate
+                }
+            ];
+
             if (params.userPrivilegeType) {
-                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                accountUserUpdates.push({
                     action: "put",
                     attribute: "roles",
                     value: getRolesForUserPrivilege(params.userPrivilegeType)
-                }));
+                });
             } else if (params.roles) {
-                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                accountUserUpdates.push({
                     action: "put",
                     attribute: "roles",
                     value: params.roles
-                }));
+                });
             }
             if (params.scopes) {
-                updates.push(DbAccountUser.buildUpdateInput(accountUser, {
+                accountUserUpdates.push({
                     action: "put",
                     attribute: "scopes",
                     value: params.scopes
-                }));
+                });
             }
-            log.info("Resending invitation to invited AccountUser", accountUser.accountId, accountUser.userId);
+            updates.push(DbAccountUser.buildUpdateInput(accountUser, ...accountUserUpdates));
         } else {
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, `The user ${params.email} has already accepted an invitation.`);
         }
@@ -196,8 +201,6 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
         const roles = (params.userPrivilegeType && getRolesForUserPrivilege(params.userPrivilegeType)) || params.roles;
         const scopes = params.scopes || [];
 
-        const expiresDate = new Date();
-        expiresDate.setDate(expiresDate.getDate() + 5);
         accountUser = {
             accountId: accountId,
             userId: invitedUser.userId,
@@ -206,7 +209,7 @@ async function inviteUser(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params
             pendingInvitation: {
                 email: params.email,
                 createdDate,
-                expiresDate: expiresDate.toISOString()
+                expiresDate: createdDateFuture(0, 0, 5)
             },
             roles,
             scopes,
