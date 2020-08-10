@@ -136,7 +136,7 @@ describe("/v2/user/login", () => {
         chai.assert.isUndefined(switchAccountResp.body.messageCode);
     });
 
-    it("can login a user to a frozen Account, but they get an orphaned badge", async () => {
+    it("can login a user that is in a frozen Account, but they get an orphaned badge", async () => {
         const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 
         const accountResp = await router.testPostLoginRequest<Account>(newUser.loginResp, "/v2/account", "GET");
@@ -253,6 +253,26 @@ describe("/v2/user/login", () => {
         chai.assert.equal(loginResp2.statusCode, cassava.httpStatusCode.success.OK, loginResp2.bodyRaw);
         chai.assert.isString(loginResp2.getCookie("gb_jwt_session"));
         chai.assert.isString(loginResp2.getCookie("gb_jwt_signature"));
+    });
+
+    it("does not login a user that is frozen", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+
+        const user = await DbUser.get(newUser.email);
+        user.login.frozen = "frozen for testing";
+        await DbUser.update(user, {
+            action: "put",
+            attribute: "login.frozen",
+            value: user.login.frozen
+        });
+
+        const loginResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
+            email: newUser.email,
+            password: newUser.password
+        });
+        chai.assert.equal(loginResp.statusCode, 401);
+
+        assertNotFullyLoggedIn(loginResp);
     });
 
     it("can logout", async () => {
