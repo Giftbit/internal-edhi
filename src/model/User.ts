@@ -4,7 +4,7 @@ import {DbUser} from "../db/DbUser";
 export interface User {
     id: string;
     email: string;
-    hasMfa: boolean;
+    mfa: null | "sms" | "totp";
 
     // Below are only set when this object refers to the logged in User.
     mode?: "test" | "live";
@@ -16,7 +16,7 @@ export namespace User {
         const user: User = {
             id: dbUuser.userId,
             email: dbUuser.email,
-            hasMfa: DbUser.hasMfaActive(dbUuser)
+            mfa: DbUser.getMfaMode(dbUuser)
         };
         if (auth) {
             user.mode = auth.isTestUser() ? "test" : "live";

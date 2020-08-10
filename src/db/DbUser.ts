@@ -374,7 +374,16 @@ export namespace DbUser {
     }
 
     export function hasMfaActive(user: DbUser): boolean {
-        return !!(user?.login?.mfa?.smsDevice) || !!(user?.login?.mfa?.totpSecret);
+        return !!getMfaMode(user);
+    }
+
+    export function getMfaMode(user: DbUser): null | "sms" | "totp" {
+        if (user?.login?.mfa?.smsDevice) {
+            return "sms";
+        } else if (user?.login?.mfa?.totpSecret) {
+            return "totp";
+        }
+        return null;
     }
 
     export function generateUserId(): string {
