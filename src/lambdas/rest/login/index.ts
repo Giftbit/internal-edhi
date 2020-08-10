@@ -453,6 +453,10 @@ export async function getLoginResponse(user: DbUser, accountUser: DbAccountUser 
         message = `You have been locked out for being inactive for more than ${account.maxInactiveDays} days.`;
         messageCode = "AccountMaxInactiveDays";
         badge = DbUser.getOrphanBadge(user);
+    } else if (account.frozen) {
+        message = "This Account has been frozen and you cannot log in to it.  For more information contact customer support.  You may create or switch to another Account.";
+        messageCode = "AccountFrozen";
+        badge = DbUser.getOrphanBadge(user);
     } else {
         badge = DbUser.getBadge(accountUser, liveMode);
     }

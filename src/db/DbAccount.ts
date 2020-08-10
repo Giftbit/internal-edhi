@@ -15,7 +15,7 @@ export interface DbAccount {
     accountId: string;
 
     name: string;
-    
+
     /**
      * The maximum number of days a user can be inactive before their
      * account is locked.
@@ -33,6 +33,13 @@ export interface DbAccount {
      * Whether MFA is required to gain access to this Account.
      */
     requireMfa?: boolean;
+
+    /**
+     * When truthy the Account is frozen and no one can log in to it.
+     * When a string it's the reason the Account was frozen.
+     * Currently this only gets set manually.
+     */
+    frozen?: boolean | string;
 
     createdDate: string;
 }
