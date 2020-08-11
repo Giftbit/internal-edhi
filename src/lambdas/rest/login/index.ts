@@ -273,7 +273,7 @@ async function completeMfaLogin(auth: giftbitRoutes.jwtauth.AuthorizationBadge, 
             if (user.login.mfa.totpUsedCodes[usedCode] && user.login.mfa.totpUsedCodes[usedCode].createdDate < usedCodeExpiration) {
                 userUpdates.push({
                     action: "remove",
-                    attribute: `mfa.totpUsedCodes.${usedCode}`
+                    attribute: `login.mfa.totpUsedCodes.${usedCode}`
                 });
             }
         }
@@ -361,7 +361,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
             attribute: "login.lockedUntilDate"
         });
     }
-    if (user.login.mfa && user.login.mfa.trustedDevices) {
+    if (user.login?.mfa?.trustedDevices) {
         // Clear expired trusted devices.
         const now = createdDateNow();
         for (const trustedDeviceToken in user.login.mfa.trustedDevices) {
@@ -383,6 +383,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
             // completeLoginFailure() and mark it as a failed attempt.
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED);
         }
+        log.error("Error updating DbUser on login userUpdates=", JSON.stringify(userUpdates), "updateConditions=", JSON.stringify(updateConditions));
         throw err;
     }
 
