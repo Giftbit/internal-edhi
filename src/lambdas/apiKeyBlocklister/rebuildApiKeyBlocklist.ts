@@ -70,10 +70,10 @@ async function buildUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, lockToken: str
     } else if (deletedApiKeys.length === 1) {
         update.Rules.push({
             Name: apiKeyBlocklistRuleName,
-            Action: {Block: {}},
-            Priority: update.Rules.length,
+            Action: existingBlocklistRule?.Action ?? {Block: {}},
+            Priority: existingBlocklistRule?.Priority ?? update.Rules.length,
             Statement: await buildBlockApiKeyStatement(deletedApiKeys[0]),
-            VisibilityConfig: {
+            VisibilityConfig: existingBlocklistRule?.VisibilityConfig ?? {
                 "SampledRequestsEnabled": true,
                 "CloudWatchMetricsEnabled": true,
                 "MetricName": "blocked_api_keys"
@@ -82,14 +82,18 @@ async function buildUpdateWebAclRequest(webAcl: aws.WAFV2.WebACL, lockToken: str
     } else {
         update.Rules.push({
             Name: apiKeyBlocklistRuleName,
-            Action: existingBlocklistRule.Action,
-            Priority: existingBlocklistRule.Priority,
+            Action: existingBlocklistRule?.Action ?? {Block: {}},
+            Priority: existingBlocklistRule?.Priority ?? update.Rules.length,
             Statement: {
                 OrStatement: {
                     Statements: await Promise.all(deletedApiKeys.map(buildBlockApiKeyStatement))
                 }
             },
-            VisibilityConfig: existingBlocklistRule.VisibilityConfig
+            VisibilityConfig: existingBlocklistRule?.VisibilityConfig ?? {
+                "SampledRequestsEnabled": true,
+                "CloudWatchMetricsEnabled": true,
+                "MetricName": "blocked_api_keys"
+            }
         });
     }
 

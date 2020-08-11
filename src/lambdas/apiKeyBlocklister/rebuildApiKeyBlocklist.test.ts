@@ -18,7 +18,7 @@ describe("rebuildApiKeyBlocklist", () => {
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
-    describe("buildBlockApiKeyStatement", () => {
+    describe("buildBlockApiKeyStatement()", () => {
         it("builds a statement that blocks an API key based upon its signature", async () => {
             const apiKey: DbApiKey = {
                 accountId: testUtils.generateId(),
