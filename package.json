@@ -44,7 +44,7 @@
     "aws-sdk": "^2.746.0",
     "babel-loader": "^8.1.0",
     "bcryptjs": "^2.4.3",
-    "cassava": "^2.6.1",
+    "cassava": "^2.7.1",
     "chai": "^4.2.0",
     "chai-exclude": "^2.0.2",
     "chai-string": "^1.5.0",

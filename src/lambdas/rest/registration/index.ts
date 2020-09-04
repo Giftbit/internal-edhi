@@ -15,6 +15,7 @@ import {loginUserByEmailAction} from "../login";
 import {isValidEmailAddress} from "../../../utils/emailUtils";
 import {setUserIdTestMode} from "../../../utils/userUtils";
 import {DbTokenAction} from "../../../db/DbTokenAction";
+import {DbIpAction} from "../../../db/DbIpAction";
 import log = require("loglevel");
 
 export function installRegistrationRest(router: cassava.Router): void {
@@ -46,6 +47,7 @@ export function installRegistrationRest(router: cassava.Router): void {
             await registerNewUser({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
+                ip: evt.headersLowerCase["x-forwarded-for"].split(",")[0],
                 name: evt.body.name
             });
 
@@ -76,9 +78,20 @@ export function installRegistrationRest(router: cassava.Router): void {
         });
 }
 
-async function registerNewUser(params: { email: string, plaintextPassword: string, name?: string }): Promise<void> {
+interface RegisterNewUserParams {
+    email: string;
+    plaintextPassword: string;
+    ip: string;
+    name?: string;
+}
+
+async function registerNewUser(params: RegisterNewUserParams): Promise<void> {
     if (!await isValidEmailAddress(params.email)) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
+    }
+
+    if (!await DbIpAction.canTakeAction("registration", params.ip)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of signups has been detected.  Please wait 24 hours.");
     }
 
     // Previously the first user in a team had the same userId as the team.
