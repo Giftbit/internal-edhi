@@ -63,7 +63,7 @@ describe("/v2/account/payments/cards", () => {
     it("handles incorrect CVC", async () => {
         const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
         const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
-            cardToken: "tok_chargeDeclined"
+            cardToken: "tok_chargeDeclinedIncorrectCvc"
         });
         chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
         chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
@@ -72,16 +72,7 @@ describe("/v2/account/payments/cards", () => {
     it("handles expired card", async () => {
         const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
         const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
-            cardToken: "tok_chargeDeclined"
-        });
-        chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
-        chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
-    }).timeout(20000);
-
-    it("handles highest risk fraudulent card", async () => {
-        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
-        const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
-            cardToken: "tok_chargeDeclined"
+            cardToken: "tok_chargeDeclinedExpiredCard"
         });
         chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
         chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
