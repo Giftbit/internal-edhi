@@ -39,7 +39,7 @@ describe("/v2/user/register", () => {
                 return null;
             });
 
-        const email = testUtils.generateValidEmailAddress()
+        const email = testUtils.generateValidEmailAddress();
         const password = generateId();
         const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
             email,
@@ -216,4 +216,26 @@ describe("/v2/user/register", () => {
         chai.assert.equal(getSwitchableAccountsResp.statusCode, cassava.httpStatusCode.success.OK);
         chai.assert.lengthOf(getSwitchableAccountsResp.body, 1);
     });
+
+    it("limits the numbers of times an IP address can register", async () => {
+        // Get the count back to 0.
+        await testUtils.resetDb();
+
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async () => null);
+
+        for (let i = 0; i < 10; i++) {
+            const registerSuccessResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+                email: testUtils.generateValidEmailAddress(),
+                password: generateId()
+            });
+            chai.assert.equal(registerSuccessResp.statusCode, cassava.httpStatusCode.success.CREATED, `iteration ${i}`);
+        }
+
+        const registerFailResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email: testUtils.generateValidEmailAddress(),
+            password: generateId()
+        });
+        chai.assert.equal(registerFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+    }).timeout(10000);
 });
