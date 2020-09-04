@@ -86,9 +86,12 @@ async function setActiveCreditCard(auth: giftbitRoutes.jwtauth.AuthorizationBadg
         });
         return PaymentCreditCard.fromCustomer(updatedCustomer);
     } catch (err) {
-        if (err.code === "resource_missing" && err.param === "source") {
+        if ((err as Stripe.StripeError).code === "resource_missing" && (err as Stripe.StripeError).param === "source") {
             log.warn(err);
             throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "The Stripe token is not a credit card token.");
+        } else if ((err as Stripe.StripeError).type === "StripeCardError") {
+            log.warn(err);
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.CONFLICT, "Your card was declined.  Please check that the details you entered are correct.  If the details look right, call your bank.");
         }
         throw err;
     }
