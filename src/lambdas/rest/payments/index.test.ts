@@ -50,4 +50,31 @@ describe("/v2/account/payments/cards", () => {
         const getDeletedCardResp = await router.testPostLoginRequest<PaymentCreditCard>(newUser.loginResp, "/v2/account/payments/card", "GET");
         chai.assert.equal(getDeletedCardResp.statusCode, cassava.httpStatusCode.clientError.NOT_FOUND);
     }).timeout(20000);
+
+    it("handles card declined", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+        const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
+            cardToken: "tok_chargeDeclined"
+        });
+        chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+        chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
+    }).timeout(20000);
+
+    it("handles incorrect CVC", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+        const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
+            cardToken: "tok_chargeDeclinedIncorrectCvc"
+        });
+        chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+        chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
+    }).timeout(20000);
+
+    it("handles expired card", async () => {
+        const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
+        const setCardResp = await router.testPostLoginRequest<any>(newUser.loginResp, "/v2/account/payments/card", "POST", {
+            cardToken: "tok_chargeDeclinedExpiredCard"
+        });
+        chai.assert.equal(setCardResp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
+        chai.assert.containIgnoreCase(setCardResp.body.message, "declined");
+    }).timeout(20000);
 });
