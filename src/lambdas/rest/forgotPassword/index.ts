@@ -6,6 +6,7 @@ import {createdDateNow} from "../../../db/dynamodb";
 import {DbUser} from "../../../db/DbUser";
 import {completeChangePassword} from "../changePassword";
 import {DbTokenAction} from "../../../db/DbTokenAction";
+import {DbIpAction} from "../../../db/DbIpAction";
 import log = require("loglevel");
 
 export function installForgotPasswordRest(router: cassava.Router): void {
@@ -24,12 +25,10 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await sendForgotPasswordEmail(evt.body.email);
-
-            return {
-                body: {},
-                statusCode: cassava.httpStatusCode.success.OK
-            };
+            return await startForgotPassword({
+                email: evt.body.email,
+                ip: evt.headersLowerCase["x-forwarded-for"].split(",")[0]
+            });
         });
 
     router.route("/v2/user/forgotPassword/complete")
@@ -56,6 +55,19 @@ export function installForgotPasswordRest(router: cassava.Router): void {
                 plaintextPassword: evt.body.password
             });
         });
+}
+
+async function startForgotPassword(params: { email: string, ip: string }): Promise<cassava.RouterResponse> {
+    if (!await DbIpAction.canTakeAction("forgotPassword", params.ip)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of requests to reset password has been detected.  Please wait 24 hours.");
+    }
+
+    await sendForgotPasswordEmail(params.email);
+
+    return {
+        body: {},
+        statusCode: cassava.httpStatusCode.success.OK
+    };
 }
 
 async function completeForgotPassword(params: { token: string, plaintextPassword: string }): Promise<cassava.RouterResponse> {
