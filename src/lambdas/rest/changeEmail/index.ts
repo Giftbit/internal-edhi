@@ -48,12 +48,21 @@ async function initiateChangeEmailAddress(auth: giftbitRoutes.jwtauth.Authorizat
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, "Email address is not valid.");
     }
 
-    if (await await DbUser.get(email)) {
+    if (await DbUser.get(email)) {
+        // Email address is in use.
         // Don't initiate the process but don't acknowledge it either.
         // We don't want to expose an attack on determining who has an account.
-    } else {
-        await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), email);
+        await new Promise(resolve => setTimeout(resolve, 30 + Math.random() * 10 | 0));
+        return;
     }
+
+    const authedUser = await DbUser.getByAuth(auth);
+    if (DbUser.limitedActions.isThrottled(authedUser, "changeEmailAddress")) {
+        log.info("User", authedUser.userId, authedUser.email, "has started change email address too many times in the past 24 hours and is being throttled.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of requests to change email address has been detected.  Please wait 24 hours.");
+    }
+    await DbUser.limitedActions.add(authedUser, "changeEmailAddress");
+    await sendChangeEmailAddressEmail(stripUserIdTestMode(auth.teamMemberId), email);
 }
 
 export function installChangeEmailUnauthedRest(router: cassava.Router): void {

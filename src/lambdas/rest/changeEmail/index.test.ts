@@ -193,4 +193,25 @@ describe("/v2/user/changeEmail", () => {
         const complete2Resp = await router.testUnauthedRequest(`/v2/user/changeEmail/complete?token=${changeEmailToken2}`, "GET");
         chai.assert.equal(complete2Resp.statusCode, cassava.httpStatusCode.clientError.CONFLICT);
     });
+
+    it("limits the numbers of times an IP address can call forgotPassword", async () => {
+        // Get the count back to 0.
+        await testUtils.resetDb();
+
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async () => null);
+
+        for (let i = 0; i < 8; i++) {
+            const changeEmailResp = await router.testWebAppRequest<any>("/v2/user/changeEmail", "POST", {
+                email: testUtils.generateValidEmailAddress()
+            });
+            chai.assert.equal(changeEmailResp.statusCode, cassava.httpStatusCode.success.OK, `iteration ${i}`);
+        }
+
+        const changeEmailFailResp = await router.testWebAppRequest<any>("/v2/user/changeEmail", "POST", {
+            email: testUtils.generateValidEmailAddress()
+        });
+        chai.assert.equal(changeEmailFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.containIgnoreCase(changeEmailFailResp.body.message, "change email address");
+    }).timeout(10000);
 });
