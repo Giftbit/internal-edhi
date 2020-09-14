@@ -42,7 +42,7 @@ export function installLoginUnauthedRest(router: cassava.Router): void {
             return await loginUserByPassword({
                 email: evt.body.email,
                 plaintextPassword: evt.body.password,
-                sourceIp: evt.requestContext.identity.sourceIp,
+                ip: evt.headersLowerCase["x-forwarded-for"].split(",")[0],
                 trustedDeviceToken: evt.cookies["gb_ttd"]
             });
         });
@@ -127,7 +127,7 @@ export function installLoginAuthedRest(router: cassava.Router): void {
 /**
  * Login the user by manually entered email and password.
  */
-async function loginUserByPassword(params: { email: string, plaintextPassword: string, sourceIp: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
+async function loginUserByPassword(params: { email: string, plaintextPassword: string, ip: string, trustedDeviceToken?: string }): Promise<cassava.RouterResponse> {
     const user = await DbUser.get(params.email);
 
     // If the user can't log in we don't want to give away if the password is valid.
@@ -135,8 +135,10 @@ async function loginUserByPassword(params: { email: string, plaintextPassword: s
 
     if (!await validatePassword(params.plaintextPassword, user.login.password)) {
         log.warn("Could not log in user", params.email, "password did not validate");
-        await completeLoginFailure(user, params.sourceIp);
+        await completeLoginFailure(user, params.ip);
     }
+    log.info("Password validated for user", params.email, "ip", params.ip);
+
     return loginUserFirstFactorAccepted(user, {trustedDeviceToken: params.trustedDeviceToken});
 }
 
@@ -392,7 +394,7 @@ async function completeLoginSuccess(user: DbUser, additionalUpdates: dynameh.Upd
     return getLoginResponse(user, accountUser, liveMode);
 }
 
-async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<never> {
+async function completeLoginFailure(user: DbUser, ip: string): Promise<never> {
     if (DbUser.limitedActions.isThrottled(user, "failedLogin")) {
         log.info("Too many failed login attempts for user", user.userId, user.email, user.limitedActions["failedLogin"]);
 
@@ -409,7 +411,7 @@ async function completeLoginFailure(user: DbUser, sourceIp: string): Promise<nev
             sendFailedLoginTimeoutEmail(user, failedLoginTimeoutMinutes)
         ])
     } else {
-        log.info("Failed login attempt for user", user.userId, user.email, sourceIp);
+        log.info("Failed login attempt for user", user.userId, "ip", user.email, ip);
         await DbUser.limitedActions.add(user, "failedLogin");
     }
 
