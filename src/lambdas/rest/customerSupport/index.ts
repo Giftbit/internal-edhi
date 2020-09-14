@@ -3,6 +3,7 @@ import * as giftbitRoutes from "giftbit-cassava-routes";
 import {sendEmail} from "../../../utils/emailUtils";
 import {DbAccount} from "../../../db/DbAccount";
 import {DbUser} from "../../../db/DbUser";
+import {DbIpAction} from "../../../db/DbIpAction";
 import log = require("loglevel");
 
 export function installCustomerSupportRest(router: cassava.Router): void {
@@ -35,7 +36,12 @@ export function installCustomerSupportRest(router: cassava.Router): void {
                 additionalProperties: false
             });
 
-            await sendCustomerSupportEmail(auth, evt.body.customerSupportEmail, evt.body.subject, evt.body.message);
+            await sendCustomerSupportEmail(auth, {
+                recipient: evt.body.customerSupportEmail,
+                subject: evt.body.subject,
+                message: evt.body.message,
+                ip: evt.headersLowerCase["x-forwarded-for"].split(",")[0]
+            });
             return {
                 body: {},
                 statusCode: cassava.httpStatusCode.success.OK
@@ -43,9 +49,20 @@ export function installCustomerSupportRest(router: cassava.Router): void {
         });
 }
 
-async function sendCustomerSupportEmail(auth: giftbitRoutes.jwtauth.AuthorizationBadge, recipient: string, subject: string, message: string): Promise<void> {
-    if (!isCustomerSupportEmailAddress(recipient)) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, `The received customer support email '${recipient}' does not belong to the known customer support email addresses.`, "InvalidCustomerSupportEmail");
+interface SendCustomerSupportEmailParams {
+    recipient: string;
+    subject: string;
+    message: string;
+    ip: string;
+}
+
+async function sendCustomerSupportEmail(auth: giftbitRoutes.jwtauth.AuthorizationBadge, params: SendCustomerSupportEmailParams): Promise<void> {
+    if (!isCustomerSupportEmailAddress(params.recipient)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, `The received customer support email '${params.recipient}' does not belong to the known customer support email addresses.`, "InvalidCustomerSupportEmail");
+    }
+
+    if (!await DbIpAction.canTakeAction("contactCustomerSupport", params.ip)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of requests to reset password has been detected.  Please wait 24 hours.");
     }
 
     const user = await DbUser.getByAuth(auth);
@@ -53,16 +70,16 @@ async function sendCustomerSupportEmail(auth: giftbitRoutes.jwtauth.Authorizatio
 
     // This email is intentionally sent as text and not HTML out of paranoia
     // about some kind of HTML-based spoofing shenanigans.
-    log.info("Sending internal customer support email to", recipient);
+    log.info("Sending internal customer support email to", params.recipient);
     await sendEmail({
-        toAddress: recipient,
-        subject: `A Lightrail user requested customer support: ${subject}`,
+        toAddress: params.recipient,
+        subject: `A Lightrail user requested customer support: ${params.subject}`,
         textBody: `This email is from Lightrail's contact customer support endpoint.\n\n`
             + `Account ID: ${auth.userId}\n`
             + `Account name: ${account && account.name}\n`
             + `User ID: ${auth.teamMemberId}\n`
             + `User email: ${user.email}\n`
-            + `Message: ${message}`
+            + `Message: ${params.message}`
     });
 }
 

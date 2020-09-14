@@ -39,7 +39,7 @@ describe("/v2/user/contactCustomerSupport", () => {
             "Into the blue again after the money's gone\n" +
             "Once in a lifetime, water flowing underground";
         const contactResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
-            customerSupportEmail: "support@giftbit.com",
+            customerSupportEmail: "support@lightrail.com",
             subject: subject,
             message: message
         });
@@ -72,4 +72,30 @@ describe("/v2/user/contactCustomerSupport", () => {
         chai.assert.equal(contactResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY, contactResp.bodyRaw);
         chai.assert.isFalse(emailSent);
     });
+
+    it("limits the numbers of times an IP address can contact customer support", async () => {
+        // Get the count back to 0.
+        await testUtils.resetDb();
+
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async () => null);
+
+        for (let i = 0; i < 20; i++) {
+            const contactResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
+                customerSupportEmail: "support@lightrail.com",
+                subject: `iteration ${i}`,
+                message: `iteration ${i}`
+            });
+            chai.assert.equal(contactResp.statusCode, cassava.httpStatusCode.success.OK, `iteration ${i}`);
+        }
+
+        const contactFailResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
+            customerSupportEmail: "support@lightrail.com",
+            subject: "Sweet Dreams Are Made of This",
+            message: "Who am I to disagree?\n" +
+                "I travel the world and the seven seas.\n" +
+                "Everybody's looking for something."
+        });
+        chai.assert.equal(contactFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+    }).timeout(10000);
 });

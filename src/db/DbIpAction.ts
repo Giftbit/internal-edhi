@@ -5,6 +5,11 @@ import log = require("loglevel");
 
 /**
  * Limits the number of times an action can be performed by IP address.
+ *
+ * This mechanism of rate limiting has a fairly high cost in terms of
+ * call latency and resources used.  It's only appropriate for rate limits
+ * measured in calls per day, rather than per minute.  For higher rate
+ * limits use the WAF.
  */
 export interface DbIpAction {
     id: string;
@@ -15,7 +20,7 @@ export interface DbIpAction {
 
 export namespace DbIpAction {
 
-    export type Action = "registration" | "forgotPassword";
+    export type Action = "registration" | "forgotPassword" | "contactCustomerSupport";
 
     const actionConfig = {
         registration: {
@@ -23,6 +28,10 @@ export namespace DbIpAction {
             maxAgeHours: 24
         },
         forgotPassword: {
+            maxCount: 20,
+            maxAgeHours: 24
+        },
+        contactCustomerSupport: {
             maxCount: 20,
             maxAgeHours: 24
         }
