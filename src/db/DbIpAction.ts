@@ -14,11 +14,16 @@ export interface DbIpAction {
 }
 
 export namespace DbIpAction {
-    export type Action = "registration";
+
+    export type Action = "registration" | "forgotPassword";
 
     const actionConfig = {
         registration: {
             maxCount: 10,
+            maxAgeHours: 24
+        },
+        forgotPassword: {
+            maxCount: 20,
             maxAgeHours: 24
         }
     };

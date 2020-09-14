@@ -251,4 +251,24 @@ describe("/v2/user/forgotPassword", () => {
         });
         chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.clientError.UNPROCESSABLE_ENTITY);
     });
+
+    it("limits the numbers of times an IP address can call forgotPassword", async () => {
+        // Get the count back to 0.
+        await testUtils.resetDb();
+
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async () => null);
+
+        for (let i = 0; i < 20; i++) {
+            const forgotPasswordResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+                email: testUtils.defaultTestUser.user.email
+            });
+            chai.assert.equal(forgotPasswordResp.statusCode, cassava.httpStatusCode.success.OK, `iteration ${i}`);
+        }
+
+        const forgotPasswordFailResp = await router.testUnauthedRequest<any>("/v2/user/forgotPassword", "POST", {
+            email: testUtils.defaultTestUser.user.email
+        });
+        chai.assert.equal(forgotPasswordFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+    }).timeout(10000);
 });
