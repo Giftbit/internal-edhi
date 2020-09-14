@@ -81,7 +81,7 @@ describe("/v2/user/contactCustomerSupport", () => {
             .callsFake(async () => null);
 
         for (let i = 0; i < 20; i++) {
-            const contactResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
+            const contactResp = await router.testWebAppRequest<any>("/v2/user/contactCustomerSupport", "POST", {
                 customerSupportEmail: "support@lightrail.com",
                 subject: `iteration ${i}`,
                 message: `iteration ${i}`
@@ -89,7 +89,7 @@ describe("/v2/user/contactCustomerSupport", () => {
             chai.assert.equal(contactResp.statusCode, cassava.httpStatusCode.success.OK, `iteration ${i}`);
         }
 
-        const contactFailResp = await router.testWebAppRequest("/v2/user/contactCustomerSupport", "POST", {
+        const contactFailResp = await router.testWebAppRequest<any>("/v2/user/contactCustomerSupport", "POST", {
             customerSupportEmail: "support@lightrail.com",
             subject: "Sweet Dreams Are Made of This",
             message: "Who am I to disagree?\n" +
@@ -97,5 +97,6 @@ describe("/v2/user/contactCustomerSupport", () => {
                 "Everybody's looking for something."
         });
         chai.assert.equal(contactFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.containIgnoreCase(contactFailResp.body.message, "customer support");
     }).timeout(10000);
 });

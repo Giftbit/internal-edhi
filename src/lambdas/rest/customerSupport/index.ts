@@ -62,7 +62,7 @@ async function sendCustomerSupportEmail(auth: giftbitRoutes.jwtauth.Authorizatio
     }
 
     if (!await DbIpAction.canTakeAction("contactCustomerSupport", params.ip)) {
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of requests to reset password has been detected.  Please wait 24 hours.");
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS, "A large number of requests to customer support has been detected.  Please wait 24 hours.");
     }
 
     const user = await DbUser.getByAuth(auth);

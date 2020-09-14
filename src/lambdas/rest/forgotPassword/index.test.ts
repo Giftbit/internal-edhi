@@ -270,5 +270,6 @@ describe("/v2/user/forgotPassword", () => {
             email: testUtils.defaultTestUser.user.email
         });
         chai.assert.equal(forgotPasswordFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.containIgnoreCase(forgotPasswordFailResp.body.message, "reset password");
     }).timeout(10000);
 });

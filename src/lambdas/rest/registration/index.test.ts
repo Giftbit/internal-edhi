@@ -237,5 +237,6 @@ describe("/v2/user/register", () => {
             password: generateId()
         });
         chai.assert.equal(registerFailResp.statusCode, cassava.httpStatusCode.clientError.TOO_MANY_REQUESTS);
+        chai.assert.containIgnoreCase(registerFailResp.body.message, "signups");
     }).timeout(10000);
 });
