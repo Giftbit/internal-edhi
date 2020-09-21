@@ -8,7 +8,7 @@ describe("DbTokenAction", () => {
         await testUtils.resetDb();
     });
 
-    it("returns the original object in fromDbObject(toDbObject())", () => {
+    it("returns the original object in fromDbObject(toDbObject())", async () => {
         const original = DbTokenAction.generate("emailVerification", 24, {email: "foo@example.com"});
         const returned = DbTokenAction.fromDbObject(DbTokenAction.toDbObject(original));
         chai.assert.deepEqual(returned, original);

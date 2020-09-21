@@ -11,7 +11,7 @@ describe("DbApiKey", () => {
         DbUser.initializeBadgeSigningSecrets(Promise.resolve({secretkey: "secret"}));
     });
 
-    it("returns the original object in fromDbObject(toDbObject())", () => {
+    it("returns the original object in fromDbObject(toDbObject())", async () => {
         const original: DbApiKey = {
             accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
