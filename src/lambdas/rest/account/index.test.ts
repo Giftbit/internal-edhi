@@ -178,6 +178,17 @@ describe("/v2/account", () => {
         chai.assert.deepEqual(getUpdatedAccountUserResp.body, patchAccountUserResp.body);
     });
 
+    it("can't update own roles and scopes", async () => {
+        const newRoles = ["AssistantToTheManager"];
+        const newScopes = ["foobar"];
+
+        const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
+            roles: newRoles,
+            scopes: newScopes
+        });
+        chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
+    });
+
     it("can remove the user from the account", async () => {
         const newUser = await testUtils.testInviteNewUser(router, sinonSandbox);
 
@@ -212,6 +223,11 @@ describe("/v2/account", () => {
         chai.assert.isNotNull(dbUser, "does not delete the DbUser");
         chai.assert.equal(dbUser.userId, newUser.userId);
         chai.assert.equal(dbUser.email, newUser.email);
+    });
+
+    it("can't remove self from account", async () => {
+        const deleteUserResp = await router.testApiRequest(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "DELETE");
+        chai.assert.equal(deleteUserResp.statusCode, cassava.httpStatusCode.clientError.FORBIDDEN);
     });
 
     describe("maxInactiveDays (tests are interdependent)", () => {
@@ -369,7 +385,7 @@ describe("/v2/account", () => {
         });
 
         it("can lock active users out if lockedByInactivity is PATCHed to true", async () => {
-            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.teamMate.userId);
             await DbAccountUser.update(accountUser, {
                 action: "put",
                 attribute: "lastLoginDate",
@@ -377,28 +393,28 @@ describe("/v2/account", () => {
             });
 
             const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.email,
-                password: testUtils.defaultTestUser.password
+                email: testUtils.defaultTestUser.teamMate.email,
+                password: testUtils.defaultTestUser.teamMate.password
             });
             chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
 
-            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
+            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
                 lockedByInactivity: true
             });
             chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isTrue(patchAccountUserResp.body.lockedByInactivity);
 
             const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.email,
-                password: testUtils.defaultTestUser.password
+                email: testUtils.defaultTestUser.teamMate.email,
+                password: testUtils.defaultTestUser.teamMate.password
             });
             chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
         });
 
         it("can allow inactive users back in if lockedByInactivity is PATCHed to false", async () => {
-            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.userId);
+            const accountUser = await DbAccountUser.get(testUtils.defaultTestUser.accountId, testUtils.defaultTestUser.teamMate.userId);
             await DbAccountUser.update(accountUser, {
                 action: "put",
                 attribute: "lastLoginDate",
@@ -406,21 +422,21 @@ describe("/v2/account", () => {
             });
 
             const loginFailResp = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.email,
-                password: testUtils.defaultTestUser.password
+                email: testUtils.defaultTestUser.teamMate.email,
+                password: testUtils.defaultTestUser.teamMate.password
             });
             chai.assert.equal(loginFailResp.statusCode, cassava.httpStatusCode.success.OK, loginFailResp.bodyRaw);
             chai.assert.equal(loginFailResp.body.messageCode, "AccountMaxInactiveDays", loginFailResp.bodyRaw);
 
-            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.userId}`, "PATCH", {
+            const patchAccountUserResp = await router.testWebAppRequest<AccountUser>(`/v2/account/users/${testUtils.defaultTestUser.teamMate.userId}`, "PATCH", {
                 lockedByInactivity: false
             });
             chai.assert.equal(patchAccountUserResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isFalse(patchAccountUserResp.body.lockedByInactivity);
 
             const loginSuccessResp = await router.testUnauthedRequest<LoginResult>("/v2/user/login", "POST", {
-                email: testUtils.defaultTestUser.email,
-                password: testUtils.defaultTestUser.password
+                email: testUtils.defaultTestUser.teamMate.email,
+                password: testUtils.defaultTestUser.teamMate.password
             });
             chai.assert.equal(loginSuccessResp.statusCode, cassava.httpStatusCode.success.OK);
             chai.assert.isUndefined(loginSuccessResp.body.messageCode);
