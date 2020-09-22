@@ -10,7 +10,7 @@ describe("DbDeletedApiKey", () => {
         await testUtils.resetDb();
     });
 
-    it("returns the original object in fromDbObject(toDbObject())",() => {
+    it("returns the original object in fromDbObject(toDbObject())", () => {
         const originalApiKey: DbApiKey = {
             accountId: testUtils.generateId(),
             userId: testUtils.generateId(),
