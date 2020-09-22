@@ -4,7 +4,7 @@ import {DbAccountUser} from "./DbAccountUser";
 import {createdDateNow} from "./dynamodb";
 
 describe("DbAccountUser", () => {
-    it("returns the original object in fromDbObject(toDbObject())", async () => {
+    it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbAccountUser = {
             accountId: testUtils.generateId(),
             userId: testUtils.generateId(),

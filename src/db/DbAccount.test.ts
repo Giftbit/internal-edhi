@@ -9,7 +9,7 @@ describe("DbAccount", () => {
         await testUtils.resetDb();
     });
 
-    it("returns the original object in fromDbObject(toDbObject())", async () => {
+    it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbAccount = {
             accountId: testUtils.generateId(),
             name: testUtils.generateId(),

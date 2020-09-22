@@ -8,7 +8,7 @@ describe("DbIpAction", () => {
         await testUtils.resetDb();
     });
 
-    it("returns the original object in fromDbObject(toDbObject())", async () => {
+    it("returns the original object in fromDbObject(toDbObject())", () => {
         const original = DbIpAction.create("registration", "192.168.0.1");
         const returned = DbIpAction.fromDbObject(DbIpAction.toDbObject(original));
         chai.assert.deepEqual(returned, original);

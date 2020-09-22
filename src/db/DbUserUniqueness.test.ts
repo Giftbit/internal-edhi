@@ -3,7 +3,7 @@ import * as testUtils from "../utils/testUtils";
 import {DbUserUniqueness} from "./DbUserUniqueness";
 
 describe("DbUserUniqueness", () => {
-    it("returns the original object in fromDbObject(toDbObject())", async () => {
+    it("returns the original object in fromDbObject(toDbObject())", () => {
         const original: DbUserUniqueness = {
             userId: testUtils.generateId()
         };
