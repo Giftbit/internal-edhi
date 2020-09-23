@@ -167,7 +167,15 @@ export async function resetDb(): Promise<void> {
     }
 
     log.trace("creating tables");
-    await dynamodb.createTable(objectDynameh.requestBuilder.buildCreateTableInput([objectSchema2])).promise();
+    try {
+        await dynamodb.createTable(objectDynameh.requestBuilder.buildCreateTableInput([objectSchema2])).promise();
+    } catch (err) {
+        // From time to time, an entire test file will fail due to resetDb timing out.
+        // In the event that happens, it can result subsequent resetDbs to also fail
+        // due to the database not being in the expected state. This is intended to
+        // make those test failures more obvious.
+        throw new Error(`Error while resetting db. Error: ${JSON.stringify(err)}`);
+    }
 
     log.trace("adding default data");
     await DbUser.put(defaultTestUser.user);
