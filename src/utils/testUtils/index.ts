@@ -16,6 +16,12 @@ import {Invitation} from "../../model/Invitation";
 import rolesConfig = require("./rolesConfig.json");
 import log = require("loglevel");
 
+before(async function () {
+    // Warm up the DB.  The first call can be slow.
+    this.timeout(10000);
+    await resetDb();
+});
+
 if (!process.env["TEST_ENV"]) {
     log.error("Env var TEST_ENV is undefined.  This is not a test environment!");
     throw new Error("Env var TEST_ENV is undefined.  This is not a test environment!");

@@ -350,6 +350,9 @@ export async function updateAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     if (!accountUser) {
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
     }
+    if (stripUserIdTestMode(auth.teamMemberId) === stripUserIdTestMode(userId)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN, `You can't update your own permissions.`);
+    }
 
     const updates: dynameh.UpdateExpressionAction[] = [];
     if (params.lockedByInactivity !== undefined) {
@@ -398,6 +401,9 @@ export async function removeAccountUser(auth: giftbitRoutes.jwtauth.Authorizatio
     if (accountUser.pendingInvitation) {
         log.info("The user is invited but not a full member");
         throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.NOT_FOUND, `Could not find user with id '${userId}'.`, "UserNotFound");
+    }
+    if (stripUserIdTestMode(auth.teamMemberId) === stripUserIdTestMode(userId)) {
+        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.FORBIDDEN, `You can't delete yourself from your account.`);
     }
 
     try {
