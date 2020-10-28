@@ -73,4 +73,4 @@ async function main(): Promise<void> {
     }
 }
 
-main().then(log.info).catch(log.error);
+main().catch(log.error);

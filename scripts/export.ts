@@ -34,4 +34,4 @@ async function main(): Promise<void> {
     log.info("Done.");
 }
 
-main().then(log.info).catch(log.error);
+main().catch(log.error);

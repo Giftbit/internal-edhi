@@ -14,9 +14,7 @@ export async function assumeRole(): Promise<aws.STS.Credentials> {
     const mfaCode = await readPassword("MFA");
     const callerIdentity = await getCallerIdentity();
 
-    log.info(`Assuming STS role ${roleName}...`);
-    log.debug("roleName=", roleName);
-    log.debug("mfaCode=", mfaCode);
+    log.debug(`Assuming STS role ${roleName}...`);
     log.debug("callerIdentity=", callerIdentity);
     const sts = new aws.STS({apiVersion: "2011-06-15"});
     const res = await sts.assumeRole({
