@@ -11,6 +11,18 @@ API keys are blocklisted by adding them to a WAF WebACL set up elsewhere.  First
 
 All of these scripts assume access to the database is restricted to a role (probably InfrastructureAdmin) and that MFA is required.  If you don't have MFA enabled or access to the database isn't restricted to a role you have done bad things and you should feel bad.
 
+The scripts do have some debug logging.  You can enable this by setting the `DEBUG` enviornment variable to `true` eg: `DEBUG=true ./node_modules/.bin/ts-node scripts/findAccountId.ts`
+
+### Find accoundId
+
+`./node_modules/.bin/ts-node scripts/findAccountId.ts`
+
+Search through Accounts and AccountUser email addresses for the given string.  The search is case sensitive, so if you're searching for a company name like "FooBar" you might also try "foobar."
+
+You may find multiple Accounts if developers from the company set up testing development accounts.  This is not unusual.
+
 ### Export database
 
-You can export the entire database to a single JSON file with the command `./node_modules/.bin/ts-node scripts/export.ts`.  This should only be done as part of turning off Lightrail for good.
+`./node_modules/.bin/ts-node scripts/export.ts`
+
+Export the entire database to a single JSON file with the command .  This should only be done as part of turning off Lightrail for good.

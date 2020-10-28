@@ -29,7 +29,7 @@ export async function assumeRole(): Promise<aws.STS.Credentials> {
 }
 
 export async function getDynamehTableSchema(dynamodb: aws.DynamoDB): Promise<dynameh.TableSchema> {
-    log.info("Finding DynamoDB table...");
+    log.debug("Finding DynamoDB table...");
     const tableRes = await dynamodb.listTables().promise();
     const edhiObjectTable = tableRes.TableNames.find(name => name.indexOf("-Edhi-ObjectTable-") !== -1);
     if (!edhiObjectTable) {
