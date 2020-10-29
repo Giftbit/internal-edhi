@@ -6,8 +6,6 @@
     "build": "webpack",
     "clean": "rimraf ./dist",
     "lint": "eslint . --ext .ts,.tsx",
-    "migrate": "ts-node migrate.ts",
-    "migrate:debug": "DEBUG=true npm run migrate",
     "test": "npm run test:startdb; TEST_ENV=true TEST_STRIPE_LOCAL=${TEST_STRIPE_LOCAL:=true} LOG_LEVEL=${LOG_LEVEL:=silent} AWS_REGION=us-west-2 AWS_ACCESS_KEY_ID=AKID AWS_SECRET_ACCESS_KEY=SECRET LIGHTRAIL_DOMAIN=api.lightrail.local LIGHTRAIL_EMAIL_DOMAIN=lightrail.local LIGHTRAIL_WEBAPP_DOMAIN=lightrail.local OBJECT_TABLE=ObjectTable TOKEN_ACTION_TABLE=TokenActionTable mocha --recursive --throw-deprecation --require ts-node/register --require ./src/utils/testUtils/setLogLevel.ts --require ./src/utils/testUtils/dotEnvSafe.ts --require stripe-stateful-mock/autostart --exit \"src/**/*.test.ts\"; npm run test:stopdb",
     "test:debug": "LOG_LEVEL=debug npm run test",
     "test:startdb": "docker start edhi-test || (docker run --name edhi-test -p 8008:8000 amazon/dynamodb-local)",

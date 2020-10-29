@@ -1,5 +1,11 @@
 import {dynamodb, objectDynameh, objectDynameh2} from "./dynamodb";
 
+/**
+ * An object that is stored in the DB.  Multiple types of objects
+ * can be stored in the DB by namespacing the keys, eg: (Foo/id, Bar/id).
+ * With intelligent key choices this can allow efficient queries over
+ * the partition.
+ */
 export interface DbObject {
     pk: string;
     sk: string;
