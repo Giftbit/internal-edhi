@@ -24,11 +24,18 @@ You may find multiple Accounts if developers from the company set up testing dev
 ### Freeze and unfreeze Account
 
 `./node_modules/.bin/ts-node scripts/freezeAccount.ts`
+
 `./node_modules/.bin/ts-node scripts/unfreezeAccount.ts`
 
 Freeze and unfreeze an Account by accountId.  Freezing is how we revoke/disable/delete an account.  As indicated this operation is easily reversible.
 
 This does not delete their API keys.  I think it's a good idea to *not* delete their API keys just in case communication gets confused and the customer is not actually done using Lightrail yet.
+
+### Delete API keys
+
+`./node_modules/.bin/ts-node scripts/deleteAccountApiKeys.ts`
+
+Deletes all live and test mode API keys for the given accountId.  This is not as easily reversed as freezing the Account so I don't generally recommend this.  I would only go this route if someone was being abusive.
 
 ### Export database
 
