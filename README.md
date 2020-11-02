@@ -25,13 +25,19 @@ All of these scripts assume access to the database is restricted to a role (prob
 
 The scripts do have some debug logging.  You can enable this by setting the `DEBUG` enviornment variable to `true` eg: `DEBUG=true ./node_modules/.bin/ts-node scripts/findAccountId.ts`
 
-### Find accoundId
+### Find accountId
 
 `./node_modules/.bin/ts-node scripts/findAccountId.ts`
 
 Search through Account names and AccountUser email addresses for the given string.  The search is case-sensitive, so if you're searching for a company name like "FooBar" you might also try "foobar."
 
 You may find multiple Accounts if developers from the company set up testing development accounts.  This is not unusual.
+
+### Lookup Account
+
+`./node_modules/.bin/ts-node scripts/lookupAccount.ts`
+
+Lookup details of an Account by accountId.  Not a bad idea if you're going to freeze an Account and you want to check that it's the right one.
 
 ### Freeze and unfreeze Account
 
