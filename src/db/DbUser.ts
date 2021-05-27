@@ -40,6 +40,7 @@ export interface DbUser {
     limitedActions: {
         failedLogin?: Set<string>;
         accountInvitation?: Set<string>;
+        accountActivationEmail?: Set<string>;
         enableSmsMfa?: Set<string>;
         changeEmailAddress?: Set<string>;
     };
@@ -398,7 +399,12 @@ export namespace DbUser {
      */
     export namespace limitedActions {
 
-        export type Action = "failedLogin" | "accountInvitation" | "enableSmsMfa" | "changeEmailAddress";
+        export type Action =
+            "failedLogin"
+            | "accountInvitation"
+            | "accountActivationEmail"
+            | "enableSmsMfa"
+            | "changeEmailAddress";
 
         const config = {
             failedLogin: {
@@ -408,6 +414,10 @@ export namespace DbUser {
             accountInvitation: {
                 maxAgeHours: 24,
                 maxCount: 12
+            },
+            accountActivationEmail: {
+                maxAgeHours: 24,
+                maxCount: 1
             },
             enableSmsMfa: {
                 maxAgeHours: 24,
