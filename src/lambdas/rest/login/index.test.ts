@@ -255,6 +255,38 @@ describe("/v2/user/login", () => {
         chai.assert.isString(loginResp2.getCookie("gb_jwt_signature"));
     });
 
+    it("does not send more than two registration verification emails in a day", async () => {
+        let sendEmailCount = 0;
+        sinonSandbox.stub(emailUtils, "sendEmail")
+            .callsFake(async (params: emailUtils.SendEmailParams) => {
+                sendEmailCount++;
+                return null;
+            });
+
+        const email = testUtils.generateValidEmailAddress()
+        const password = generateId();
+        const registerResp = await router.testUnauthedRequest<any>("/v2/user/register", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(registerResp.statusCode, cassava.httpStatusCode.success.CREATED);
+        chai.assert.equal(sendEmailCount, 1);
+
+        const loginResp1 = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(loginResp1.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        chai.assert.equal(sendEmailCount, 2);
+
+        const loginResp2 = await router.testUnauthedRequest<any>("/v2/user/login", "POST", {
+            email,
+            password
+        });
+        chai.assert.equal(loginResp2.statusCode, cassava.httpStatusCode.clientError.UNAUTHORIZED);
+        chai.assert.equal(sendEmailCount, 2, "it's still 2");
+    });
+
     it("does not login a user that is frozen", async () => {
         const newUser = await testUtils.testRegisterNewUser(router, sinonSandbox);
 

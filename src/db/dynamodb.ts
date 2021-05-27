@@ -57,7 +57,8 @@ export const objectSchema: dynameh.TableSchema = {
     partitionKeyField: "pk",
     partitionKeyType: "string",
     sortKeyField: "sk",
-    sortKeyType: "string"
+    sortKeyType: "string",
+    ttlField: "ttl"
 };
 
 export const objectSchema2: dynameh.TableSchema = {

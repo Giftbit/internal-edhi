@@ -197,8 +197,13 @@ async function verifyUserCanLogin(user: DbUser): Promise<void> {
     }
     if (!user.login.emailVerified) {
         log.warn("Could not log in user", user.email, "email is not verified");
-        await sendRegistrationVerificationEmail(user.email);
-        throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
+        if (!DbUser.limitedActions.isThrottled(user, "accountActivationEmail")) {
+            await DbUser.limitedActions.add(user, "accountActivationEmail");
+            await sendRegistrationVerificationEmail(user.email);
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  A new registration email has been sent to your email address.");
+        } else {
+            throw new giftbitRoutes.GiftbitRestError(cassava.httpStatusCode.clientError.UNAUTHORIZED, "You must verify your email address before you can log in.  You have already received a verification email.");
+        }
     }
     if (user.login.frozen) {
         log.warn("Could not log in user", user.email, "user is frozen");
