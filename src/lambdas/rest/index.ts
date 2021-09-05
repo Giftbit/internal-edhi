@@ -73,7 +73,7 @@ initializeTwilioCredentials(
 );
 
 initializeIntercomSecrets(
-    giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<IntercomSecrets>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_INTERCOM_SECRET")
+    !!process.env.SECURE_CONFIG_KEY_INTERCOM_SECRET && giftbitRoutes.secureConfig.fetchFromS3ByEnvVar<IntercomSecrets>("SECURE_CONFIG_BUCKET", "SECURE_CONFIG_KEY_INTERCOM_SECRET")
 );
 
 installAuthedRestRoutes(router);
