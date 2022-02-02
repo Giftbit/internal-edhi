@@ -25,11 +25,11 @@ Parameters:
   LightrailEmailDomain:
     Type: String
     Description: The lightrail email domain.
-    AllowedPattern: (\w+\.)+\w{3}
+    AllowedPattern: (\w+\.)+\w+
   LightrailWebappDomain:
     Type: String
     Description: The domain of the Lightrail web app
-    AllowedPattern: (\w+\.)+\w{3}
+    AllowedPattern: (\w+\.)+\w+
   SecureConfigBucket:
     Type: String
     Description: Name of the S3 bucket holding the JWT secure config
