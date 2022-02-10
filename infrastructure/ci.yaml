@@ -254,6 +254,7 @@ Resources:
             Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-*"
           - Effect: Allow
             Action:
+              - iam:CreateServiceLinkedRole
               - iam:PassRole
             Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable"
           - Effect: Allow
